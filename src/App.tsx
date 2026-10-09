@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  ArrowLeftRight, Hexagon, Landmark, LineChart as LineChartIcon, Loader2, Radar, Scale,
+  ArrowLeftRight, Car, Hexagon, Landmark, LineChart as LineChartIcon, Loader2, Radar, Scale,
   Settings as SettingsIcon, Upload, Wallet,
 } from "lucide-react";
 import type { ProjectionResult, RefreshResult } from "../shared/types";
@@ -13,6 +13,7 @@ import { ImportView } from "./components/ImportView";
 import { ScanView } from "./components/ScanView";
 import { ProjectionView } from "./components/ProjectionView";
 import { InstitutionsView } from "./components/InstitutionsView";
+import { AssetsView } from "./components/AssetsView";
 import { METHODOLOGIES, type Owner, type View } from "../shared/types";
 import { RemindersDialog } from "./components/RemindersDialog";
 import { Transactions } from "./components/Transactions";
@@ -23,6 +24,7 @@ const TABS = [
   { id: "rebalance", label: "Rebalancear", icon: Scale },
   { id: "projection", label: "Projeção", icon: LineChartIcon },
   { id: "institutions", label: "Instituições", icon: Landmark },
+  { id: "assets", label: "Bens", icon: Car },
   { id: "import", label: "Importar", icon: Upload },
   { id: "scan", label: "Scan de ativos", icon: Radar },
   { id: "tx", label: "Transações", icon: ArrowLeftRight },
@@ -99,10 +101,11 @@ export function App() {
           </Banner>
         )}
         {saveError && <Banner kind="bad">Falha ao salvar no servidor: {saveError}</Banner>}
-        {tab === "portfolio" && <Portfolio goImport={() => setTab("import")} refreshJob={refreshJob} />}
+        {tab === "portfolio" && <Portfolio goImport={() => setTab("import")} goAssets={() => setTab("assets")} refreshJob={refreshJob} />}
         {tab === "rebalance" && <Rebalance goScan={() => setTab("scan")} />}
         {tab === "projection" && <ProjectionView job={projectionJob} />}
         {tab === "institutions" && <InstitutionsView />}
+        {tab === "assets" && <AssetsView />}
         {tab === "import" && <ImportView done={() => { setImportTarget(null); setTab("portfolio"); }} target={importTarget} />}
         {/* Fica montado para o scan continuar mostrando progresso se você trocar de aba. */}
         <div hidden={tab !== "scan"}>

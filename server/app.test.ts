@@ -304,3 +304,18 @@ test("POST /api/import/prompt aceita só anexos, limita a 10 e repassa os arquiv
     onePosition,
   );
 });
+
+test("PUT /api/state salva os bens; cliente sem o campo não apaga os existentes", async () => {
+  const car = { id: "c1", type: "carro", name: "Tiggo 8", value: 150000, owner: "PF", updatedAt: "2026-10-10" };
+  await withServer({}, async (base, store) => {
+    const state = await (await fetch(`${base}/api/state`)).json();
+    assert.deepEqual(state.assets, []);
+
+    await fetch(`${base}/api/state`, { ...json({ ...state, assets: [car, { bad: 1 }] }), method: "PUT" });
+    assert.deepEqual(store.saved!.assets.map((a) => a.name), ["Tiggo 8"]);
+
+    const { assets: _drop, ...withoutAssets } = state;
+    await fetch(`${base}/api/state`, { ...json(withoutAssets), method: "PUT" });
+    assert.equal(store.saved!.assets.length, 1, "PUT sem 'assets' mantém os bens");
+  });
+});

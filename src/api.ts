@@ -25,7 +25,7 @@ export const api = {
     fetch("/api/state", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ positions: s.positions, transactions: s.transactions, settings: s.settings }),
+      body: JSON.stringify({ positions: s.positions, transactions: s.transactions, assets: s.assets, settings: s.settings }),
     }).then((r) => json<{ ok: true }>(r)),
   getConfig: () => fetch("/api/config").then((r) => json<Config>(r)),
   getFx: () => fetch("/api/fx").then((r) => json<{ usdBrl: number }>(r)),

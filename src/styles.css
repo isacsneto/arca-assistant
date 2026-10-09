@@ -265,3 +265,9 @@ tr.group .chev { color: var(--muted); transition: transform 0.15s; }
 .attach img { width: 22px; height: 22px; object-fit: cover; border-radius: 4px; }
 .attach-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .attach.dup { border-color: var(--warn); }
+
+/* ---------- bens ---------- */
+.kpi-link { text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.kpi-link:hover { border-color: var(--accent); }
+.assets-kpi { border-style: dashed; }
+tfoot td { border-top: 1px solid var(--border); border-bottom: 0; padding-top: 10px; }

@@ -46,6 +46,7 @@ export function SettingsView() {
         ...s,
         positions: data.positions!,
         transactions: data.transactions ?? [],
+        assets: data.assets ?? s.assets,
         settings: { ...s.settings, ...data.settings },
       }));
       setMsg({ kind: "ok", text: "Backup restaurado." });

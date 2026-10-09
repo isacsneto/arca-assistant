@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { PhysicalAsset } from "./assets";
 
 /* ------------------------------------------------------------------ */
 /* Classes da Arca (Primo Rico / Thiago Nigro)                         */
@@ -348,6 +349,8 @@ export interface ScanResult extends ScanReport {
 export interface AppState {
   positions: Position[];
   transactions: Transaction[];
+  /** Patrimônio físico (bens) — fora da carteira de investimentos. */
+  assets: PhysicalAsset[];
   settings: Settings;
   scans: Partial<Record<ArcaClass, ScanResult>>;
   projection?: ProjectionResult;

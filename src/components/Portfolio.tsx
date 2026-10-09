@@ -6,6 +6,7 @@ import { VIEW_LABEL } from "../../shared/owner";
 import { ClassAssets } from "./ClassAssets";
 import type { Job } from "../lib/useJob";
 import { RefreshPanel } from "./RefreshPanel";
+import { summarizeAssets } from "../../shared/assets";
 import { classRows, computeAllocation, toBRL } from "../../shared/arca";
 import { useStore } from "../store";
 import { brl, brl0, pct, signedPp, uid } from "../lib/format";
@@ -13,7 +14,7 @@ import { ClassDot, ClassLabel, ClassSelect, Empty, PageHead } from "./ui";
 
 const statusLabel = { ok: "Em equilíbrio", warn: "Atenção", bad: "Fora da meta" } as const;
 
-export function Portfolio({ goImport, refreshJob }: { goImport: () => void; refreshJob: Job<RefreshResult> }) {
+export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => void; goAssets: () => void; refreshJob: Job<RefreshResult> }) {
   const { state, update, config, view, visible } = useStore();
   const [openClass, setOpenClass] = useState<AssetClass | null>(null);
   const toggleClass = (c: AssetClass) => setOpenClass((o) => (o === c ? null : c));
@@ -36,6 +37,7 @@ export function Portfolio({ goImport, refreshJob }: { goImport: () => void; refr
   const [adding, setAdding] = useState(false);
   const settings = state!.settings;
   const positions = visible;
+  const assetSummary = useMemo(() => summarizeAssets(state!.assets, view), [state, view]);
   const showOwner = view === "all";
 
   const alloc = useMemo(() => computeAllocation(positions, settings.usdBrl), [positions, settings.usdBrl]);
@@ -106,6 +108,11 @@ export function Portfolio({ goImport, refreshJob }: { goImport: () => void; refr
         </div>
         <div className="card kpi"><div className="label">Base Arca</div><div className="value num">{brl0(alloc.arcaTotal)}</div><div className="sub">4 classes rebalanceáveis</div></div>
         <div className="card kpi"><div className="label">Fora da Arca</div><div className="value num">{brl0(alloc.outrosTotal)}</div><div className="sub">cripto, ouro, etc.</div></div>
+        <button type="button" className="card kpi kpi-link assets-kpi" onClick={goAssets} title="Patrimônio físico — não somado aos investimentos">
+          <div className="label">Bens físicos</div>
+          <div className="value num">{brl0(assetSummary.total)}</div>
+          <div className="sub">{assetSummary.count ? `${assetSummary.count} ite${assetSummary.count === 1 ? "m" : "ns"} · fora dos investimentos` : "cadastre carros, imóveis, joias…"}</div>
+        </button>
         <div className="card kpi">
           <div className="label">Maior desvio</div>
           <div className="value num">{alloc.arcaTotal ? signedPp(worst.driftPp) : "—"}</div>

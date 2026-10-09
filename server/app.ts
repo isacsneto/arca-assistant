@@ -9,6 +9,7 @@ import {
 import type { Store } from "./store";
 import { ClaudeError, explainError, type AuthInfo } from "./claude";
 import { mapPool } from "./pool";
+import { sanitizeAssets } from "../shared/assets";
 
 export { mapPool };
 
@@ -73,14 +74,21 @@ export function createApp(deps: Deps) {
     res.json(state);
   });
 
-  // O cliente só edita posições/transações/ajustes; scans e projeção são gerenciados pelo servidor.
+  // O cliente edita posições/transações/bens/ajustes; scans e projeção são gerenciados pelo servidor.
   app.put("/api/state", (req, res) => {
     const body = req.body as Partial<AppState>;
     if (!Array.isArray(body.positions) || !Array.isArray(body.transactions) || !body.settings || typeof body.settings !== "object") {
       res.status(400).json({ error: "Estado inválido." });
       return;
     }
-    state = { ...state, positions: body.positions, transactions: body.transactions, settings: body.settings };
+    state = {
+      ...state,
+      positions: body.positions,
+      transactions: body.transactions,
+      settings: body.settings,
+      // Cliente antigo sem "assets" não apaga os bens já salvos.
+      ...(body.assets !== undefined && { assets: sanitizeAssets(body.assets) }),
+    };
     store.save(state);
     res.json({ ok: true });
   });

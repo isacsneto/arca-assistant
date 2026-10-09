@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { DEFAULT_SETTINGS, methodologyOf, type AppState } from "../shared/types";
 import { withOwner } from "../shared/owner";
+import { sanitizeAssets } from "../shared/assets";
 
 export interface Store {
   load(): AppState;
@@ -9,7 +10,7 @@ export interface Store {
 }
 
 function empty(): AppState {
-  return { positions: [], transactions: [], settings: structuredClone(DEFAULT_SETTINGS), scans: {} };
+  return { positions: [], transactions: [], assets: [], settings: structuredClone(DEFAULT_SETTINGS), scans: {} };
 }
 
 /** Normaliza um estado salvo (possivelmente de versão antiga) completando campos ausentes. */
@@ -18,6 +19,7 @@ export function withDefaults(raw: Partial<AppState>): AppState {
   return {
     positions: (raw.positions ?? base.positions).map(withOwner),
     transactions: (raw.transactions ?? base.transactions).map(withOwner),
+    assets: sanitizeAssets(raw.assets),
     scans: raw.scans ?? base.scans,
     projection: raw.projection,
     settings: {
