@@ -209,6 +209,8 @@ export type PromptPlan = z.infer<typeof PromptPlanSchema>;
 
 export interface PromptImportRequest {
   text: string;
+  /** Anexos opcionais (comprovantes, notas, extratos, prints) para dar contexto. */
+  files?: UploadFile[];
   /** Respostas a perguntas anteriores do Claude sobre este mesmo texto. */
   answers?: { question: string; answer: string }[];
 }

@@ -283,3 +283,24 @@ test("POST /api/import/prompt valida o texto e envia a carteira atual + resposta
     onePosition,
   );
 });
+
+test("POST /api/import/prompt aceita só anexos, limita a 10 e repassa os arquivos", async () => {
+  let got: unknown = null;
+  await withServer(
+    {
+      interpretPrompt: async (req) => {
+        got = [req.text, req.files?.map((f) => f.name)];
+        return { operations: [], questions: [], warnings: [] };
+      },
+    },
+    async (base) => {
+      const file = (name: string) => ({ name, kind: "image", mediaType: "image/png", data: "AAAA" });
+      assert.equal((await fetch(`${base}/api/import/prompt`, json({ text: "", files: [] }))).status, 400);
+      assert.equal((await fetch(`${base}/api/import/prompt`, json({ text: "x", files: Array.from({ length: 11 }, (_, i) => file(i + ".png")) }))).status, 400);
+      const r = await fetch(`${base}/api/import/prompt`, json({ text: "", files: [file("comprovante-inter-pj.png"), { bad: true }] }));
+      assert.equal(r.status, 200);
+      assert.deepEqual(got, ["", ["comprovante-inter-pj.png"]]);
+    },
+    onePosition,
+  );
+});

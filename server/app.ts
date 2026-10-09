@@ -122,8 +122,13 @@ export function createApp(deps: Deps) {
   app.post("/api/import/prompt", async (req, res) => {
     const body = req.body as Partial<PromptImportRequest>;
     const text = typeof body.text === "string" ? body.text.trim() : "";
-    if (!text || text.length > 4000) {
-      res.status(400).json({ error: "Escreva o que mudou (até 4000 caracteres)." });
+    const files = Array.isArray(body.files) ? body.files.filter((f) => f && typeof f.name === "string" && typeof f.data === "string") : [];
+    if ((!text && !files.length) || text.length > 4000) {
+      res.status(400).json({ error: "Escreva o que mudou (até 4000 caracteres) ou anexe um comprovante." });
+      return;
+    }
+    if (files.length > 10) {
+      res.status(400).json({ error: "Envie no máximo 10 anexos por vez." });
       return;
     }
     const answers = Array.isArray(body.answers)
@@ -135,7 +140,7 @@ export function createApp(deps: Deps) {
     });
     try {
       const { model, effort } = state.settings.extraction;
-      res.json(await deps.interpretPrompt({ text, answers }, state.positions, model, effort, ctrl.signal));
+      res.json(await deps.interpretPrompt({ text, answers, files }, state.positions, model, effort, ctrl.signal));
     } catch (err) {
       const e = explainError(err);
       if (!res.headersSent) res.status(e.status).json({ error: e.message });

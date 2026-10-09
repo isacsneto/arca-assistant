@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Check, HelpCircle, Loader2, Send, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Copy, FileSpreadsheet, FileText, HelpCircle, Loader2, Paperclip, Send, Sparkles, X } from "lucide-react";
+import { useUploads } from "../lib/useUploads";
 import type { PromptPlan } from "../../shared/types";
 import { applyPromptOps, previewOps } from "../../shared/promptOps";
 import { clearStaleFor } from "../../shared/reminders";
@@ -31,6 +32,9 @@ export function PromptImport({ done }: { done: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
+  const uploads = useUploads();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
 
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -42,7 +46,7 @@ export function PromptImport({ done }: { done: () => void }) {
     setError(null);
     abort.current = new AbortController();
     try {
-      const res = await api.interpretPrompt({ text, answers: all }, abort.current.signal);
+      const res = await api.interpretPrompt({ text, answers: all, files: uploads.toUpload() }, abort.current.signal);
       setPlan(res);
       setHistory(all);
       setAnswers({});
@@ -72,7 +76,11 @@ export function PromptImport({ done }: { done: () => void }) {
     const touched = preview.filter((r) => approved.has(r.index) && !r.error && r.owner).map((r) => ({ institution: r.institution, owner: r.owner! }));
     update((s) => ({
       ...s,
-      ...applyPromptOps(s, plan.operations, approved, { now, newId: uid, source: `texto: ${text.slice(0, 80)}` }),
+      ...applyPromptOps(s, plan.operations, approved, {
+        now,
+        newId: uid,
+        source: `texto: ${text.slice(0, 80)}${uploads.files.length ? ` + ${uploads.files.map((f) => f.name).join(", ")}` : ""}`,
+      }),
       settings: { ...s.settings, staleInstitutions: clearStaleFor(s.settings.staleInstitutions, touched) },
     }));
     done();
@@ -87,11 +95,17 @@ export function PromptImport({ done }: { done: () => void }) {
     });
 
   const answered = plan?.questions.filter((q) => answers[q.id]?.trim()).length ?? 0;
+  const canInterpret = (text.trim() || uploads.files.length > 0) && !busy && config!.hasCredentials;
   const validCount = preview.filter((r) => approved.has(r.index) && !r.error).length;
 
   return (
     <div className="stack-lg">
-      <div className="card">
+      <div
+        className={"card" + (over ? " drop-over" : "")}
+        onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => { e.preventDefault(); setOver(false); void uploads.addFiles([...e.dataTransfer.files]); }}
+      >
         <label className="field">
           <span>Descreva o que mudou na sua carteira</span>
           <textarea
@@ -100,19 +114,46 @@ export function PromptImport({ done }: { done: () => void }) {
             placeholder="Ex.: 17000.30 adicionados à caixinha cdb do inter pj"
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && text.trim() && !busy) start();
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && canInterpret) start();
+            }}
+            onPaste={(e) => {
+              const pasted = [...e.clipboardData.files];
+              if (pasted.length) {
+                e.preventDefault();
+                void uploads.addFiles(pasted);
+              }
             }}
           />
-          <span className="hint">Aportes, resgates, compras, vendas, novos saldos ou ativos novos — pode escrever várias coisas de uma vez. Ctrl+Enter para enviar.</span>
+          <span className="hint">Aportes, resgates, compras, vendas, novos saldos ou ativos novos — pode escrever várias coisas de uma vez. Ctrl+Enter para enviar. Anexe comprovantes, notas ou extratos para dar contexto (arraste, cole com Ctrl+V ou use o clipe).</span>
         </label>
+
+        <div className="row wrap" style={{ gap: 8, marginTop: 10 }}>
+          <button type="button" className="btn sm" onClick={() => fileInput.current?.click()}>
+            <Paperclip size={14} /> Anexar arquivo
+          </button>
+          <input ref={fileInput} type="file" hidden multiple accept="image/*,.pdf,.csv,.tsv,.txt,.xlsx,.xls,.xlsm,.ods,.ofx"
+            onChange={(e) => { void uploads.addFiles([...(e.target.files ?? [])]); e.target.value = ""; }} />
+          {uploads.files.map((f) => (
+            <span key={f.id} className={"attach" + (f.looksLike ? " dup" : "")} title={f.looksLike ? `Parece igual a ${f.looksLike}` : f.name}>
+              {f.preview ? <img src={f.preview} alt="" /> : f.kind === "pdf" ? <FileText size={14} /> : <FileSpreadsheet size={14} />}
+              <span className="attach-name">{f.name}</span>
+              {f.looksLike && <Copy size={12} />}
+              <button type="button" className="btn ghost icon sm" onClick={() => uploads.remove(f.id)} aria-label={`Remover ${f.name}`}><X size={12} /></button>
+            </span>
+          ))}
+        </div>
+        {uploads.error && <p className="small" style={{ color: "var(--bad)", marginTop: 6 }}>{uploads.error}</p>}
+        {uploads.notice.length > 0 && <p className="small" style={{ color: "var(--warn)", marginTop: 6 }}>{uploads.notice.join(" ")}</p>}
         <div className="row wrap" style={{ gap: 6, marginTop: 10 }}>
           {EXAMPLES.map((ex) => (
             <button key={ex} type="button" className="btn sm ghost example" onClick={() => setText(ex)}>{ex}</button>
           ))}
         </div>
         <div className="row" style={{ marginTop: 14 }}>
-          <button className="btn primary" disabled={!text.trim() || busy || !config!.hasCredentials} onClick={start}>
-            {busy ? <><Loader2 size={16} className="spin" /> Interpretando…</> : <><Sparkles size={16} /> Interpretar com Claude</>}
+          <button className="btn primary" disabled={!canInterpret} onClick={start}>
+            {busy
+              ? <><Loader2 size={16} className="spin" /> {uploads.files.length ? "Lendo anexos e interpretando…" : "Interpretando…"}</>
+              : <><Sparkles size={16} /> Interpretar com Claude{uploads.files.length ? ` (+${uploads.files.length} anexo${uploads.files.length > 1 ? "s" : ""})` : ""}</>}
           </button>
           {busy && <button className="btn" onClick={() => abort.current?.abort()}>Cancelar</button>}
         </div>

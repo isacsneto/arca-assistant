@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Copy, FileSpreadsheet, FileText, HelpCircle, Image as ImageIcon, Loader2, MessageSquare, Send, Sparkles, Upload, X,
 } from "lucide-react";
@@ -6,10 +6,10 @@ import type { ExtractedItem, ExtractionResult, FileReading, ImportAnswer, Import
 import { CLASS_META, OWNERS, type Owner } from "../../shared/types";
 import { parseFileName } from "../../shared/fileHints";
 import { mergeImport, posKey } from "../../shared/importMerge";
-import { checkDuplicates, uniqueName } from "../../shared/dupes";
 import { api } from "../api";
 import { useStore } from "../store";
-import { prepareFile, type PreparedFile } from "../lib/files";
+import type { PreparedFile } from "../lib/files";
+import { useUploads } from "../lib/useUploads";
 import { money, uid } from "../lib/format";
 import { Banner, ClassSelect, PageHead } from "./ui";
 import { PromptImport } from "./PromptImport";
@@ -19,8 +19,6 @@ interface Draft extends ExtractedItem {
   _id: string;
   include: boolean;
 }
-
-type Upload = PreparedFile & { looksLike?: string };
 
 interface Review {
   drafts: Draft[];
@@ -50,39 +48,19 @@ function toReview(res: ExtractionResult, previous?: Draft[]): Review {
 
 export function ImportView({ done, target }: { done: () => void; target?: { institution: string; owner: Owner } | null }) {
   const { state, update, config, view } = useStore();
-  const [files, setFiles] = useState<Upload[]>([]);
+  const { files, setFiles, addFiles, toUpload, error, setError, notice } = useUploads();
+  const [mode, setMode] = useState<"files" | "text">("files");
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string[]>([]);
   const [review, setReview] = useState<Review | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [skipQuestions, setSkipQuestions] = useState(false);
   const [removeStale, setRemoveStale] = useState(false);
   const [over, setOver] = useState(false);
-  const [mode, setMode] = useState<"files" | "text">("files");
   const input = useRef<HTMLInputElement>(null);
   const abort = useRef<AbortController | null>(null);
-  const filesRef = useRef<Upload[]>([]);
-  filesRef.current = files;
-
-  const addFiles = useCallback(async (list: File[]) => {
-    setError(null);
-    const results = await Promise.allSettled(list.map(prepareFile));
-    const bad = results.flatMap((r) => (r.status === "rejected" ? [String(r.reason?.message ?? r.reason)] : []));
-    const taken = new Set(filesRef.current.map((f) => f.name));
-    const ok = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])).map((f) => {
-      const name = uniqueName(f.name, taken);
-      taken.add(name);
-      return { ...f, name };
-    });
-    const { accepted, exact } = checkDuplicates(filesRef.current, ok);
-    if (bad.length) setError(bad.join(" "));
-    setNotice(exact.map((e) => `"${e.file.name}" é idêntico a "${e.sameAs}" e foi ignorado.`));
-    setFiles((prev) => [...prev, ...accepted]);
-  }, []);
-
-  // Ctrl+V de prints direto da área de transferência
+  // Ctrl+V de prints direto da área de transferência (na aba Texto, quem cuida é o campo de texto)
   useEffect(() => {
+    if (mode !== "files") return;
     const onPaste = (e: ClipboardEvent) => {
       const fs = [...(e.clipboardData?.files ?? [])];
       if (fs.length) {
@@ -92,7 +70,7 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
     };
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
-  }, [addFiles]);
+  }, [addFiles, mode]);
 
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -111,10 +89,7 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
 
   const processFiles = () =>
     run("Lendo arquivos com Claude…", async (signal) => {
-      const res = await api.importFiles(
-        files.map(({ id: _id, preview: _p, size: _s, sha: _h, dhash: _d, aspect: _a, ...f }) => f),
-        signal,
-      );
+      const res = await api.importFiles(toUpload(), signal);
       setReview(toReview(res));
       setAnswers({});
       setSkipQuestions(false);

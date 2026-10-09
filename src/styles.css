@@ -258,3 +258,10 @@ select.owner-select { width: auto; padding: 1px 4px; margin-top: 2px; }
 tr.group.clickable { cursor: pointer; user-select: none; }
 tr.group.clickable:hover td { background: var(--border); }
 tr.group .chev { color: var(--muted); transition: transform 0.15s; }
+
+/* ---------- anexos do import por texto ---------- */
+.card.drop-over { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.attach { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); font-size: 12px; max-width: 260px; }
+.attach img { width: 22px; height: 22px; object-fit: cover; border-radius: 4px; }
+.attach-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach.dup { border-color: var(--warn); }

@@ -167,6 +167,32 @@ async function runStructured<S extends z.ZodType>(a: RunArgs<S>): Promise<{ data
 
 const EXT: Record<string, string> = { "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif" };
 
+/**
+ * Grava imagens/PDFs numa pasta temporária para o Claude ler com a ferramenta Read
+ * e devolve o trecho do prompt que lista os caminhos (texto/CSV vai inline).
+ */
+async function stageFiles(files: UploadFile[], dir: string): Promise<string> {
+  const lines: string[] = [];
+  const inline: string[] = [];
+  for (const [i, f] of files.entries()) {
+    if (f.kind === "text") {
+      inline.push(`=== Arquivo ${i + 1}: ${f.name}${fileNameNote(f.name, f.looksLike)} (conteúdo abaixo) ===\n${f.data}`);
+      continue;
+    }
+    const base = path.basename(f.name).replace(/[^\w.-]+/g, "_").replace(/\.[^.]*$/, "");
+    const ext = f.kind === "pdf" ? ".pdf" : (EXT[f.mediaType ?? ""] ?? ".png");
+    const file = path.join(dir, `${i + 1}-${base}${ext}`);
+    await fs.writeFile(file, Buffer.from(f.data, "base64"));
+    lines.push(`- ${file}  (arquivo original: "${f.name}"${fileNameNote(f.name, f.looksLike)})`);
+  }
+  return [
+    lines.length
+      ? `\nUse a ferramenta Read em CADA um destes caminhos (imagens e PDFs são lidos visualmente; em PDFs com mais de 10 páginas leia em blocos de até 10 páginas):\n${lines.join("\n")}`
+      : "",
+    inline.length ? `\n${inline.join("\n\n")}` : "",
+  ].join("\n");
+}
+
 export async function extractFromFiles(
   files: UploadFile[],
   model: string,
@@ -175,26 +201,9 @@ export async function extractFromFiles(
 ): Promise<ExtractionResult> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "arca-import-"));
   try {
-    const lines: string[] = [];
-    const inline: string[] = [];
-    for (const [i, f] of files.entries()) {
-      if (f.kind === "text") {
-        inline.push(`=== Arquivo ${i + 1}: ${f.name}${fileNameNote(f.name, f.looksLike)} (conteúdo abaixo) ===\n${f.data}`);
-        continue;
-      }
-      const base = path.basename(f.name).replace(/[^\w.-]+/g, "_").replace(/\.[^.]*$/, "");
-      const ext = f.kind === "pdf" ? ".pdf" : (EXT[f.mediaType ?? ""] ?? ".png");
-      const file = path.join(dir, `${i + 1}-${base}${ext}`);
-      await fs.writeFile(file, Buffer.from(f.data, "base64"));
-      lines.push(`- ${file}  (arquivo original: "${f.name}"${fileNameNote(f.name, f.looksLike)})`);
-    }
-
     const prompt = [
       "Extraia todas as posições e transações dos arquivos abaixo, seguindo as regras do sistema. Preencha \"files\" com uma leitura por arquivo (pelo nome original), verifique duplicados entre os arquivos e faça perguntas só se algo não puder ser classificado com segurança.",
-      lines.length
-        ? `\nUse a ferramenta Read em CADA um destes caminhos (imagens e PDFs são lidos visualmente; em PDFs com mais de 10 páginas leia em blocos de até 10 páginas):\n${lines.join("\n")}`
-        : "",
-      inline.length ? `\n${inline.join("\n\n")}` : "",
+      await stageFiles(files, dir),
       "\nUse o nome do arquivo original em sourceFile. Responda apenas com o resultado estruturado.",
     ].join("\n");
 
@@ -224,21 +233,28 @@ export async function interpretPrompt(
   signal?: AbortSignal,
 ): Promise<PromptPlan> {
   const today = new Date().toLocaleDateString("pt-BR", { dateStyle: "full", timeZone: "America/Sao_Paulo" });
-  const { data } = await runStructured({
-    prompt: promptImportPrompt({ text: req.text, today, positions, answers: req.answers }),
-    system: PROMPT_IMPORT_SYSTEM,
-    model,
-    effort,
-    schema: PromptPlanSchema,
-    cwd: os.tmpdir(),
-    tools: [],
-    maxTurns: 3,
-    signal,
-  });
-  return {
-    ...data,
-    questions: data.questions.slice(0, 4).map((q, i) => ({ ...q, id: q.id || "q" + (i + 1), options: q.options.slice(0, 4) })),
-  };
+  const files = req.files ?? [];
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "arca-prompt-"));
+  try {
+    const attachments = files.length ? await stageFiles(files, dir) : "";
+    const { data } = await runStructured({
+      prompt: promptImportPrompt({ text: req.text, today, positions, answers: req.answers, attachments }),
+      system: PROMPT_IMPORT_SYSTEM,
+      model,
+      effort,
+      schema: PromptPlanSchema,
+      cwd: dir,
+      tools: files.length ? ["Read"] : [],
+      maxTurns: 3 + files.length * 3,
+      signal,
+    });
+    return {
+      ...data,
+      questions: data.questions.slice(0, 4).map((q, i) => ({ ...q, id: q.id || "q" + (i + 1), options: q.options.slice(0, 4) })),
+    };
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
 }
 
 /** Segunda rodada: aplica as respostas do usuário às perguntas, sem reenviar os arquivos. */

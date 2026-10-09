@@ -226,13 +226,22 @@ Regras:
 - explanation: uma linha clara do que será feito, citando valores (ex.: "Aporte de R$ 17.000,30 na Caixinha CDB do Banco Inter (PJ)").
 - Uma frase pode gerar várias operações. Não invente operações que a frase não pede.
 - questions: só quando necessário; cada uma com id ("q1"…), pergunta objetiva e 2–4 opções curtas. Enquanto houver pergunta sobre uma operação, NÃO inclua essa operação em "operations" (inclua só as que já estão claras).
-- warnings: observações úteis (ex.: "o saldo informado é menor que o atual — confirme se foi um resgate").`;
+- warnings: observações úteis (ex.: "o saldo informado é menor que o atual — confirme se foi um resgate").
+
+Anexos (comprovantes, notas de corretagem, extratos, prints), quando houver:
+- Leia TODOS com a ferramenta Read e use-os para identificar valores exatos, datas, ativos, quantidades, preços e a instituição/titular (CNPJ/razão social = PJ). O nome do arquivo pode seguir a convenção banco-pf/pj-dica.
+- Se só houver anexos (sem texto, ou texto genérico como "veja o anexo"), deduza as movimentações a partir deles.
+- Texto e anexo descrevendo a MESMA movimentação contam UMA vez. Se o anexo contradisser o texto (outro valor, outra instituição, outra data), PERGUNTE em vez de escolher.
+- Um anexo que mostre o saldo/posição atual de um ativo (e não uma movimentação) vira "definir" com esse valor.
+- Na explanation, cite o anexo de onde veio o dado quando ajudar (ex.: "conforme comprovante inter-pj.png").`;
 
 export function promptImportPrompt(args: {
   text: string;
   today: string;
   positions: Position[];
   answers?: { question: string; answer: string }[];
+  /** Trecho com os caminhos dos anexos a ler (vazio se não houver). */
+  attachments?: string;
 }): string {
   const rows = args.positions.map((p) =>
     JSON.stringify({
@@ -258,8 +267,8 @@ ${rows.join("\n") || "(vazia)"}
 
 Texto do usuário:
 """
-${args.text}
-"""${qa}
+${args.text || "(sem texto — use os anexos)"}
+"""${args.attachments ? `\n\nAnexos enviados pelo usuário:${args.attachments}` : ""}${qa}
 
 Responda somente com o resultado estruturado.`;
 }
