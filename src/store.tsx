@@ -1,0 +1,80 @@
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { DEFAULT_SETTINGS, type AppState, type ProjectionResult, type ScanResult } from "../shared/types";
+import { api, type Config } from "./api";
+
+interface Ctx {
+  state: AppState | null;
+  config: Config | null;
+  loadError: string | null;
+  saveError: string | null;
+  update: (mutate: (s: AppState) => AppState) => void;
+  setScan: (r: ScanResult) => void;
+  setProjection: (r: ProjectionResult) => void;
+}
+
+const StoreCtx = createContext<Ctx | null>(null);
+
+export function StoreProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AppState | null>(null);
+  const [config, setConfig] = useState<Config | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const latest = useRef<AppState | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    Promise.all([api.getState(), api.getConfig()])
+      .then(([s, c]) => {
+        const merged: AppState = { ...s, settings: { ...DEFAULT_SETTINGS, ...s.settings } };
+        latest.current = merged;
+        setState(merged);
+        setConfig(c);
+      })
+      .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
+  }, []);
+
+  const persist = useCallback(() => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      if (!latest.current) return;
+      api
+        .putState(latest.current)
+        .then(() => setSaveError(null))
+        .catch((e) => setSaveError(e instanceof Error ? e.message : String(e)));
+    }, 350);
+  }, []);
+
+  const update = useCallback(
+    (mutate: (s: AppState) => AppState) => {
+      if (!latest.current) return;
+      latest.current = mutate(latest.current);
+      setState(latest.current);
+      persist();
+    },
+    [persist],
+  );
+
+  const setScan = useCallback((r: ScanResult) => {
+    if (!latest.current) return;
+    latest.current = { ...latest.current, scans: { ...latest.current.scans, [r.assetClass]: r } };
+    setState(latest.current); // o servidor já persistiu o scan
+  }, []);
+
+  const setProjection = useCallback((projection: ProjectionResult) => {
+    if (!latest.current) return;
+    latest.current = { ...latest.current, projection };
+    setState(latest.current); // o servidor já persistiu a projeção
+  }, []);
+
+  return (
+    <StoreCtx.Provider value={{ state, config, loadError, saveError, update, setScan, setProjection }}>
+      {children}
+    </StoreCtx.Provider>
+  );
+}
+
+export function useStore(): Ctx {
+  const c = useContext(StoreCtx);
+  if (!c) throw new Error("StoreProvider ausente");
+  return c;
+}
