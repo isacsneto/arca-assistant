@@ -291,7 +291,8 @@ Regras:
 - estimate = valor sugerido; low/high = faixa razoável. newPrice/usedPrice = referências encontradas (null se não achou).
 - comparables: 3 a 8 anúncios/referências reais que você abriu ou viu nos resultados, com preço e URL; condition "novo", "usado" ou "referencia" (FIPE, cotação do ouro, índice).
 - Nunca invente preços nem URLs. Se achou pouca coisa, reduza a confiança e explique em summary.
-- assumptions: premissas em 1–2 frases (versão, ano, km, estado, peso…). summary: 2–3 frases explicando o número.`;
+- assumptions: premissas em 1–2 frases (versão, ano, km, estado, peso…). summary: 2–3 frases explicando o número.
+- Se houver anexos (fotos, nota fiscal, CRLV, laudo, certificado), use o que eles mostram (modelo exato, ano, km, peso, quilates, estado de conservação, preço pago e data da compra) e diga nas premissas o que veio dos anexos.`;
 
 export function assetEstimatePrompt(args: { type: string; typeLabel: string; name: string; notes?: string; currentValue: number; today: string }): string {
   return `Hoje: ${args.today}.

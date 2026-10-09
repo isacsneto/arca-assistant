@@ -10,6 +10,7 @@ import type { Store } from "./store";
 import { ClaudeError, explainError, type AuthInfo } from "./claude";
 import { mapPool } from "./pool";
 import { sanitizeAssets, type AssetEstimate, type PhysicalAsset } from "../shared/assets";
+import { AttachmentError, collectGarbage, deleteAttachment, loadForClaude, readAttachment, saveAttachments } from "./attachments";
 
 export { mapPool };
 
@@ -21,7 +22,15 @@ export interface Deps {
   interpretPrompt: (req: PromptImportRequest, positions: AppState["positions"], model: string, effort: Effort, signal?: AbortSignal) => Promise<PromptPlan>;
   refineImport: (req: RefineRequest, model: string, effort: Effort, signal?: AbortSignal) => Promise<ExtractionResult>;
   scanClass: (c: ArcaClass, state: AppState, emit: (e: ScanEvent) => void, signal: AbortSignal) => Promise<ScanResult>;
-  estimateAsset: (asset: PhysicalAsset, setting: { model: string; effort: Effort }, emit: (e: JobEvent<AssetEstimate>) => void, signal: AbortSignal) => Promise<AssetEstimate>;
+  estimateAsset: (
+    asset: PhysicalAsset,
+    setting: { model: string; effort: Effort },
+    emit: (e: JobEvent<AssetEstimate>) => void,
+    signal: AbortSignal,
+    files?: UploadFile[],
+  ) => Promise<AssetEstimate>;
+  /** Pasta dos anexos dos bens (padrão: data/attachments). */
+  attachmentsDir?: string;
   refreshValues: (state: AppState, emit: (e: JobEvent<RefreshResult>) => void, signal: AbortSignal) => Promise<RefreshResult>;
   projectPortfolio: (state: AppState, emit: (e: JobEvent<ProjectionResult>) => void, signal: AbortSignal) => Promise<ProjectionResult>;
   fetchFx?: () => Promise<number>;
@@ -70,6 +79,7 @@ export function createApp(deps: Deps) {
   app.use(express.json({ limit: "80mb" }));
 
   let state = store.load();
+  const attachmentsDir = deps.attachmentsDir ?? path.resolve(process.cwd(), "data", "attachments");
 
   app.get("/api/state", (_req, res) => {
     res.json(state);
@@ -92,6 +102,8 @@ export function createApp(deps: Deps) {
     };
     store.save(state);
     res.json({ ok: true });
+    // Anexos de bens apagados (ou removidos) saem do disco depois de um tempo.
+    void collectGarbage(attachmentsDir, state.assets).catch(() => undefined);
   });
 
   app.get("/api/config", async (_req, res) => {
@@ -229,6 +241,49 @@ export function createApp(deps: Deps) {
     });
   }
 
+  // Anexos dos bens: fotos, nota fiscal, documentos.
+  const attachmentFail = (res: express.Response, err: unknown) => {
+    const status = err instanceof AttachmentError ? err.status : 500;
+    res.status(status).json({ error: err instanceof Error ? err.message : "Erro ao salvar o anexo." });
+  };
+
+  app.post("/api/assets/:id/attachments", async (req, res) => {
+    const asset = state.assets.find((a) => a.id === req.params.id);
+    if (!asset) {
+      res.status(404).json({ error: "Bem não encontrado. Salve o bem antes de anexar arquivos." });
+      return;
+    }
+    const files = (Array.isArray(req.body?.files) ? req.body.files : []).filter(
+      (f: UploadFile) => f && typeof f.name === "string" && typeof f.data === "string",
+    ) as UploadFile[];
+    try {
+      res.json({ attachments: await saveAttachments(attachmentsDir, asset.id, files, asset.attachments?.length ?? 0) });
+    } catch (err) {
+      attachmentFail(res, err);
+    }
+  });
+
+  app.get("/api/assets/:id/attachments/:file", async (req, res) => {
+    try {
+      const { path: p, mediaType } = await readAttachment(attachmentsDir, req.params.id, req.params.file);
+      res.setHeader("Content-Type", mediaType);
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Disposition", "inline");
+      res.sendFile(p);
+    } catch (err) {
+      attachmentFail(res, err);
+    }
+  });
+
+  app.delete("/api/assets/:id/attachments/:file", async (req, res) => {
+    try {
+      await deleteAttachment(attachmentsDir, req.params.id, req.params.file);
+      res.json({ ok: true });
+    } catch (err) {
+      attachmentFail(res, err);
+    }
+  });
+
   // Estimativa de um bem: o cliente envia o bem e grava o resultado (não altera o valor sozinho).
   app.post("/api/assets/estimate", async (req, res) => {
     const [asset] = sanitizeAssets([req.body?.asset]);
@@ -238,7 +293,10 @@ export function createApp(deps: Deps) {
     }
     const sse = openSse<JobEvent<AssetEstimate>>(res);
     try {
-      const result = await deps.estimateAsset(asset, state.settings.estimate, sse.send, sse.signal);
+      // Anexos vêm do disco (o que está salvo para o bem), não do corpo da requisição.
+      const saved = state.assets.find((a) => a.id === asset.id);
+      const files = saved?.attachments?.length ? await loadForClaude(attachmentsDir, saved.id, saved.attachments) : [];
+      const result = await deps.estimateAsset(asset, state.settings.estimate, sse.send, sse.signal, files);
       sse.send({ type: "result", result });
     } catch (err) {
       if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });

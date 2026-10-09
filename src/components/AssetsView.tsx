@@ -1,5 +1,6 @@
 import { Fragment, useMemo, useRef, useState } from "react";
-import { Lightbulb, Plus, Sparkles, Trash2 } from "lucide-react";
+import { Lightbulb, Paperclip, Plus, Sparkles, Trash2 } from "lucide-react";
+import { AssetAttachments } from "./AssetAttachments";
 import { ASSET_DETAIL_HINTS, ASSET_TYPES, ASSET_TYPE_KEYS, summarizeAssets, type AssetEstimate, type AssetType, type PhysicalAsset } from "../../shared/assets";
 import type { JobEvent } from "../../shared/types";
 import { streamEvents } from "../api";
@@ -86,7 +87,8 @@ export function AssetsView() {
         <Lightbulb size={18} />
         <div className="grow">
           <b>Quanto mais detalhes no item, melhor a estimativa da IA.</b> A IA compara o seu bem com anúncios reais — sem versão, ano, peso ou
-          metragem ela precisa supor, e a estimativa sai com confiança baixa. Escreva no nome do item ou na <b>Observação</b>:
+          metragem ela precisa supor, e a estimativa sai com confiança baixa. Escreva no nome do item ou na <b>Observação</b> — e, se quiser,
+          anexe <b>fotos, nota fiscal ou documentos</b> pelo clipe <Paperclip size={12} style={{ verticalAlign: -1 }} /> ao lado do item:
           <ul className="tip-list">
             {ASSET_TYPE_KEYS.map((k) => (
               <li key={k}><b>{ASSET_TYPES[k].label}:</b> {ASSET_DETAIL_HINTS[k].needs}.</li>
@@ -139,8 +141,15 @@ export function AssetsView() {
                       </span>
                     </td>
                     <td style={{ minWidth: 200, width: "40%" }}>
-                      <input className="cell" type="text" defaultValue={a.name} key={a.name}
-                        onBlur={(e) => e.target.value.trim() && e.target.value !== a.name && patch(a.id, { name: e.target.value.trim() })} aria-label="Item" />
+                      <div className="row" style={{ gap: 4 }}>
+                        <input className="cell grow" type="text" defaultValue={a.name} key={a.name}
+                          onBlur={(e) => e.target.value.trim() && e.target.value !== a.name && patch(a.id, { name: e.target.value.trim() })} aria-label="Item" />
+                        <button type="button" className={"btn ghost sm att-toggle" + (a.attachments?.length ? " has" : "")}
+                          onClick={() => setOpenId((o) => (o === a.id ? null : a.id))} aria-expanded={openId === a.id}
+                          title={a.attachments?.length ? `${a.attachments.length} anexo(s) — ver ou adicionar` : "Adicionar fotos, nota fiscal ou documentos"}>
+                          <Paperclip size={14} />{a.attachments?.length ? a.attachments.length : ""}
+                        </button>
+                      </div>
                     </td>
                     <td style={{ minWidth: 70 }}>
                       <select className="cell" value={a.owner} onChange={(e) => patch(a.id, { owner: e.target.value as Owner })} aria-label="Titular">
@@ -169,8 +178,16 @@ export function AssetsView() {
                     </td>
                     <td className="right"><button className="btn ghost icon danger" title="Remover" onClick={() => remove(a.id)}><Trash2 size={16} /></button></td>
                   </tr>
-                  {openId === a.id && a.estimate && (
-                    <tr className="est-row"><td colSpan={7}><EstimateDetails e={a.estimate} /></td></tr>
+                  {openId === a.id && (
+                    <tr className="est-row">
+                      <td colSpan={7}>
+                        <AssetAttachments
+                          asset={a}
+                          onChange={(attachments) => update((s) => ({ ...s, assets: s.assets.map((x) => (x.id === a.id ? { ...x, attachments } : x)) }))}
+                        />
+                        {a.estimate && <EstimateDetails e={a.estimate} />}
+                      </td>
+                    </tr>
                   )}
                   </Fragment>
                 ))}

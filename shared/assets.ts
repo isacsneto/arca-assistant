@@ -64,6 +64,28 @@ export interface PhysicalAsset {
   updatedAt: string;
   /** Última estimativa da IA (não altera "value" sozinha). */
   estimate?: AssetEstimate;
+  /** Fotos, nota fiscal, documentos — dão contexto para a estimativa. */
+  attachments?: AssetAttachment[];
+}
+
+export interface AssetAttachment {
+  /** Nome do arquivo em disco (gerado pelo servidor). */
+  id: string;
+  /** Nome original, só para exibir. */
+  name: string;
+  kind: "image" | "pdf" | "text";
+  mediaType: string;
+  size: number;
+  addedAt: string;
+}
+
+function sanitizeAttachments(raw: unknown): AssetAttachment[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const list = raw.filter(
+    (x): x is AssetAttachment =>
+      !!x && typeof x === "object" && typeof x.id === "string" && /^[A-Za-z0-9_-]{1,64}\.[a-z]{2,4}$/.test(x.id) && typeof x.name === "string",
+  );
+  return list.length ? list : undefined;
 }
 
 const median = (xs: number[]) => {
@@ -102,6 +124,7 @@ export function sanitizeAssets(raw: unknown): PhysicalAsset[] {
       notes: typeof a.notes === "string" && a.notes ? a.notes : undefined,
       updatedAt: typeof a.updatedAt === "string" ? a.updatedAt : new Date(0).toISOString(),
       estimate: isEstimate(a.estimate) ? (a.estimate as AssetEstimate) : undefined,
+      attachments: sanitizeAttachments(a.attachments),
     }));
 }
 

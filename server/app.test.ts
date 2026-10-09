@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { createApp, mapPool, type Deps } from "./app";
 import { ClaudeError } from "./claude";
 import { withDefaults } from "./store";
@@ -44,6 +47,7 @@ async function withServer(
     projectPortfolio: async () => {
       throw new Error("não usado");
     },
+    attachmentsDir: fs.mkdtempSync(path.join(os.tmpdir(), "arca-app-att-")),
     ...deps,
   });
   const server = app.listen(0, "127.0.0.1");
@@ -343,5 +347,43 @@ test("POST /api/assets/estimate valida o bem, usa o modelo dos ajustes e transmi
       assert.equal((events[1] as { result: { estimate: number } }).result.estimate, 140000);
       assert.deepEqual(got, ["Tiggo 8 Max Drive 2024", "carro", "claude-sonnet-5-5"]);
     },
+  );
+});
+
+test("anexos de bens: enviar, abrir, apagar; estimativa recebe os anexos salvos", async () => {
+  const car = { id: "car1", type: "carro", name: "Tiggo 8", value: 150000, owner: "PF", updatedAt: "2026-10-10" };
+  let filesSeen: string[] = [];
+  await withServer(
+    {
+      estimateAsset: async (_asset, _setting, _emit, _signal, files = []) => {
+        filesSeen = files.map((f) => f.name);
+        return { estimate: 1, low: 1, high: 1, newPrice: null, usedPrice: null, confidence: "alta", assumptions: "", summary: "", comparables: [], at: "x", model: "m", searches: 0 };
+      },
+    },
+    async (base) => {
+      const png = { name: "crlv.png", kind: "image", mediaType: "image/png", data: Buffer.from("IMG").toString("base64") };
+      assert.equal((await fetch(`${base}/api/assets/nao-existe/attachments`, json({ files: [png] }))).status, 404);
+
+      const up = await fetch(`${base}/api/assets/car1/attachments`, json({ files: [png] }));
+      assert.equal(up.status, 200);
+      const { attachments } = await up.json();
+      assert.equal(attachments[0].name, "crlv.png");
+
+      const got = await fetch(`${base}/api/assets/car1/attachments/${attachments[0].id}`);
+      assert.equal(got.headers.get("content-type"), "image/png");
+      assert.equal(await got.text(), "IMG");
+      assert.equal((await fetch(`${base}/api/assets/car1/attachments/..%2F..%2Fstate.json`)).status, 404);
+
+      // cliente grava os metadados no bem; a estimativa usa os anexos do disco
+      const state = await (await fetch(`${base}/api/state`)).json();
+      state.assets[0].attachments = attachments;
+      await fetch(`${base}/api/state`, { ...json(state), method: "PUT" });
+      await (await fetch(`${base}/api/assets/estimate`, json({ asset: state.assets[0] }))).text();
+      assert.deepEqual(filesSeen, ["crlv.png"]);
+
+      assert.equal((await fetch(`${base}/api/assets/car1/attachments/${attachments[0].id}`, { method: "DELETE" })).status, 200);
+      assert.equal((await fetch(`${base}/api/assets/car1/attachments/${attachments[0].id}`)).status, 404);
+    },
+    { assets: [car] } as Partial<AppState>,
   );
 });

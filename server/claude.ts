@@ -294,19 +294,25 @@ async function webResearch<S extends z.ZodType>(a: {
   maxTurns: number;
   signal: AbortSignal;
   emit: (e: Progress) => void;
+  /** Anexos opcionais que o Claude lê com Read antes de pesquisar. */
+  files?: UploadFile[];
 }): Promise<{ data: z.infer<S>; searches: number }> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "arca-web-"));
   let searches = 0;
   try {
+    const files = a.files ?? [];
+    const attachments = files.length
+      ? `\n\nAnexos do usuário sobre este item (fotos, nota fiscal, documentos) — leia todos antes de pesquisar e use-os para identificar modelo, versão, ano, peso, estado etc.:${await stageFiles(files, dir)}`
+      : "";
     const { data } = await runStructured({
-      prompt: a.prompt,
+      prompt: a.prompt + attachments,
       system: a.system,
       model: a.model,
       effort: a.effort,
       schema: a.schema,
       cwd: dir,
-      tools: ["WebSearch", "WebFetch"],
-      maxTurns: a.maxTurns,
+      tools: files.length ? ["Read", "WebSearch", "WebFetch"] : ["WebSearch", "WebFetch"],
+      maxTurns: a.maxTurns + files.length * 2,
       signal: a.signal,
       onAssistantBlock: (b) => {
         const input = (b.input ?? {}) as { query?: string; url?: string };
@@ -405,8 +411,9 @@ export async function estimateAsset(
   setting: { model: string; effort: Effort },
   emit: (e: JobEvent<AssetEstimate>) => void,
   signal: AbortSignal,
+  files: UploadFile[] = [],
 ): Promise<AssetEstimate> {
-  emit({ type: "status", text: "Procurando anúncios e referências…" });
+  emit({ type: "status", text: files.length ? `Lendo ${files.length} anexo${files.length > 1 ? "s" : ""} e procurando anúncios…` : "Procurando anúncios e referências…" });
   const { data, searches } = await webResearch({
     prompt: assetEstimatePrompt({
       type: asset.type,
@@ -423,6 +430,7 @@ export async function estimateAsset(
     maxTurns: 40,
     signal,
     emit,
+    files,
   });
   return { ...normalizeEstimate(data), at: new Date().toISOString(), model: setting.model, searches };
 }
