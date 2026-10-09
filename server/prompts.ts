@@ -14,7 +14,7 @@ Um mesmo arquivo pode ter os dois tipos. Um extrato de conta com saldo final ger
 - Em transações, "value" = valor absoluto da operação (sempre positivo); o sentido vai em txType.
 - currency = "USD" apenas se o valor estiver explicitamente em dólar (US$, USD). Caso contrário "BRL".
 - IGNORE linhas de totais/subtotais/"patrimônio total" para não duplicar valores. Ignore dívidas/faturas de cartão, a menos que sejam claramente um saldo a investir.
-- Se o mesmo ativo aparecer repetido (ex.: print duplicado ou sobreposto em dois arquivos), inclua-o UMA vez e avise em warnings.
+- Se o mesmo ativo aparecer repetido (print duplicado ou sobreposto), inclua-o UMA vez (veja "Duplicados entre arquivos").
 
 ## Classificação (assetClass) — método Arca
 - "acoes": ações brasileiras (PETR4, WEGE3), units, fundos de ações, ETFs de renda variável do Brasil (BOVA11, IVVB11 NÃO — esse é internacional).
@@ -29,10 +29,52 @@ Um mesmo arquivo pode ter os dois tipos. Um extrato de conta com saldo final ger
 - institution: nome da instituição visível no print/arquivo ("BTG Pactual", "Nubank"...). Se não der para saber, use "Não identificada".
 - ticker: apenas se visível ou inequívoco; senão null.
 - date: ISO (AAAA-MM-DD) quando visível; senão null.
-- sourceFile: nome do arquivo de onde veio o item.
+- sourceFile: nome EXATO do arquivo original de onde veio o item.
 - owner: "PF" ou "PJ" quando o documento deixar claro (CNPJ, razão social "Ltda"/"S.A."/"ME", "conta empresa"); senão null.
-- O nome de cada arquivo pode trazer instituição, titular e uma dica do produto (ex.: "itau-pf-cdb100cdi" = Itaú, pessoa física, CDB 100% do CDI). Quando vier, use essa instituição e esse titular, e use a dica para completar subtype/nome (ex.: "CDB 100% CDI") se o print não mostrar a taxa.
-- warnings: avisos curtos e úteis ao usuário (itens ilegíveis, duplicidades, valores em outra moeda, data de referência antiga...).`;
+- warnings: avisos curtos e úteis ao usuário (itens ilegíveis, valores em outra moeda, data de referência antiga...).
+
+## Nomes dos arquivos (preencha "files", um por arquivo)
+O usuário nomeia os arquivos como <instituição>-<pf|pj>[-<dica do produto>]. Exemplos: "vest-pf" = corretora Vest, pessoa física; "itau-pf-cdb100cdi" = Itaú, pessoa física, CDB 100% do CDI; "xp_pj_lci95" = XP, pessoa jurídica, LCI 95% do CDI. Cada arquivo vem com uma leitura automática do nome — confirme ou corrija com o seu entendimento:
+- institution: nome correto e completo da instituição (ex.: "itau" → "Itaú", "bb" → "Banco do Brasil"). Se o nome do arquivo não indicar, use o que o conteúdo mostrar; se nada indicar, null.
+- owner: PF/PJ do nome do arquivo; se não houver, o que o conteúdo indicar; senão null. Se o nome disser PF mas o conteúdo mostrar claramente CNPJ/empresa (ou o contrário), NÃO escolha sozinho: faça uma pergunta.
+- productHint: a dica do nome traduzida para algo legível (ex.: "cdb100cdi" → "CDB 100% do CDI"); use-a para completar subtype/nome dos itens desse arquivo quando o conteúdo não mostrar a taxa. null se não houver dica ou se o resto do nome não for sobre o produto (versões como "v2", "copia", "final", datas, números de print).
+- summary: uma linha dizendo o que o arquivo mostra (ex.: "Carteira de renda fixa com 3 CDBs e saldo em conta").
+- Todos os itens de um arquivo herdam a instituição e o titular desse arquivo.
+
+## Duplicados entre arquivos
+Compare o conteúdo dos arquivos entre si. Se dois arquivos mostram a mesma tela/lista (mesmos ativos com os mesmos valores — prints repetidos, recortes sobrepostos, a mesma tela rolada com partes repetidas), em "files" marque duplicateOf no repetido com o nome do outro arquivo e extraia cada ativo UMA vez só. Partes repetidas entre prints sobrepostos também contam uma vez. Ativos iguais em instituições ou titulares diferentes NÃO são duplicados.
+
+## Perguntas (preencha "questions" só quando realmente necessário)
+Se não der para classificar um item com segurança, pergunte em vez de chutar. Exemplos de quando perguntar:
+- produto sem tipo claro (fundo de nome genérico: renda fixa, multimercado ou ações? previdência: PGBL/VGBL de renda fixa ou multimercado? COE?);
+- ETF/fundo cuja exposição não dá para saber (Brasil ou exterior? renda fixa ou ações?);
+- titular desconhecido ou conflitante quando houver arquivos de PF e PJ no mesmo lote;
+- instituição não identificável;
+- dica do nome do arquivo ambígua.
+NÃO pergunte o que está claro no documento ou no nome do arquivo. Máximo de 6 perguntas; agrupe itens parecidos numa pergunta só. Cada pergunta: id curto ("q1"…), texto objetivo citando o ativo, itemIndexes (posições em "items", começando em 0) e 2–4 opções curtas de resposta (ex.: "Renda fixa (Caixa)", "Multimercado (Fora da Arca)"). Enquanto isso, preencha o item com o seu melhor palpite e confidence="baixa".`;
+
+export const REFINE_SYSTEM = `Você revisa uma importação de investimentos já extraída, aplicando as respostas que o usuário deu às suas perguntas de classificação.
+Regras:
+- Aplique cada resposta aos itens indicados (e a outros itens claramente iguais): ajuste assetClass, subtype, name, owner, institution conforme a resposta. Mantenha valores, quantidades, datas e tickers como estão, a menos que a resposta diga o contrário.
+- Itens que a resposta resolve passam a confidence="alta".
+- Não remova itens, a não ser que o usuário peça explicitamente (ex.: "é duplicado", "ignore"). Não invente itens novos.
+- Mantenha a mesma ordem dos itens e o mesmo "files" (atualize institution/owner/productHint se a resposta mudar).
+- Use as mesmas regras de classificação Arca: acoes, fiis, caixa (renda fixa e saldos), internacional, outros (cripto, ouro, multimercado, COE, previdência não-RF).
+- "questions": vazio, a menos que uma resposta tenha criado uma dúvida nova e importante (no máximo 2).
+- "warnings": só o que ainda merece atenção.`;
+
+export function refinePrompt(args: { items: unknown[]; files: unknown[]; answers: { question: string; answer: string; itemIndexes: number[] }[] }): string {
+  return `Itens extraídos (o índice é a posição na lista, começando em 0):
+${JSON.stringify(args.items.map((it, i) => ({ i, ...(it as object) })))}
+
+Leitura dos arquivos:
+${JSON.stringify(args.files)}
+
+Respostas do usuário:
+${args.answers.map((a) => `- Pergunta: ${a.question} (itens ${a.itemIndexes.join(", ")})\n  Resposta: ${a.answer}`).join("\n")}
+
+Devolva a importação revisada no resultado estruturado.`;
+}
 
 export function scanSystem(): string {
   return `Você é um analista de investimentos sênior que apoia um investidor brasileiro que segue a filosofia "Arca" (Primo Rico / Thiago Nigro): patrimônio dividido em quatro classes — Ações, Imóveis (FIIs), Caixa/Renda Fixa e Internacional — rebalanceadas periodicamente.

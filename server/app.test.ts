@@ -32,8 +32,9 @@ async function withServer(
     store,
     distDir: "__nao_existe__",
     authStatus: async () => ({ loggedIn: true, account: "Claude Max" }),
-    extractFromFiles: async () => ({ items: [], warnings: [] }),
+    extractFromFiles: async () => ({ items: [], files: [], questions: [], warnings: [] }),
     scanClass: async (c) => fakeScan(c),
+    refineImport: async () => ({ items: [], files: [], questions: [], warnings: [] }),
     refreshValues: async () => ({ runAt: "", usdBrl: null, lines: [] }),
     projectPortfolio: async () => {
       throw new Error("não usado");
@@ -95,13 +96,13 @@ test("POST /api/import: sem arquivos é 400; repassa modelo/esforço dos ajustes
     {
       extractFromFiles: async (files, model, effort) => {
         seen = [files.length, model, effort];
-        return { items: [], warnings: ["ok"] };
+        return { items: [], files: [], questions: [], warnings: ["ok"] };
       },
     },
     async (base) => {
       assert.equal((await fetch(`${base}/api/import`, json({ files: [] }))).status, 400);
       const r = await fetch(`${base}/api/import`, json({ files: [{ name: "a.csv", kind: "text", data: "x" }] }));
-      assert.deepEqual(await r.json(), { items: [], warnings: ["ok"] });
+      assert.deepEqual(await r.json(), { items: [], files: [], questions: [], warnings: ["ok"] });
       assert.deepEqual(seen, [1, "claude-sonnet-5-5", "medium"]);
     },
   );
@@ -237,5 +238,24 @@ test("PUT /api/state não apaga a projeção salva pelo servidor", async () => {
       assert.equal(store.saved!.projection!.summary, "mantida");
     },
     { ...onePosition, projection: { summary: "mantida" } as ProjectionResult },
+  );
+});
+
+test("POST /api/import/refine valida o pedido e repassa respostas ao Claude", async () => {
+  let got: unknown = null;
+  await withServer(
+    {
+      refineImport: async (req, model) => {
+        got = [req.answers[0].answer, model];
+        return { items: [], files: [], questions: [], warnings: ["revisado"] };
+      },
+    },
+    async (base) => {
+      assert.equal((await fetch(`${base}/api/import/refine`, json({ items: [], files: [], answers: [] }))).status, 400);
+      const r = await fetch(`${base}/api/import/refine`, json({ items: [], files: [], answers: [{ questionId: "q1", question: "?", answer: "Renda fixa", itemIndexes: [0] }] }));
+      assert.equal(r.status, 200);
+      assert.deepEqual((await r.json()).warnings, ["revisado"]);
+      assert.deepEqual(got, ["Renda fixa", "claude-sonnet-5-5"]);
+    },
   );
 });

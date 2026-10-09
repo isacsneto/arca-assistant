@@ -4,7 +4,7 @@ import path from "node:path";
 import {
   ARCA_CLASSES, MODEL_OPTIONS,
   type AppState, type ArcaClass, type Effort, type ExtractionResult, type JobEvent,
-  type ProjectionResult, type RefreshResult, type ScanEvent, type ScanResult, type UploadFile,
+  type ProjectionResult, type RefineRequest, type RefreshResult, type ScanEvent, type ScanResult, type UploadFile,
 } from "../shared/types";
 import type { Store } from "./store";
 import { ClaudeError, explainError, type AuthInfo } from "./claude";
@@ -17,6 +17,7 @@ export interface Deps {
   store: Store;
   authStatus: () => Promise<AuthInfo>;
   extractFromFiles: (files: UploadFile[], model: string, effort: Effort, signal?: AbortSignal) => Promise<ExtractionResult>;
+  refineImport: (req: RefineRequest, model: string, effort: Effort, signal?: AbortSignal) => Promise<ExtractionResult>;
   scanClass: (c: ArcaClass, state: AppState, emit: (e: ScanEvent) => void, signal: AbortSignal) => Promise<ScanResult>;
   refreshValues: (state: AppState, emit: (e: JobEvent<RefreshResult>) => void, signal: AbortSignal) => Promise<RefreshResult>;
   projectPortfolio: (state: AppState, emit: (e: JobEvent<ProjectionResult>) => void, signal: AbortSignal) => Promise<ProjectionResult>;
@@ -110,6 +111,26 @@ export function createApp(deps: Deps) {
     try {
       const { model, effort } = state.settings.extraction;
       res.json(await deps.extractFromFiles(files, model, effort, ctrl.signal));
+    } catch (err) {
+      const e = explainError(err);
+      if (!res.headersSent) res.status(e.status).json({ error: e.message });
+    }
+  });
+
+  // Respostas do usuário às perguntas do Claude: reclassifica sem reenviar os arquivos.
+  app.post("/api/import/refine", async (req, res) => {
+    const body = req.body as Partial<RefineRequest>;
+    if (!Array.isArray(body.items) || !Array.isArray(body.files) || !Array.isArray(body.answers) || !body.answers.length) {
+      res.status(400).json({ error: "Envie os itens, a leitura dos arquivos e ao menos uma resposta." });
+      return;
+    }
+    const ctrl = new AbortController();
+    res.on("close", () => {
+      if (!res.writableEnded) ctrl.abort();
+    });
+    try {
+      const { model, effort } = state.settings.extraction;
+      res.json(await deps.refineImport(body as RefineRequest, model, effort, ctrl.signal));
     } catch (err) {
       const e = explainError(err);
       if (!res.headersSent) res.status(e.status).json({ error: e.message });

@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileSpreadsheet, FileText, Image as ImageIcon, Loader2, Sparkles, Upload, X } from "lucide-react";
-import type { ExtractedItem } from "../../shared/types";
+import {
+  Copy, FileSpreadsheet, FileText, HelpCircle, Image as ImageIcon, Loader2, MessageSquare, Send, Sparkles, Upload, X,
+} from "lucide-react";
+import type { ExtractedItem, ExtractionResult, FileReading, ImportAnswer, ImportQuestion } from "../../shared/types";
 import { CLASS_META, OWNERS, type Owner } from "../../shared/types";
 import { parseFileName } from "../../shared/fileHints";
 import { mergeImport, posKey } from "../../shared/importMerge";
+import { checkDuplicates, uniqueName } from "../../shared/dupes";
 import { api } from "../api";
 import { useStore } from "../store";
 import { prepareFile, type PreparedFile } from "../lib/files";
@@ -15,25 +18,64 @@ interface Draft extends ExtractedItem {
   include: boolean;
 }
 
+type Upload = PreparedFile & { looksLike?: string };
+
+interface Review {
+  drafts: Draft[];
+  files: FileReading[];
+  questions: ImportQuestion[];
+  warnings: string[];
+}
+
+const toItem = ({ _id: _i, include: _c, ...item }: Draft): ExtractedItem => item;
+
+/** Converte a resposta do Claude em rascunhos editáveis. */
+function toReview(res: ExtractionResult, previous?: Draft[]): Review {
+  const asked = new Set(res.questions.flatMap((q) => q.itemIndexes));
+  const sameShape = previous && previous.length === res.items.length;
+  return {
+    drafts: res.items.map((it, i) => ({
+      ...it,
+      _id: sameShape ? previous[i]._id : uid(),
+      // Itens com pergunta pendente entram marcados: a resposta vai corrigi-los.
+      include: sameShape ? previous[i].include : it.confidence !== "baixa" || asked.has(i),
+    })),
+    files: res.files,
+    questions: res.questions,
+    warnings: res.warnings,
+  };
+}
+
 export function ImportView({ done }: { done: () => void }) {
   const { state, update, config, view } = useStore();
-  const [files, setFiles] = useState<PreparedFile[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [files, setFiles] = useState<Upload[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<Draft[] | null>(null);
-  const [warnings, setWarnings] = useState<string[]>([]);
+  const [notice, setNotice] = useState<string[]>([]);
+  const [review, setReview] = useState<Review | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [skipQuestions, setSkipQuestions] = useState(false);
   const [removeStale, setRemoveStale] = useState(false);
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const abort = useRef<AbortController | null>(null);
+  const filesRef = useRef<Upload[]>([]);
+  filesRef.current = files;
 
   const addFiles = useCallback(async (list: File[]) => {
     setError(null);
     const results = await Promise.allSettled(list.map(prepareFile));
-    const ok = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
     const bad = results.flatMap((r) => (r.status === "rejected" ? [String(r.reason?.message ?? r.reason)] : []));
+    const taken = new Set(filesRef.current.map((f) => f.name));
+    const ok = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])).map((f) => {
+      const name = uniqueName(f.name, taken);
+      taken.add(name);
+      return { ...f, name };
+    });
+    const { accepted, exact } = checkDuplicates(filesRef.current, ok);
     if (bad.length) setError(bad.join(" "));
-    setFiles((prev) => [...prev, ...ok]);
+    setNotice(exact.map((e) => `"${e.file.name}" é idêntico a "${e.sameAs}" e foi ignorado.`));
+    setFiles((prev) => [...prev, ...accepted]);
   }, []);
 
   // Ctrl+V de prints direto da área de transferência
@@ -51,36 +93,64 @@ export function ImportView({ done }: { done: () => void }) {
 
   useEffect(() => () => abort.current?.abort(), []);
 
-  const process = async () => {
-    setBusy(true);
+  const run = async (label: string, fn: (signal: AbortSignal) => Promise<void>) => {
+    setBusy(label);
     setError(null);
     abort.current = new AbortController();
     try {
-      const res = await api.importFiles(
-        files.map(({ id: _id, preview: _p, size: _s, ...f }) => f),
-        abort.current.signal,
-      );
-      setDrafts(res.items.map((it) => ({ ...it, _id: uid(), include: it.confidence !== "baixa" })));
-      setWarnings(res.warnings);
+      await fn(abort.current.signal);
     } catch (e) {
       if ((e as Error).name !== "AbortError") setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
-  const positions = useMemo(() => drafts?.filter((d) => d.kind === "position") ?? [], [drafts]);
-  const txs = useMemo(() => drafts?.filter((d) => d.kind === "transaction") ?? [], [drafts]);
-  const existing = useMemo(() => new Set(state!.positions.map((p) => posKey(p.owner, p.institution, p.ticker, p.name))), [state]);
-  // Sem PF/PJ no arquivo nem no documento: usa a visão atual (ou PF no consolidado).
+  const processFiles = () =>
+    run("Lendo arquivos com Claude…", async (signal) => {
+      const res = await api.importFiles(
+        files.map(({ id: _id, preview: _p, size: _s, sha: _h, dhash: _d, aspect: _a, ...f }) => f),
+        signal,
+      );
+      setReview(toReview(res));
+      setAnswers({});
+      setSkipQuestions(false);
+    });
+
+  const sendAnswers = () =>
+    run("Claude revisando com as suas respostas…", async (signal) => {
+      if (!review) return;
+      const payload: ImportAnswer[] = review.questions
+        .filter((q) => answers[q.id]?.trim())
+        .map((q) => ({ questionId: q.id, question: q.question, answer: answers[q.id].trim(), itemIndexes: q.itemIndexes }));
+      const res = await api.refineImport({ items: review.drafts.map(toItem), files: review.files, answers: payload }, signal);
+      setReview(toReview(res, review.drafts));
+      setAnswers({});
+    });
+
   const fallbackOwner: Owner = view === "PJ" ? "PJ" : "PF";
+  const existing = useMemo(() => new Set(state!.positions.map((p) => posKey(p.owner, p.institution, p.ticker, p.name))), [state]);
 
   const patch = (id: string, changes: Partial<Draft>) =>
-    setDrafts((ds) => ds!.map((d) => (d._id === id ? { ...d, ...changes } : d)));
+    setReview((r) => r && { ...r, drafts: r.drafts.map((d) => (d._id === id ? { ...d, ...changes } : d)) });
+
+  /** Muda instituição/titular de um arquivo inteiro (e de todos os seus itens). */
+  const patchFile = (file: string, changes: Partial<Pick<FileReading, "institution" | "owner">>) =>
+    setReview((r) =>
+      r && {
+        ...r,
+        files: r.files.map((f) => (f.file === file ? { ...f, ...changes } : f)),
+        drafts: r.drafts.map((d) =>
+          d.sourceFile === file
+            ? { ...d, ...(changes.institution !== undefined && { institution: changes.institution ?? d.institution }), ...(changes.owner !== undefined && { owner: changes.owner }) }
+            : d,
+        ),
+      },
+    );
 
   const commit = () => {
-    if (!drafts) return;
-    const chosen = drafts.filter((d) => d.include).map(({ _id: _i, include: _c, ...item }) => item);
+    if (!review) return;
+    const chosen = review.drafts.filter((d) => d.include).map(toItem);
     update((s) => ({
       ...s,
       ...mergeImport(s, chosen, { removeStale, now: new Date().toISOString(), newId: uid, defaultOwner: fallbackOwner }),
@@ -89,26 +159,127 @@ export function ImportView({ done }: { done: () => void }) {
   };
 
   /* ---------------- revisão ---------------- */
-  if (drafts) {
+  if (review) {
+    const { drafts } = review;
+    const positions = drafts.filter((d) => d.kind === "position");
+    const txs = drafts.filter((d) => d.kind === "transaction");
     const included = drafts.filter((d) => d.include).length;
+    const pending = review.questions.length;
+    const answered = review.questions.filter((q) => answers[q.id]?.trim()).length;
+    const blocked = pending > 0 && !skipQuestions;
+    const duplicates = review.files.filter((f) => f.duplicateOf);
+    // O aviso de prints repetidos já tem banner próprio; não repetir nos avisos do Claude.
+    const otherWarnings = duplicates.length ? review.warnings.filter((w) => !/duplicad|repetid|idêntic/i.test(w)) : review.warnings;
+    const indexOf = new Map(drafts.map((d, i) => [d._id, i]));
+    const asked = new Set(review.questions.flatMap((q) => q.itemIndexes));
+
     return (
       <>
         <PageHead
           title="Revisar importação"
-          subtitle="Confira o que o Claude leu. Edite o que precisar antes de salvar."
+          subtitle="Confira como o Claude entendeu cada arquivo, responda às perguntas dele e ajuste o que precisar antes de salvar."
           actions={
             <>
-              <button className="btn" onClick={() => setDrafts(null)}>Voltar</button>
-              <button className="btn primary" disabled={!included} onClick={commit}>Salvar {included} itens</button>
+              <button className="btn" onClick={() => setReview(null)} disabled={!!busy}>Voltar</button>
+              <button className="btn primary" disabled={!included || blocked || !!busy} onClick={commit}
+                title={blocked ? "Responda às perguntas do Claude (ou marque para salvar sem responder)" : undefined}>
+                Salvar {included} itens
+              </button>
             </>
           }
         />
-        {warnings.length > 0 && (
+        {error && <Banner kind="bad">{error}</Banner>}
+        {busy && <Banner><span className="row"><Loader2 size={16} className="spin" /> {busy}</span></Banner>}
+
+        {/* -------- perguntas -------- */}
+        {pending > 0 && (
+          <div className="card question-card" style={{ marginBottom: 16 }}>
+            <div className="card-head">
+              <div>
+                <h2 className="row"><HelpCircle size={18} /> O Claude precisa de {pending === 1 ? "uma resposta" : `${pending} respostas`}</h2>
+                <p className="muted small">Para classificar estes ativos com segurança. Escolha uma opção ou escreva a sua.</p>
+              </div>
+            </div>
+            <div className="stack">
+              {review.questions.map((q, qi) => (
+                <div className="question" key={q.id}>
+                  <div><b>{qi + 1}. {q.question}</b></div>
+                  {q.itemIndexes.length > 0 && (
+                    <div className="muted small" style={{ marginTop: 2 }}>
+                      Afeta: {q.itemIndexes.map((i) => drafts[i]).filter(Boolean).map((d) => (d.ticker ? `${d.ticker} · ` : "") + d.name).join(", ")}
+                    </div>
+                  )}
+                  <div className="row wrap" style={{ marginTop: 8, gap: 6 }}>
+                    {q.options.map((o) => (
+                      <button key={o} type="button" className={"btn sm" + (answers[q.id] === o ? " primary" : "")}
+                        onClick={() => setAnswers((a) => ({ ...a, [q.id]: o }))}>{o}</button>
+                    ))}
+                    <input type="text" placeholder="Outra resposta…" style={{ maxWidth: 280 }}
+                      value={q.options.includes(answers[q.id] ?? "") ? "" : (answers[q.id] ?? "")}
+                      onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="row wrap spread" style={{ marginTop: 14 }}>
+              <label className="check small">
+                <input type="checkbox" checked={skipQuestions} onChange={(e) => setSkipQuestions(e.target.checked)} />
+                Salvar sem responder (usar os palpites do Claude)
+              </label>
+              <button className="btn primary" disabled={!answered || !!busy} onClick={sendAnswers}>
+                <Send size={15} /> Enviar {answered || ""} resposta{answered === 1 ? "" : "s"} ao Claude
+              </button>
+            </div>
+          </div>
+        )}
+
+        {otherWarnings.length > 0 && (
           <Banner kind="warn">
             <b>Avisos do Claude:</b>
-            <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>{warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+            <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>{otherWarnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
           </Banner>
         )}
+        {duplicates.length > 0 && (
+          <Banner kind="warn">
+            <b>Prints repetidos:</b> {duplicates.map((f) => `"${f.file}" repete "${f.duplicateOf}"`).join("; ")}. Os ativos foram contados uma vez só.
+          </Banner>
+        )}
+
+        {/* -------- leitura dos arquivos -------- */}
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-head">
+            <h2 className="row"><MessageSquare size={17} /> Como o Claude entendeu cada arquivo</h2>
+            <span className="muted small">mudar instituição/titular aqui vale para todos os itens do arquivo</span>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Arquivo</th><th>Instituição</th><th>Titular</th><th>Produto (nome do arquivo)</th><th>O que mostra</th></tr></thead>
+              <tbody>
+                {review.files.map((f) => (
+                  <tr key={f.file}>
+                    <td style={{ minWidth: 160 }}>
+                      <b className="small">{f.file}</b>
+                      {f.duplicateOf && <div><span className="chip warn"><Copy size={11} /> repete {f.duplicateOf}</span></div>}
+                    </td>
+                    <td style={{ minWidth: 150 }}>
+                      <input className="cell" type="text" value={f.institution ?? ""} placeholder="não identificada"
+                        onChange={(e) => patchFile(f.file, { institution: e.target.value || null })} />
+                    </td>
+                    <td style={{ minWidth: 80 }}>
+                      <select className="cell" value={f.owner ?? ""} onChange={(e) => patchFile(f.file, { owner: (e.target.value || null) as Owner | null })} aria-label="Titular do arquivo">
+                        <option value="">?</option>
+                        {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </td>
+                    <td className="small">{f.productHint ?? <span className="muted">—</span>}</td>
+                    <td className="small muted" style={{ minWidth: 200 }}>{f.summary || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         {drafts.length === 0 && <Banner kind="warn">Nenhum dado financeiro foi encontrado nos arquivos.</Banner>}
 
         {positions.length > 0 && (
@@ -124,30 +295,34 @@ export function ImportView({ done }: { done: () => void }) {
               <table>
                 <thead><tr><th /><th>Ativo</th><th>Instituição</th><th>Titular</th><th>Classe</th><th className="right">Valor</th><th>Moeda</th><th /></tr></thead>
                 <tbody>
-                  {positions.map((d) => (
-                    <tr key={d._id} style={{ opacity: d.include ? 1 : 0.5 }}>
-                      <td><input type="checkbox" checked={d.include} onChange={(e) => patch(d._id, { include: e.target.checked })} aria-label="Incluir" /></td>
-                      <td style={{ minWidth: 200 }}>
-                        <input className="cell" type="text" value={d.name} onChange={(e) => patch(d._id, { name: e.target.value })} />
-                        <div className="muted small" style={{ paddingLeft: 6 }}>{[d.ticker, d.subtype].filter(Boolean).join(" · ")}</div>
-                      </td>
-                      <td><input className="cell" type="text" value={d.institution} onChange={(e) => patch(d._id, { institution: e.target.value })} /></td>
-                      <td>
-                        <select className="cell" value={d.owner ?? fallbackOwner} onChange={(e) => patch(d._id, { owner: e.target.value as Owner })} aria-label="Titular">
-                          {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      </td>
-                      <td style={{ minWidth: 150 }}><ClassSelect value={d.assetClass} onChange={(assetClass) => patch(d._id, { assetClass })} /></td>
-                      <td style={{ minWidth: 130 }}><input className="cell num right" type="number" step="0.01" value={d.value} onChange={(e) => patch(d._id, { value: Number(e.target.value) })} /></td>
-                      <td>
-                        <select className="cell" value={d.currency} onChange={(e) => patch(d._id, { currency: e.target.value as "BRL" | "USD" })}><option>BRL</option><option>USD</option></select>
-                      </td>
-                      <td className="small">
-                        {existing.has(posKey(d.owner ?? fallbackOwner, d.institution, d.ticker, d.name)) && <span className="chip">atualiza</span>}{" "}
-                        {d.confidence !== "alta" && <span className={`chip ${d.confidence === "baixa" ? "bad" : "warn"}`} title={d.notes ?? ""}>confiança {d.confidence}</span>}
-                      </td>
-                    </tr>
-                  ))}
+                  {positions.map((d) => {
+                    const pendingQ = asked.has(indexOf.get(d._id)!);
+                    return (
+                      <tr key={d._id} style={{ opacity: d.include ? 1 : 0.5 }}>
+                        <td><input type="checkbox" checked={d.include} onChange={(e) => patch(d._id, { include: e.target.checked })} aria-label="Incluir" /></td>
+                        <td style={{ minWidth: 200 }}>
+                          <input className="cell" type="text" value={d.name} onChange={(e) => patch(d._id, { name: e.target.value })} />
+                          <div className="muted small" style={{ paddingLeft: 6 }}>{[d.ticker, d.subtype, d.sourceFile].filter(Boolean).join(" · ")}</div>
+                        </td>
+                        <td style={{ minWidth: 150 }}><input className="cell" type="text" value={d.institution} onChange={(e) => patch(d._id, { institution: e.target.value })} /></td>
+                        <td style={{ minWidth: 80 }}>
+                          <select className="cell" value={d.owner ?? fallbackOwner} onChange={(e) => patch(d._id, { owner: e.target.value as Owner })} aria-label="Titular">
+                            {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
+                          </select>
+                        </td>
+                        <td style={{ minWidth: 150 }}><ClassSelect value={d.assetClass} onChange={(assetClass) => patch(d._id, { assetClass, confidence: "alta" })} /></td>
+                        <td style={{ minWidth: 130 }}><input className="cell num right" type="number" step="0.01" value={d.value} onChange={(e) => patch(d._id, { value: Number(e.target.value) })} /></td>
+                        <td>
+                          <select className="cell" value={d.currency} onChange={(e) => patch(d._id, { currency: e.target.value as "BRL" | "USD" })}><option>BRL</option><option>USD</option></select>
+                        </td>
+                        <td className="small">
+                          {pendingQ && <span className="chip warn" title="Há uma pergunta do Claude sobre este item">pergunta</span>}{" "}
+                          {existing.has(posKey(d.owner ?? fallbackOwner, d.institution, d.ticker, d.name)) && <span className="chip">atualiza</span>}{" "}
+                          {d.confidence !== "alta" && !pendingQ && <span className={`chip ${d.confidence === "baixa" ? "bad" : "warn"}`} title={d.notes ?? ""}>confiança {d.confidence}</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -159,7 +334,7 @@ export function ImportView({ done }: { done: () => void }) {
             <div className="card-head"><h2>Transações ({txs.length})</h2></div>
             <div className="table-wrap">
               <table>
-                <thead><tr><th /><th>Data</th><th>Tipo</th><th>Descrição</th><th>Instituição</th><th className="right">Valor</th></tr></thead>
+                <thead><tr><th /><th>Data</th><th>Tipo</th><th>Descrição</th><th>Instituição</th><th>Titular</th><th className="right">Valor</th></tr></thead>
                 <tbody>
                   {txs.map((d) => (
                     <tr key={d._id} style={{ opacity: d.include ? 1 : 0.5 }}>
@@ -168,6 +343,7 @@ export function ImportView({ done }: { done: () => void }) {
                       <td><span className="chip">{d.txType ?? "outro"}</span></td>
                       <td>{d.ticker ? <b>{d.ticker} </b> : null}{d.name}</td>
                       <td className="muted">{d.institution}</td>
+                      <td><span className={"chip owner-" + (d.owner ?? fallbackOwner)}>{d.owner ?? fallbackOwner}</span></td>
                       <td className="right num">{money(d.value, d.currency)}</td>
                     </tr>
                   ))}
@@ -184,14 +360,16 @@ export function ImportView({ done }: { done: () => void }) {
   const ex = state!.settings.extraction;
   const modelLabel = config!.models.find((m) => m.id === ex.model)?.label ?? ex.model;
   const icon = (f: PreparedFile) => (f.kind === "image" ? <ImageIcon size={26} /> : f.kind === "pdf" ? <FileText size={26} /> : <FileSpreadsheet size={26} />);
+  const nearDups = files.filter((f) => f.looksLike).length;
 
   return (
     <>
       <PageHead
         title="Importar"
-        subtitle="Prints do app do banco/corretora, PDFs, CSV ou XLSX (BTG, XP, Nubank, Inter…). O Claude lê e organiza tudo."
+        subtitle="Prints do app do banco/corretora, PDFs, CSV ou XLSX (BTG, XP, Nubank, Inter…). O Claude lê, confere os nomes dos arquivos e pergunta o que não souber classificar."
       />
       {error && <Banner kind="bad">{error}</Banner>}
+      {notice.length > 0 && <Banner kind="warn">{notice.join(" ")}</Banner>}
       <div
         className={`dropzone ${over ? "over" : ""}`}
         onClick={() => input.current?.click()}
@@ -211,19 +389,25 @@ export function ImportView({ done }: { done: () => void }) {
 
       {files.length > 0 && (
         <>
+          {nearDups > 0 && (
+            <Banner kind="warn">
+              {nearDups === 1 ? "Um print parece" : `${nearDups} prints parecem`} quase idêntico{nearDups === 1 ? "" : "s"} a outro do lote (marcado em amarelo). Remova se for repetido — se não, o Claude confere o conteúdo e conta cada ativo uma vez só.
+            </Banner>
+          )}
           <div className="thumbs">
             {files.map((f) => (
-              <div className="thumb" key={f.id}>
+              <div className={"thumb" + (f.looksLike ? " dup" : "")} key={f.id}>
                 {f.preview ? <img src={f.preview} alt={f.name} /> : <div className="ph">{icon(f)}</div>}
                 <div className="cap" title={f.name}>{f.name}</div>
                 <FileHintChips name={f.name} />
+                {f.looksLike && <div className="cap"><span className="chip warn" title="Hash visual quase igual"><Copy size={11} /> parece {f.looksLike}</span></div>}
                 <button className="btn icon sm x" title="Remover" onClick={() => setFiles((fs) => fs.filter((x) => x.id !== f.id))}><X size={14} /></button>
               </div>
             ))}
           </div>
           <div className="row" style={{ marginTop: 18 }}>
-            <button className="btn primary" disabled={busy || !config!.hasCredentials} onClick={process}>
-              {busy ? <><Loader2 className="spin" size={16} /> Lendo com Claude…</> : <><Sparkles size={16} /> Processar {files.length} arquivo{files.length > 1 ? "s" : ""}</>}
+            <button className="btn primary" disabled={!!busy || !config!.hasCredentials} onClick={processFiles}>
+              {busy ? <><Loader2 className="spin" size={16} /> {busy}</> : <><Sparkles size={16} /> Processar {files.length} arquivo{files.length > 1 ? "s" : ""}</>}
             </button>
             {busy && <button className="btn" onClick={() => abort.current?.abort()}>Cancelar</button>}
             <span className="muted small">Modelo: {modelLabel} · esforço {ex.effort} (altere em Ajustes)</span>
@@ -231,13 +415,13 @@ export function ImportView({ done }: { done: () => void }) {
         </>
       )}
       <p className="muted small" style={{ marginTop: 22 }}>
-        Dica: nomeie os arquivos como <b>banco-pf</b> ou <b>banco-pj-dica</b> (ex.: <code>vest-pf.png</code>, <code>itau-pf-cdb100cdi.png</code>) para já definir instituição, titular e o produto. Um print por instituição com a lista completa de ativos funciona melhor. Depois da leitura você revisa tudo antes de salvar. Classes: {Object.values(CLASS_META).map((m) => m.label).join(" · ")}.
+        Dica: nomeie os arquivos como <b>banco-pf</b> ou <b>banco-pj-dica</b> (ex.: <code>vest-pf.png</code>, <code>itau-pf-cdb100cdi.png</code>) para já definir instituição, titular e o produto — o Claude confere essa leitura. Arquivos idênticos são ignorados automaticamente e prints repetidos são contados uma vez só. Classes: {Object.values(CLASS_META).map((m) => m.label).join(" · ")}.
       </p>
     </>
   );
 }
 
-/** Mostra o que foi entendido do nome do arquivo (instituição · titular · dica). */
+/** Leitura automática do nome do arquivo (o Claude confirma ou corrige na revisão). */
 function FileHintChips({ name }: { name: string }) {
   const h = parseFileName(name);
   if (!h.institution && !h.owner && !h.hint) return <div className="cap muted small">sem dica no nome</div>;

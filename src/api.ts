@@ -1,4 +1,4 @@
-import type { AppState, ExtractionResult, ScanEvent, UploadFile } from "../shared/types";
+import type { AppState, ExtractionResult, RefineRequest, ScanEvent, UploadFile } from "../shared/types";
 
 export interface ModelOption {
   id: string;
@@ -34,6 +34,13 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ files }),
+      signal,
+    }).then((r) => json<ExtractionResult>(r)),
+  refineImport: (body: RefineRequest, signal?: AbortSignal) =>
+    fetch("/api/import/refine", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
       signal,
     }).then((r) => json<ExtractionResult>(r)),
 };

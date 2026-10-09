@@ -14,6 +14,7 @@ import {
   type JobEvent,
   type Position,
   type ProjectionResult,
+  type RefineRequest,
   type ArcaClass,
   type Effort,
   type ExtractionResult,
@@ -22,15 +23,10 @@ import {
   type UploadFile,
 } from "../shared/types";
 import { computeAllocation, toBRL } from "../shared/arca";
-import { applyFileHints, describeHint, parseFileName } from "../shared/fileHints";
-
-const hintFor = (name: string) => {
-  const d = describeHint(parseFileName(name));
-  return d ? ` — informado pelo nome do arquivo: ${d}` : "";
-};
+import { fileNameNote, finalizeExtraction } from "../shared/importReview";
 import {
-  EXTRACTION_SYSTEM, PROJECTION_SYSTEM, REFRESH_SYSTEM,
-  projectionPrompt, refreshPrompt, scanPrompt, scanSystem,
+  EXTRACTION_SYSTEM, PROJECTION_SYSTEM, REFINE_SYSTEM, REFRESH_SYSTEM,
+  projectionPrompt, refinePrompt, refreshPrompt, scanPrompt, scanSystem,
 } from "./prompts";
 
 /*
@@ -180,18 +176,18 @@ export async function extractFromFiles(
     const inline: string[] = [];
     for (const [i, f] of files.entries()) {
       if (f.kind === "text") {
-        inline.push(`=== Arquivo ${i + 1}: ${f.name}${hintFor(f.name)} (conteúdo abaixo) ===\n${f.data}`);
+        inline.push(`=== Arquivo ${i + 1}: ${f.name}${fileNameNote(f.name, f.looksLike)} (conteúdo abaixo) ===\n${f.data}`);
         continue;
       }
       const base = path.basename(f.name).replace(/[^\w.-]+/g, "_").replace(/\.[^.]*$/, "");
       const ext = f.kind === "pdf" ? ".pdf" : (EXT[f.mediaType ?? ""] ?? ".png");
       const file = path.join(dir, `${i + 1}-${base}${ext}`);
       await fs.writeFile(file, Buffer.from(f.data, "base64"));
-      lines.push(`- ${file}  (arquivo original: ${f.name}${hintFor(f.name)})`);
+      lines.push(`- ${file}  (arquivo original: "${f.name}"${fileNameNote(f.name, f.looksLike)})`);
     }
 
     const prompt = [
-      "Extraia todas as posições e transações dos arquivos abaixo, seguindo as regras do sistema.",
+      "Extraia todas as posições e transações dos arquivos abaixo, seguindo as regras do sistema. Preencha \"files\" com uma leitura por arquivo (pelo nome original), verifique duplicados entre os arquivos e faça perguntas só se algo não puder ser classificado com segurança.",
       lines.length
         ? `\nUse a ferramenta Read em CADA um destes caminhos (imagens e PDFs são lidos visualmente; em PDFs com mais de 10 páginas leia em blocos de até 10 páginas):\n${lines.join("\n")}`
         : "",
@@ -210,11 +206,30 @@ export async function extractFromFiles(
       maxTurns: 6 + files.length * 3,
       signal,
     });
-    // O nome do arquivo manda sobre instituição/titular (convenção banco-pf-dica).
-    return { ...data, items: applyFileHints(data.items, files.map((f) => f.name)) };
+    return finalizeExtraction(data, files.map((f) => f.name));
   } finally {
     await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
+}
+
+/** Segunda rodada: aplica as respostas do usuário às perguntas, sem reenviar os arquivos. */
+export async function refineImport(req: RefineRequest, model: string, effort: Effort, signal?: AbortSignal): Promise<ExtractionResult> {
+  const { data } = await runStructured({
+    prompt: refinePrompt(req),
+    system: REFINE_SYSTEM,
+    model,
+    effort,
+    schema: ExtractionResultSchema,
+    cwd: os.tmpdir(),
+    tools: [],
+    maxTurns: 3,
+    signal,
+  });
+  // Nunca perder itens numa revisão: se o modelo devolver menos, o pedido foi mal aplicado.
+  const removalAsked = req.answers.some((a) => /duplicad|ignor|remov|exclu|apag/i.test(a.answer));
+  if (!removalAsked && data.items.length < req.items.length)
+    throw new ClaudeError("A revisão perdeu itens da importação. Tente responder de novo.");
+  return finalizeExtraction(data, req.files.map((f) => f.file));
 }
 
 /* ------------------------------------------------------------------ */

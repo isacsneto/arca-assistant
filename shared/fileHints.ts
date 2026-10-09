@@ -1,4 +1,4 @@
-import type { ExtractedItem, Owner } from "./types";
+import type { ExtractedItem, FileReading, Owner } from "./types";
 
 /*
  * Convenção de nome de arquivo:  <instituição>-<pf|pj>[-<dica>]
@@ -53,12 +53,17 @@ export interface FileHint {
 
 const OWNER_TOKENS: Record<string, Owner> = { pf: "PF", pj: "PJ" };
 
+/** Pedaços do nome que não dizem nada sobre o produto: versões e cópias. Números soltos ficam ("lci 95 cdi", "ipca 2029"). */
+const NOISE = /^(v\d+|copia|cópia|copy|final|novo|nova|new|\(\d+\)|\d{6,})$/i;
+/** Datas completas e "(2)" de cópia, removidas antes de quebrar o nome em partes. */
+const DATES = /\b(\d{4}[-_.]\d{2}[-_.]\d{2}|\d{2}[-_.]\d{2}[-_.]\d{4})\b|\(\d+\)/g;
+
 /** Ignora nomes genéricos de print/captura, que não seguem a convenção. */
 const GENERIC = /^(screenshot|captura|print|img|image|imagem|whatsapp|photo|foto|scan|colado|ss)\b/i;
 
 export function parseFileName(fileName: string): FileHint {
   const base = fileName.replace(/^.*[\\/]/, "").replace(/\.[a-z0-9]{1,5}$/i, "").trim();
-  const tokens = base.toLowerCase().split(/[-_.\s]+/).filter(Boolean);
+  const tokens = base.toLowerCase().replace(DATES, " ").split(/[-_.\s]+/).filter((t) => t && !NOISE.test(t));
   const empty: FileHint = { institution: null, owner: null, hint: null };
   if (!tokens.length || GENERIC.test(base)) return empty;
 
@@ -86,16 +91,29 @@ export function describeHint(h: FileHint): string | null {
   return parts.length ? parts.join("; ") : null;
 }
 
-/** O nome do arquivo manda: sobrescreve instituição/titular do que o modelo leu. */
-export function applyFileHints(items: ExtractedItem[], fileNames: string[]): ExtractedItem[] {
+/**
+ * Aplica a instituição/titular de cada arquivo aos itens dele.
+ * Prioridade: leitura do Claude sobre o arquivo (nome + conteúdo) > leitura
+ * determinística do nome > o que veio no item.
+ */
+export function applyFileReadings(
+  items: ExtractedItem[],
+  fileNames: string[],
+  readings: Pick<FileReading, "file" | "institution" | "owner">[] = [],
+): ExtractedItem[] {
   const hints = new Map(fileNames.map((n) => [n, parseFileName(n)]));
+  const byFile = new Map(readings.map((r) => [r.file, r]));
+  const only = fileNames.length === 1 ? fileNames[0] : undefined;
   return items.map((it) => {
-    const h = hints.get(it.sourceFile) ?? (fileNames.length === 1 ? hints.get(fileNames[0]) : undefined);
-    if (!h) return it;
+    const file = hints.has(it.sourceFile) ? it.sourceFile : only;
+    if (!file) return it;
+    const h = hints.get(file)!;
+    const r = byFile.get(file);
     return {
       ...it,
-      institution: h.institution ?? it.institution,
-      owner: h.owner ?? it.owner,
+      sourceFile: file,
+      institution: r?.institution ?? h.institution ?? it.institution,
+      owner: r?.owner ?? h.owner ?? it.owner,
     };
   });
 }

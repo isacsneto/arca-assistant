@@ -117,17 +117,60 @@ export const ExtractedItemSchema = z.object({
 });
 export type ExtractedItem = z.infer<typeof ExtractedItemSchema>;
 
+/** Como o Claude entendeu cada arquivo (nome + conteúdo). */
+export const FileReadingSchema = z.object({
+  file: z.string(),
+  institution: z.string().nullable(),
+  owner: z.enum(["PF", "PJ"]).nullable(),
+  /** Produto/dica que o nome do arquivo indica (ex.: "CDB 100% do CDI"). */
+  productHint: z.string().nullable(),
+  /** Resumo curto do que o arquivo mostra. */
+  summary: z.string(),
+  /** Se o conteúdo repete outro arquivo do mesmo lote, o nome desse outro arquivo. */
+  duplicateOf: z.string().nullable(),
+});
+export type FileReading = z.infer<typeof FileReadingSchema>;
+
+/** Pergunta do Claude quando não dá para classificar com segurança. */
+export const ImportQuestionSchema = z.object({
+  id: z.string(),
+  question: z.string(),
+  /** Índices (em `items`) dos itens que a resposta afeta. */
+  itemIndexes: z.array(z.number()),
+  /** 2–4 respostas sugeridas, curtas. O usuário também pode escrever outra. */
+  options: z.array(z.string()),
+});
+export type ImportQuestion = z.infer<typeof ImportQuestionSchema>;
+
 export const ExtractionResultSchema = z.object({
   items: z.array(ExtractedItemSchema),
+  files: z.array(FileReadingSchema),
+  questions: z.array(ImportQuestionSchema),
   warnings: z.array(z.string()),
 });
 export type ExtractionResult = z.infer<typeof ExtractionResultSchema>;
+
+export interface ImportAnswer {
+  questionId: string;
+  question: string;
+  answer: string;
+  itemIndexes: number[];
+}
+
+/** Pedido de revisão: itens atuais + respostas do usuário, sem reenviar os arquivos. */
+export interface RefineRequest {
+  items: ExtractedItem[];
+  files: FileReading[];
+  answers: ImportAnswer[];
+}
 
 export interface UploadFile {
   name: string;
   kind: "image" | "pdf" | "text";
   mediaType?: string; // image/* ou application/pdf
   data: string; // base64 (image/pdf) ou texto puro
+  /** Outro arquivo do lote que é visualmente quase idêntico (hash de imagem). */
+  looksLike?: string;
 }
 
 /* ------------------------------------------------------------------ */
