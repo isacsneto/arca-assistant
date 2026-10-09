@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, Landmark } from "lucide-react";
+import { BellOff, BellRing, ChevronRight, Landmark } from "lucide-react";
+import { isStale, markStale, unmarkStale } from "../../shared/reminders";
 import { ALL_CLASSES, CLASS_META, type AssetClass, type Owner, type Position } from "../../shared/types";
 import { toBRL } from "../../shared/arca";
 import { VIEW_LABEL } from "../../shared/owner";
@@ -18,7 +19,17 @@ interface Group {
 
 /** Onde está cada investimento: agrupa por banco/corretora. */
 export function InstitutionsView() {
-  const { state, visible, view } = useStore();
+  const { state, visible, view, update } = useStore();
+  const staleList = state!.settings.staleInstitutions;
+
+  /** Marca/desmarca a instituição como desatualizada para todos os titulares do grupo. */
+  const toggleStale = (g: Group) => {
+    const stale = g.owners.every((o) => isStale(state!.settings, g.institution, o));
+    const now = new Date().toISOString();
+    let list = staleList;
+    for (const o of g.owners) list = stale ? unmarkStale(list, g.institution, o) : markStale(list, g.institution, o, now);
+    update((st) => ({ ...st, settings: { ...st.settings, staleInstitutions: list } }));
+  };
   const usd = state!.settings.usdBrl;
   const [open, setOpen] = useState<string | null>(null);
   const [splitOwner, setSplitOwner] = useState(false);
@@ -74,14 +85,16 @@ export function InstitutionsView() {
             {groups.map((g, i) => {
               const isOpen = open === g.key;
               return (
-                <div className="card inst" key={g.key}>
-                  <button type="button" className="inst-head" onClick={() => setOpen(isOpen ? null : g.key)} aria-expanded={isOpen}>
+                <div className={"card inst" + (g.owners.some((o) => isStale(state!.settings, g.institution, o)) ? " is-stale" : "")} key={g.key}>
+                  <div className="row" style={{ alignItems: "center", gap: 10 }}>
+                  <button type="button" className="inst-head grow" onClick={() => setOpen(isOpen ? null : g.key)} aria-expanded={isOpen}>
                     <ChevronRight size={16} className="chev" style={{ transform: isOpen ? "rotate(90deg)" : undefined }} />
                     <span className="inst-swatch" style={{ background: `var(--inst-${i % 6})` }}><Landmark size={14} /></span>
                     <div className="grow">
                       <div className="row" style={{ gap: 6 }}>
                         <b>{g.institution}</b>
                         {g.owners.map((o) => <span key={o} className={`chip owner-${o}`}>{o}</span>)}
+                        {g.owners.some((o) => isStale(state!.settings, g.institution, o)) && <span className="chip stale"><BellRing size={11} /> desatualizada</span>}
                       </div>
                       <div className="row wrap small muted" style={{ gap: 10, marginTop: 4 }}>
                         {ALL_CLASSES.filter((c) => g.byClass[c]).map((c) => (
@@ -94,6 +107,16 @@ export function InstitutionsView() {
                       <div className="muted small num">{pct((g.total / grand) * 100)} do total · {g.items.length} ativo{g.items.length === 1 ? "" : "s"}</div>
                     </div>
                   </button>
+                  {(() => {
+                    const stale = g.owners.every((o) => isStale(state!.settings, g.institution, o));
+                    return (
+                      <button type="button" className={"btn sm" + (stale ? " stale-btn" : "")} onClick={() => toggleStale(g)}
+                        title={stale ? "Desmarcar: os valores já estão em dia" : "Pedir para atualizar esta instituição sempre que abrir o app"}>
+                        {stale ? <><BellOff size={14} /> Desmarcar</> : <><BellRing size={14} /> Marcar desatualizada</>}
+                      </button>
+                    );
+                  })()}
+                  </div>
                   {isOpen && (
                     <div className="table-wrap" style={{ marginTop: 12 }}>
                       <table>

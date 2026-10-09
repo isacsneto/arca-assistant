@@ -124,6 +124,26 @@ export function SettingsView() {
         </section>
 
         <section className="card">
+          <h2 style={{ marginBottom: 6 }}>Lembretes de atualização</h2>
+          <p className="muted small" style={{ marginBottom: 12 }}>
+            De tempos em tempos o app pergunta, ao abrir, se está tudo atualizado. Instituições marcadas como desatualizadas (na aba Instituições) aparecem sempre que você abre o app.
+          </p>
+          <label className="field" style={{ maxWidth: 280 }}>
+            Perguntar se está tudo atualizado
+            <select value={settings.reviewIntervalDays} onChange={(e) => set({ reviewIntervalDays: Number(e.target.value) as 0 | 7 | 14 })}>
+              <option value={7}>Toda semana</option>
+              <option value={14}>A cada 2 semanas</option>
+              <option value={0}>Nunca</option>
+            </select>
+          </label>
+          {settings.staleInstitutions.length > 0 && (
+            <p className="small" style={{ marginTop: 10 }}>
+              Desatualizadas agora: {settings.staleInstitutions.map((m) => `${m.institution} (${m.owner})`).join(", ")}.
+            </p>
+          )}
+        </section>
+
+        <section className="card">
           <h2 style={{ marginBottom: 12 }}>Perfil do investidor</h2>
           <label className="field">
             <span className="hint">Usado pelo scan para calibrar as sugestões (horizonte, tolerância a risco, objetivos).</span>

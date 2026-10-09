@@ -35,6 +35,7 @@ async function withServer(
     extractFromFiles: async () => ({ items: [], files: [], questions: [], warnings: [] }),
     scanClass: async (c) => fakeScan(c),
     refineImport: async () => ({ items: [], files: [], questions: [], warnings: [] }),
+    interpretPrompt: async () => ({ operations: [], questions: [], warnings: [] }),
     refreshValues: async () => ({ runAt: "", usdBrl: null, lines: [] }),
     projectPortfolio: async () => {
       throw new Error("não usado");
@@ -257,5 +258,28 @@ test("POST /api/import/refine valida o pedido e repassa respostas ao Claude", as
       assert.deepEqual((await r.json()).warnings, ["revisado"]);
       assert.deepEqual(got, ["Renda fixa", "claude-sonnet-5-5"]);
     },
+  );
+});
+
+test("POST /api/import/prompt valida o texto e envia a carteira atual + respostas", async () => {
+  let got: unknown = null;
+  await withServer(
+    {
+      interpretPrompt: async (req, positions) => {
+        got = [req.text, req.answers, positions.length];
+        return { operations: [], questions: [], warnings: ["ok"] };
+      },
+    },
+    async (base) => {
+      assert.equal((await fetch(`${base}/api/import/prompt`, json({ text: "  " }))).status, 400);
+      assert.equal((await fetch(`${base}/api/import/prompt`, json({ text: "x".repeat(4001) }))).status, 400);
+      const r = await fetch(`${base}/api/import/prompt`, json({
+        text: " 17000.30 adicionados à caixinha cdb do inter pj ",
+        answers: [{ question: "Qual?", answer: "A do Inter" }, { question: "vazia", answer: " " }],
+      }));
+      assert.equal(r.status, 200);
+      assert.deepEqual(got, ["17000.30 adicionados à caixinha cdb do inter pj", [{ question: "Qual?", answer: "A do Inter" }], 1]);
+    },
+    onePosition,
   );
 });

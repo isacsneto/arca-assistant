@@ -204,3 +204,62 @@ ${rows.join("\n") || "(vazia)"}
 
 Pesquise o cenário atual (fiscal, juros, inflação, câmbio, valuation das bolsas, histórico de longo prazo de cada classe) e defina as premissas dos dois cenários para estes ativos. Em "summary" explique em poucas frases o que esperar da carteira; em "scenarios.base" e "scenarios.worst" descreva cada cenário (o que acontece na economia). Responda somente com o resultado estruturado.`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Import por texto                                                    */
+/* ------------------------------------------------------------------ */
+
+export const PROMPT_IMPORT_SYSTEM = `Você transforma frases em português sobre movimentações de investimentos em operações sobre a carteira do usuário. Exemplos de frases:
+- "17000.30 adicionados à caixinha cdb do inter pj" → ajustar a posição de CDB do Banco Inter (titular PJ) com delta +17000.30 e registrar transação "deposito".
+- "resgatei 5 mil do cdb do itaú" → ajustar com delta −5000 e transação "saque".
+- "comprei 100 PETR4 a 38,50 no btg" → ajustar PETR4 do BTG com delta +3850, quantityDelta +100, transação "compra".
+- "o saldo do nubank agora é 53.200" → definir value 53200 (sem transação, a menos que a frase diga um aporte/resgate).
+- "abri uma LCI 95% CDI no itaú pf com 20 mil" → criar ativo novo (classe caixa) com value 20000 e transação "deposito".
+- "vendi tudo de VALE3" → remover a posição (transação "venda" com o valor atual).
+
+Regras:
+- Valores brasileiros: "17.000,30", "17000.30", "17 mil", "R$ 1,5 mi". Retorne números puros. delta e value na MOEDA DA POSIÇÃO (se a posição é em USD e a frase em reais, pergunte ou converta e explique).
+- Identifique a posição pela instituição, titular (pf/pj) e produto citados, usando a lista "Carteira atual". Use o positionId EXATO da lista.
+- Titular: "pj", "empresa", "cnpj" = PJ; "pf", "pessoal" = PF. Se não disser e houver posições parecidas nos dois titulares, PERGUNTE.
+- Se mais de uma posição combinar e não der para escolher com segurança, PERGUNTE listando as opções (nome + valor atual), em vez de chutar. Se nenhuma combinar, crie um ativo novo — mas se nem a classe/tipo do ativo novo estiver clara, pergunte.
+- Datas: se a frase disser ("ontem", "dia 5"), use AAAA-MM-DD; senão null (o app usa hoje).
+- explanation: uma linha clara do que será feito, citando valores (ex.: "Aporte de R$ 17.000,30 na Caixinha CDB do Banco Inter (PJ)").
+- Uma frase pode gerar várias operações. Não invente operações que a frase não pede.
+- questions: só quando necessário; cada uma com id ("q1"…), pergunta objetiva e 2–4 opções curtas. Enquanto houver pergunta sobre uma operação, NÃO inclua essa operação em "operations" (inclua só as que já estão claras).
+- warnings: observações úteis (ex.: "o saldo informado é menor que o atual — confirme se foi um resgate").`;
+
+export function promptImportPrompt(args: {
+  text: string;
+  today: string;
+  positions: Position[];
+  answers?: { question: string; answer: string }[];
+}): string {
+  const rows = args.positions.map((p) =>
+    JSON.stringify({
+      positionId: p.id,
+      instituicao: p.institution,
+      titular: p.owner,
+      nome: p.name,
+      ticker: p.ticker ?? null,
+      tipo: p.subtype,
+      classe: p.assetClass,
+      moeda: p.currency,
+      valor: p.value,
+      quantidade: p.quantity ?? null,
+    }),
+  );
+  const qa = args.answers?.length
+    ? `\n\nRespostas do usuário às suas perguntas anteriores:\n${args.answers.map((a) => `- ${a.question}\n  → ${a.answer}`).join("\n")}`
+    : "";
+  return `Hoje: ${args.today}.
+
+Carteira atual (${rows.length} posições):
+${rows.join("\n") || "(vazia)"}
+
+Texto do usuário:
+"""
+${args.text}
+"""${qa}
+
+Responda somente com o resultado estruturado.`;
+}

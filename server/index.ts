@@ -1,6 +1,6 @@
 import { createApp } from "./app";
 import { fileStore } from "./store";
-import { authStatus, extractFromFiles, projectWithClaude, refineImport, refreshWithClaude, scanClass } from "./claude";
+import { authStatus, extractFromFiles, interpretPrompt, projectWithClaude, refineImport, refreshWithClaude, scanClass } from "./claude";
 import { refreshValues } from "./refresh";
 import { yahooQuote } from "./quotes";
 
@@ -9,6 +9,7 @@ const app = createApp({
   authStatus,
   extractFromFiles,
   refineImport,
+  interpretPrompt,
   scanClass,
   refreshValues: (state, emit, signal) =>
     refreshValues(state, { fetchQuote: yahooQuote, claudeRefresh: refreshWithClaude }, emit, signal),

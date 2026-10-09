@@ -164,6 +164,55 @@ export interface RefineRequest {
   answers: ImportAnswer[];
 }
 
+/* ------------------------------------------------------------------ */
+/* Import por texto ("17000.30 adicionados à caixinha cdb do inter pj") */
+/* ------------------------------------------------------------------ */
+
+const TX_TYPES = ["compra", "venda", "deposito", "saque", "dividendo", "juros", "taxa", "transferencia", "outro"] as const;
+
+export const PromptOpSchema = z.object({
+  /** ajustar = somar/subtrair `delta`; definir = novo saldo `value`; criar = ativo novo; remover = zerar e apagar. */
+  action: z.enum(["ajustar", "definir", "criar", "remover"]),
+  /** Posição existente (id da lista enviada). null só em "criar". */
+  positionId: z.string().nullable(),
+  /** Variação do valor, na moeda da posição (+ aporte/compra, − resgate/venda). */
+  delta: z.number().nullable(),
+  /** Variação de quantidade (ações/cotas), quando informada. */
+  quantityDelta: z.number().nullable(),
+  /** Novo valor total, em "definir" e "criar". */
+  value: z.number().nullable(),
+  newPosition: z
+    .object({
+      name: z.string(),
+      ticker: z.string().nullable(),
+      institution: z.string(),
+      owner: z.enum(["PF", "PJ"]),
+      assetClass: z.enum(["acoes", "fiis", "caixa", "internacional", "outros"]),
+      subtype: z.string(),
+      currency: z.enum(["BRL", "USD"]),
+      quantity: z.number().nullable(),
+    })
+    .nullable(),
+  /** Lançamento para o histórico (aporte vira "deposito", resgate vira "saque"...). */
+  transaction: z.object({ type: z.enum(TX_TYPES), date: z.string().nullable(), amount: z.number() }).nullable(),
+  /** Uma linha em português explicando o que será feito. */
+  explanation: z.string(),
+});
+export type PromptOp = z.infer<typeof PromptOpSchema>;
+
+export const PromptPlanSchema = z.object({
+  operations: z.array(PromptOpSchema),
+  questions: z.array(z.object({ id: z.string(), question: z.string(), options: z.array(z.string()) })),
+  warnings: z.array(z.string()),
+});
+export type PromptPlan = z.infer<typeof PromptPlanSchema>;
+
+export interface PromptImportRequest {
+  text: string;
+  /** Respostas a perguntas anteriores do Claude sobre este mesmo texto. */
+  answers?: { question: string; answer: string }[];
+}
+
 export interface UploadFile {
   name: string;
   kind: "image" | "pdf" | "text";
@@ -230,6 +279,18 @@ export interface Settings {
   refresh: ModelSetting;
   projection: ModelSetting;
   investorProfile: string;
+  /** Instituições (por titular) marcadas como desatualizadas — pedem atualização ao abrir o app. */
+  staleInstitutions: StaleMark[];
+  /** A cada quantos dias perguntar "está tudo atualizado?" (0 = nunca). */
+  reviewIntervalDays: 0 | 7 | 14;
+  /** Última vez que o usuário confirmou a revisão periódica. */
+  lastReviewAt: string | null;
+}
+
+export interface StaleMark {
+  institution: string;
+  owner: Owner;
+  markedAt: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -240,6 +301,9 @@ export const DEFAULT_SETTINGS: Settings = {
   scan: { model: "claude-opus-5-5", effort: "high" },
   refresh: { model: "claude-sonnet-5-5", effort: "medium" },
   projection: { model: "claude-opus-5-5", effort: "high" },
+  staleInstitutions: [],
+  reviewIntervalDays: 14,
+  lastReviewAt: null,
   investorProfile:
     "Investidor brasileiro de longo prazo (10+ anos), foco em construir patrimônio e renda passiva, tolerância moderada a volatilidade.",
 };

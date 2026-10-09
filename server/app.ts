@@ -4,7 +4,7 @@ import path from "node:path";
 import {
   ARCA_CLASSES, MODEL_OPTIONS,
   type AppState, type ArcaClass, type Effort, type ExtractionResult, type JobEvent,
-  type ProjectionResult, type RefineRequest, type RefreshResult, type ScanEvent, type ScanResult, type UploadFile,
+  type ProjectionResult, type PromptImportRequest, type PromptPlan, type RefineRequest, type RefreshResult, type ScanEvent, type ScanResult, type UploadFile,
 } from "../shared/types";
 import type { Store } from "./store";
 import { ClaudeError, explainError, type AuthInfo } from "./claude";
@@ -17,6 +17,7 @@ export interface Deps {
   store: Store;
   authStatus: () => Promise<AuthInfo>;
   extractFromFiles: (files: UploadFile[], model: string, effort: Effort, signal?: AbortSignal) => Promise<ExtractionResult>;
+  interpretPrompt: (req: PromptImportRequest, positions: AppState["positions"], model: string, effort: Effort, signal?: AbortSignal) => Promise<PromptPlan>;
   refineImport: (req: RefineRequest, model: string, effort: Effort, signal?: AbortSignal) => Promise<ExtractionResult>;
   scanClass: (c: ArcaClass, state: AppState, emit: (e: ScanEvent) => void, signal: AbortSignal) => Promise<ScanResult>;
   refreshValues: (state: AppState, emit: (e: JobEvent<RefreshResult>) => void, signal: AbortSignal) => Promise<RefreshResult>;
@@ -111,6 +112,30 @@ export function createApp(deps: Deps) {
     try {
       const { model, effort } = state.settings.extraction;
       res.json(await deps.extractFromFiles(files, model, effort, ctrl.signal));
+    } catch (err) {
+      const e = explainError(err);
+      if (!res.headersSent) res.status(e.status).json({ error: e.message });
+    }
+  });
+
+  // Import por texto: "17000.30 adicionados à caixinha cdb do inter pj" → operações propostas (o cliente aplica).
+  app.post("/api/import/prompt", async (req, res) => {
+    const body = req.body as Partial<PromptImportRequest>;
+    const text = typeof body.text === "string" ? body.text.trim() : "";
+    if (!text || text.length > 4000) {
+      res.status(400).json({ error: "Escreva o que mudou (até 4000 caracteres)." });
+      return;
+    }
+    const answers = Array.isArray(body.answers)
+      ? body.answers.filter((x) => x && typeof x.question === "string" && typeof x.answer === "string" && x.answer.trim())
+      : [];
+    const ctrl = new AbortController();
+    res.on("close", () => {
+      if (!res.writableEnded) ctrl.abort();
+    });
+    try {
+      const { model, effort } = state.settings.extraction;
+      res.json(await deps.interpretPrompt({ text, answers }, state.positions, model, effort, ctrl.signal));
     } catch (err) {
       const e = explainError(err);
       if (!res.headersSent) res.status(e.status).json({ error: e.message });

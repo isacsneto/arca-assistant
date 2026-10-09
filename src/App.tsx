@@ -13,7 +13,8 @@ import { ImportView } from "./components/ImportView";
 import { ScanView } from "./components/ScanView";
 import { ProjectionView } from "./components/ProjectionView";
 import { InstitutionsView } from "./components/InstitutionsView";
-import { METHODOLOGIES, type View } from "../shared/types";
+import { METHODOLOGIES, type Owner, type View } from "../shared/types";
+import { RemindersDialog } from "./components/RemindersDialog";
 import { Transactions } from "./components/Transactions";
 import { SettingsView } from "./components/SettingsView";
 
@@ -30,7 +31,14 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 export function App() {
-  const { state, config, loadError, saveError, setProjection, view, setView } = useStore();
+  const { state, config, loadError, saveError, setProjection, view, setView, update } = useStore();
+  const [importTarget, setImportTarget] = useState<{ institution: string; owner: Owner } | null>(null);
+
+  // Primeiro uso: começa a contar o prazo da revisão periódica a partir de hoje.
+  const needsReviewStart = state != null && state.settings.lastReviewAt == null;
+  useEffect(() => {
+    if (needsReviewStart) update((s) => ({ ...s, settings: { ...s.settings, lastReviewAt: new Date().toISOString() } }));
+  }, [needsReviewStart, update]);
   const [tab, setTab] = useState<TabId>("portfolio");
   useEffect(() => {
     // Sem `return`: em Chrome novo scrollTo devolve uma Promise, que o React trataria como cleanup.
@@ -95,7 +103,7 @@ export function App() {
         {tab === "rebalance" && <Rebalance goScan={() => setTab("scan")} />}
         {tab === "projection" && <ProjectionView job={projectionJob} />}
         {tab === "institutions" && <InstitutionsView />}
-        {tab === "import" && <ImportView done={() => setTab("portfolio")} />}
+        {tab === "import" && <ImportView done={() => { setImportTarget(null); setTab("portfolio"); }} target={importTarget} />}
         {/* Fica montado para o scan continuar mostrando progresso se você trocar de aba. */}
         <div hidden={tab !== "scan"}>
           <ScanView />
@@ -103,6 +111,7 @@ export function App() {
         {tab === "tx" && <Transactions />}
         {tab === "settings" && <SettingsView />}
       </main>
+      <RemindersDialog onUpdate={(t) => { setImportTarget(t); setTab("import"); }} />
     </div>
   );
 }

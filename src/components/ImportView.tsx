@@ -12,6 +12,8 @@ import { useStore } from "../store";
 import { prepareFile, type PreparedFile } from "../lib/files";
 import { money, uid } from "../lib/format";
 import { Banner, ClassSelect, PageHead } from "./ui";
+import { PromptImport } from "./PromptImport";
+import { clearStaleFor } from "../../shared/reminders";
 
 interface Draft extends ExtractedItem {
   _id: string;
@@ -46,7 +48,7 @@ function toReview(res: ExtractionResult, previous?: Draft[]): Review {
   };
 }
 
-export function ImportView({ done }: { done: () => void }) {
+export function ImportView({ done, target }: { done: () => void; target?: { institution: string; owner: Owner } | null }) {
   const { state, update, config, view } = useStore();
   const [files, setFiles] = useState<Upload[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -57,6 +59,7 @@ export function ImportView({ done }: { done: () => void }) {
   const [skipQuestions, setSkipQuestions] = useState(false);
   const [removeStale, setRemoveStale] = useState(false);
   const [over, setOver] = useState(false);
+  const [mode, setMode] = useState<"files" | "text">("files");
   const input = useRef<HTMLInputElement>(null);
   const abort = useRef<AbortController | null>(null);
   const filesRef = useRef<Upload[]>([]);
@@ -151,9 +154,12 @@ export function ImportView({ done }: { done: () => void }) {
   const commit = () => {
     if (!review) return;
     const chosen = review.drafts.filter((d) => d.include).map(toItem);
+    const touched = chosen.map((d) => ({ institution: d.institution, owner: d.owner ?? fallbackOwner }));
     update((s) => ({
       ...s,
       ...mergeImport(s, chosen, { removeStale, now: new Date().toISOString(), newId: uid, defaultOwner: fallbackOwner }),
+      // Importou dados da instituição: ela deixa de estar desatualizada.
+      settings: { ...s.settings, staleInstitutions: clearStaleFor(s.settings.staleInstitutions, touched) },
     }));
     done();
   };
@@ -366,8 +372,23 @@ export function ImportView({ done }: { done: () => void }) {
     <>
       <PageHead
         title="Importar"
-        subtitle="Prints do app do banco/corretora, PDFs, CSV ou XLSX (BTG, XP, Nubank, Inter…). O Claude lê, confere os nomes dos arquivos e pergunta o que não souber classificar."
+        subtitle={mode === "files"
+          ? "Prints do app do banco/corretora, PDFs, CSV ou XLSX (BTG, XP, Nubank, Inter…). O Claude lê, confere os nomes dos arquivos e pergunta o que não souber classificar."
+          : "Escreva o que mudou — aportes, resgates, compras, novos saldos. O Claude encontra a posição certa, pergunta se tiver dúvida e você confere antes de aplicar."}
+        actions={
+          <div className="seg" role="tablist" aria-label="Tipo de importação">
+            <button role="tab" aria-selected={mode === "files"} className={mode === "files" ? "active" : ""} onClick={() => setMode("files")}>Arquivos</button>
+            <button role="tab" aria-selected={mode === "text"} className={mode === "text" ? "active" : ""} onClick={() => setMode("text")}>Texto</button>
+          </div>
+        }
       />
+      {target && (
+        <Banner>
+          Atualizando <b>{target.institution}</b> <span className={"chip owner-" + target.owner}>{target.owner}</span>: suba o print com um nome como{" "}
+          <code>{fileSlug(target.institution)}-{target.owner.toLowerCase()}.png</code>, ou descreva a mudança na aba Texto. Ao salvar, a marcação de desatualizada sai sozinha.
+        </Banner>
+      )}
+      {mode === "text" ? <PromptImport done={done} /> : <>
       {error && <Banner kind="bad">{error}</Banner>}
       {notice.length > 0 && <Banner kind="warn">{notice.join(" ")}</Banner>}
       <div
@@ -415,8 +436,9 @@ export function ImportView({ done }: { done: () => void }) {
         </>
       )}
       <p className="muted small" style={{ marginTop: 22 }}>
-        Dica: nomeie os arquivos como <b>banco-pf</b> ou <b>banco-pj-dica</b> (ex.: <code>vest-pf.png</code>, <code>itau-pf-cdb100cdi.png</code>) para já definir instituição, titular e o produto — o Claude confere essa leitura. Arquivos idênticos são ignorados automaticamente e prints repetidos são contados uma vez só. Classes: {Object.values(CLASS_META).map((m) => m.label).join(" · ")}.
+        Dica: para registrar um aporte ou resgate sem print, use a aba <b>Texto</b>. Nomeie os arquivos como <b>banco-pf</b> ou <b>banco-pj-dica</b> (ex.: <code>vest-pf.png</code>, <code>itau-pf-cdb100cdi.png</code>) para já definir instituição, titular e o produto — o Claude confere essa leitura. Arquivos idênticos são ignorados automaticamente e prints repetidos são contados uma vez só. Classes: {Object.values(CLASS_META).map((m) => m.label).join(" · ")}.
       </p>
+      </>}
     </>
   );
 }
@@ -432,4 +454,9 @@ function FileHintChips({ name }: { name: string }) {
       {h.hint && <span className="chip" title="Dica repassada ao Claude">{h.hint}</span>}
     </div>
   );
+}
+
+/** "Banco Inter" → "banco-inter", para sugerir o nome do arquivo. */
+function fileSlug(institution: string): string {
+  return institution.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }

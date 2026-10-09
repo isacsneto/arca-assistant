@@ -8,12 +8,15 @@ import {
   ClaudeRefreshSchema,
   ExtractionResultSchema,
   ProjectionAssumptionsSchema,
+  PromptPlanSchema,
   ScanReportSchema,
   type AppState,
   type ClaudeRefresh,
   type JobEvent,
   type Position,
   type ProjectionResult,
+  type PromptImportRequest,
+  type PromptPlan,
   type RefineRequest,
   type ArcaClass,
   type Effort,
@@ -25,8 +28,8 @@ import {
 import { computeAllocation, toBRL } from "../shared/arca";
 import { fileNameNote, finalizeExtraction } from "../shared/importReview";
 import {
-  EXTRACTION_SYSTEM, PROJECTION_SYSTEM, REFINE_SYSTEM, REFRESH_SYSTEM,
-  projectionPrompt, refinePrompt, refreshPrompt, scanPrompt, scanSystem,
+  EXTRACTION_SYSTEM, PROJECTION_SYSTEM, PROMPT_IMPORT_SYSTEM, REFINE_SYSTEM, REFRESH_SYSTEM,
+  projectionPrompt, promptImportPrompt, refinePrompt, refreshPrompt, scanPrompt, scanSystem,
 } from "./prompts";
 
 /*
@@ -210,6 +213,32 @@ export async function extractFromFiles(
   } finally {
     await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
+}
+
+/** Import por texto: interpreta a frase do usuário em operações sobre a carteira atual. */
+export async function interpretPrompt(
+  req: PromptImportRequest,
+  positions: Position[],
+  model: string,
+  effort: Effort,
+  signal?: AbortSignal,
+): Promise<PromptPlan> {
+  const today = new Date().toLocaleDateString("pt-BR", { dateStyle: "full", timeZone: "America/Sao_Paulo" });
+  const { data } = await runStructured({
+    prompt: promptImportPrompt({ text: req.text, today, positions, answers: req.answers }),
+    system: PROMPT_IMPORT_SYSTEM,
+    model,
+    effort,
+    schema: PromptPlanSchema,
+    cwd: os.tmpdir(),
+    tools: [],
+    maxTurns: 3,
+    signal,
+  });
+  return {
+    ...data,
+    questions: data.questions.slice(0, 4).map((q, i) => ({ ...q, id: q.id || "q" + (i + 1), options: q.options.slice(0, 4) })),
+  };
 }
 
 /** Segunda rodada: aplica as respostas do usuário às perguntas, sem reenviar os arquivos. */
