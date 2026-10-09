@@ -5,7 +5,7 @@ import { computeAllocation } from "../shared/arca";
 import { DEFAULT_SETTINGS, type Position } from "../shared/types";
 
 const p = (o: Partial<Position>): Position => ({
-  id: "1", name: "X", institution: "XP", assetClass: "fiis", subtype: "FII", currency: "BRL",
+  id: "1", name: "X", institution: "XP", owner: "PF", assetClass: "fiis", subtype: "FII", currency: "BRL",
   value: 0, updatedAt: "", source: "", ...o,
 });
 

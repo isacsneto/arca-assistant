@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Download, RefreshCw, Trash2, Upload } from "lucide-react";
 import {
-  ARCA_CLASSES, CLASS_META, DEFAULT_TARGETS, EFFORTS, EFFORT_LABEL,
+  ARCA_CLASSES, CLASS_META, EFFORTS, EFFORT_LABEL, METHODOLOGIES, methodologyOf,
   type AppState, type ModelSetting, type Settings,
 } from "../../shared/types";
 import { targetsSum } from "../../shared/arca";
@@ -61,16 +61,43 @@ export function SettingsView() {
       <div className="stack-lg">
         <section className="card">
           <div className="card-head">
-            <div><h2>Metas da Arca</h2><p className="muted small">A Arca original divide o patrimônio em partes iguais entre as quatro classes. Ajuste se quiser.</p></div>
-            <button className="btn sm" onClick={() => set({ targets: { ...DEFAULT_TARGETS } })}>Restaurar 25/25/25/25</button>
+            <div>
+              <h2>Metodologia de alocação</h2>
+              <p className="muted small">Define as metas de cada classe usadas na Carteira, no Rebalancear e no Scan. Escolha uma pronta ou ajuste os percentuais.</p>
+            </div>
           </div>
+          <div className="methods" role="radiogroup" aria-label="Metodologia">
+            {(Object.keys(METHODOLOGIES) as (keyof typeof METHODOLOGIES)[]).map((k) => {
+              const m = METHODOLOGIES[k];
+              return (
+                <button key={k} type="button" role="radio" aria-checked={settings.methodology === k}
+                  className={"method" + (settings.methodology === k ? " active" : "")}
+                  onClick={() => set({ methodology: k, targets: { ...m.targets } })}>
+                  <b>{m.label}</b>
+                  <span className="num small">{ARCA_CLASSES.map((c) => m.targets[c]).join(" / ")}</span>
+                  <span className="muted small">{m.desc}</span>
+                </button>
+              );
+            })}
+            <button type="button" role="radio" aria-checked={settings.methodology === "custom"}
+              className={"method" + (settings.methodology === "custom" ? " active" : "")}
+              onClick={() => set({ methodology: "custom" })}>
+              <b>Personalizada</b>
+              <span className="num small">{ARCA_CLASSES.map((c) => settings.targets[c]).join(" / ")}</span>
+              <span className="muted small">Seus próprios percentuais — edite abaixo.</span>
+            </button>
+          </div>
+          <p className="muted small" style={{ margin: "12px 0 8px" }}>Ordem: {ARCA_CLASSES.map((c) => CLASS_META[c].label).join(" / ")}. Alterar qualquer valor muda para "Personalizada".</p>
           <div className="grid kpis">
             {ARCA_CLASSES.map((c) => (
               <label className="field" key={c}>
                 <span className="row"><ClassDot c={c} />{CLASS_META[c].label}</span>
                 <span className="row">
                   <input type="number" min="0" max="100" step="1" value={settings.targets[c]}
-                    onChange={(e) => set({ targets: { ...settings.targets, [c]: Number(e.target.value) } })} />
+                    onChange={(e) => {
+                      const targets = { ...settings.targets, [c]: Number(e.target.value) };
+                      set({ targets, methodology: methodologyOf(targets) });
+                    }} />
                   <span className="muted">%</span>
                 </span>
                 <span className="hint">{CLASS_META[c].desc}</span>

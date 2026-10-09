@@ -1,21 +1,22 @@
 import { useMemo, useState } from "react";
 import { Search, Trash2 } from "lucide-react";
 import { useStore } from "../store";
+import { inView } from "../../shared/owner";
 import { money } from "../lib/format";
 import { ClassLabel, Empty, PageHead } from "./ui";
 
 const INFLOW = new Set(["deposito", "venda", "dividendo", "juros"]);
 
 export function Transactions() {
-  const { state, update } = useStore();
+  const { state, update, view } = useStore();
   const [query, setQuery] = useState("");
 
   const rows = useMemo(
     () =>
-      state!.transactions
+      inView(state!.transactions, view)
         .filter((t) => `${t.description} ${t.ticker ?? ""} ${t.institution} ${t.type}`.toLowerCase().includes(query.toLowerCase()))
         .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "")),
-    [state, query],
+    [state, query, view],
   );
 
   return (
@@ -32,7 +33,7 @@ export function Transactions() {
             </div>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Instituição</th><th>Classe</th><th className="right">Valor</th><th /></tr></thead>
+                <thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Instituição</th><th>Titular</th><th>Classe</th><th className="right">Valor</th><th /></tr></thead>
                 <tbody>
                   {rows.map((t) => (
                     <tr key={t.id}>
@@ -40,6 +41,7 @@ export function Transactions() {
                       <td><span className="chip">{t.type}</span></td>
                       <td>{t.ticker && <b>{t.ticker} </b>}{t.description}</td>
                       <td className="muted">{t.institution}</td>
+                      <td><span className={"chip owner-" + t.owner}>{t.owner}</span></td>
                       <td><ClassLabel c={t.assetClass} /></td>
                       <td className="right num" style={{ color: INFLOW.has(t.type) ? "var(--ok)" : undefined }}>
                         {INFLOW.has(t.type) ? "+" : t.type === "compra" || t.type === "saque" || t.type === "taxa" ? "−" : ""}{money(t.amount, t.currency)}

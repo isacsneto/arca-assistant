@@ -30,6 +30,8 @@ Um mesmo arquivo pode ter os dois tipos. Um extrato de conta com saldo final ger
 - ticker: apenas se visível ou inequívoco; senão null.
 - date: ISO (AAAA-MM-DD) quando visível; senão null.
 - sourceFile: nome do arquivo de onde veio o item.
+- owner: "PF" ou "PJ" quando o documento deixar claro (CNPJ, razão social "Ltda"/"S.A."/"ME", "conta empresa"); senão null.
+- O nome de cada arquivo pode trazer instituição, titular e uma dica do produto (ex.: "itau-pf-cdb100cdi" = Itaú, pessoa física, CDB 100% do CDI). Quando vier, use essa instituição e esse titular, e use a dica para completar subtype/nome (ex.: "CDB 100% CDI") se o print não mostrar a taxa.
 - warnings: avisos curtos e úteis ao usuário (itens ilegíveis, duplicidades, valores em outra moeda, data de referência antiga...).`;
 
 export function scanSystem(): string {

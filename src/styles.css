@@ -209,3 +209,31 @@ th.right, td.right { text-align: right; }
 .seg button { border: 0; background: transparent; padding: 6px 12px; cursor: pointer; color: var(--muted); font-weight: 500; }
 .seg button + button { border-left: 1px solid var(--border); }
 .seg button.active { background: var(--accent-soft); color: var(--accent); }
+
+/* ---------- categorias clicáveis / titular ---------- */
+button.alloc-row { width: 100%; border: 0; background: transparent; text-align: left; font: inherit; color: inherit; cursor: pointer; border-radius: 8px; padding-left: 6px; padding-right: 6px; }
+button.alloc-row:hover, button.alloc-row.open { background: var(--surface-2); }
+button.alloc-row + button.alloc-row, .drill + button.alloc-row { border-top: 1px solid var(--border); }
+.alloc-row .chev { transition: transform 0.15s; color: var(--muted); flex: none; }
+.alloc-row.open .chev { transform: rotate(90deg); }
+.drill { margin: 16px 0 0; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.chip.owner-PF { background: var(--accent-soft); color: var(--accent); }
+.chip.owner-PJ { background: var(--warn-soft); color: var(--warn); }
+select.owner-select { width: auto; padding: 1px 4px; margin-top: 2px; }
+.view-switch { margin: 0 4px 14px; display: flex; }
+.view-switch button { flex: 1; padding: 6px 4px; font-size: 12px; }
+@media (max-width: 860px) { .view-switch { margin: 0 8px 0 0; flex: none; } }
+
+/* ---------- metodologia ---------- */
+.methods { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.method { display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); cursor: pointer; font: inherit; color: inherit; }
+.method:hover { background: var(--surface-2); }
+.method.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* ---------- instituições ---------- */
+:root { --inst-0: #3b82f6; --inst-1: #10b981; --inst-2: #f59e0b; --inst-3: #8b5cf6; --inst-4: #ec4899; --inst-5: #64748b; }
+.inst-bar { display: flex; gap: 2px; height: 14px; border-radius: 99px; overflow: hidden; background: var(--surface-2); }
+.inst-bar > div { min-width: 3px; }
+.inst-head { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; text-align: left; padding: 0; }
+.inst-head .chev { color: var(--muted); transition: transform 0.15s; flex: none; }
+.inst-swatch { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: #fff; flex: none; }

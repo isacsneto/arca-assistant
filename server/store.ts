@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { DEFAULT_SETTINGS, type AppState } from "../shared/types";
+import { DEFAULT_SETTINGS, methodologyOf, type AppState } from "../shared/types";
+import { withOwner } from "../shared/owner";
 
 export interface Store {
   load(): AppState;
@@ -15,14 +16,15 @@ function empty(): AppState {
 export function withDefaults(raw: Partial<AppState>): AppState {
   const base = empty();
   return {
-    positions: raw.positions ?? base.positions,
-    transactions: raw.transactions ?? base.transactions,
+    positions: (raw.positions ?? base.positions).map(withOwner),
+    transactions: (raw.transactions ?? base.transactions).map(withOwner),
     scans: raw.scans ?? base.scans,
     projection: raw.projection,
     settings: {
       ...base.settings,
       ...raw.settings,
       targets: { ...base.settings.targets, ...raw.settings?.targets },
+      methodology: raw.settings?.methodology ?? methodologyOf({ ...base.settings.targets, ...raw.settings?.targets }),
       extraction: { ...base.settings.extraction, ...raw.settings?.extraction },
       scan: { ...base.settings.scan, ...raw.settings?.scan },
       refresh: { ...base.settings.refresh, ...raw.settings?.refresh },

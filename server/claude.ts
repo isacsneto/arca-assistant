@@ -22,6 +22,12 @@ import {
   type UploadFile,
 } from "../shared/types";
 import { computeAllocation, toBRL } from "../shared/arca";
+import { applyFileHints, describeHint, parseFileName } from "../shared/fileHints";
+
+const hintFor = (name: string) => {
+  const d = describeHint(parseFileName(name));
+  return d ? ` — informado pelo nome do arquivo: ${d}` : "";
+};
 import {
   EXTRACTION_SYSTEM, PROJECTION_SYSTEM, REFRESH_SYSTEM,
   projectionPrompt, refreshPrompt, scanPrompt, scanSystem,
@@ -174,14 +180,14 @@ export async function extractFromFiles(
     const inline: string[] = [];
     for (const [i, f] of files.entries()) {
       if (f.kind === "text") {
-        inline.push(`=== Arquivo ${i + 1}: ${f.name} (conteúdo abaixo) ===\n${f.data}`);
+        inline.push(`=== Arquivo ${i + 1}: ${f.name}${hintFor(f.name)} (conteúdo abaixo) ===\n${f.data}`);
         continue;
       }
       const base = path.basename(f.name).replace(/[^\w.-]+/g, "_").replace(/\.[^.]*$/, "");
       const ext = f.kind === "pdf" ? ".pdf" : (EXT[f.mediaType ?? ""] ?? ".png");
       const file = path.join(dir, `${i + 1}-${base}${ext}`);
       await fs.writeFile(file, Buffer.from(f.data, "base64"));
-      lines.push(`- ${file}  (arquivo original: ${f.name})`);
+      lines.push(`- ${file}  (arquivo original: ${f.name}${hintFor(f.name)})`);
     }
 
     const prompt = [
@@ -204,7 +210,8 @@ export async function extractFromFiles(
       maxTurns: 6 + files.length * 3,
       signal,
     });
-    return data;
+    // O nome do arquivo manda sobre instituição/titular (convenção banco-pf-dica).
+    return { ...data, items: applyFileHints(data.items, files.map((f) => f.name)) };
   } finally {
     await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }

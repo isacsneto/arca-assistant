@@ -7,6 +7,7 @@ import { useStore } from "../store";
 import type { Job } from "../lib/useJob";
 import { brl0, dateTime, safeUrl } from "../lib/format";
 import { Banner, ClassLabel, Empty, PageHead } from "./ui";
+import { VIEW_LABEL } from "../../shared/owner";
 import { JobProgress } from "./JobProgress";
 
 const compact = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact", maximumFractionDigits: 1 });
@@ -19,8 +20,9 @@ const SERIES = {
 } as const;
 
 export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
-  const { state, config } = useStore();
-  const { positions, settings, projection } = state!;
+  const { state, config, visible: positions, view } = useStore();
+  const { settings, projection } = state!;
+  const allTotal = state!.positions.reduce((s, p) => s + (p.currency === "USD" ? p.value * settings.usdBrl : p.value), 0);
   const [real, setReal] = useState(false);
 
   const modelLabel = config!.models.find((m) => m.id === settings.projection.model)?.label ?? settings.projection.model;
@@ -38,8 +40,8 @@ export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
 
   const head = (
     <PageHead
-      title="Projeção"
-      subtitle="Quanto sua carteira atual pode valer em 5, 10, 15, 20 e 30 anos — no cenário mais provável e no pior caso plausível."
+      title={view === "all" ? "Projeção" : "Projeção · " + view}
+      subtitle={(view === "all" ? "Carteira consolidada (PF + PJ)" : VIEW_LABEL[view]) + ": quanto pode valer em 5, 10, 15, 20 e 30 anos — no cenário mais provável e no pior caso plausível."}
       actions={runButton}
     />
   );
@@ -78,7 +80,8 @@ export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
     base: real ? p.baseReal : p.base,
     worst: real ? p.worstReal : p.worst,
   }));
-  const drift = projection.baseTotal > 0 ? Math.abs(start - projection.baseTotal) / projection.baseTotal : 0;
+  // A pesquisa é feita sobre a carteira inteira; compara com o total consolidado atual.
+  const drift = projection.baseTotal > 0 ? Math.abs(allTotal - projection.baseTotal) / projection.baseTotal : 0;
   const assetsById = new Map(positions.map((p) => [p.id, p]));
   const presentClasses = ALL_CLASSES.filter((c) => positions.some((p) => p.assetClass === c));
 
@@ -89,7 +92,7 @@ export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
 
       <Banner kind="warn">
         Projeção gerada por IA em {dateTime(projection.runAt)} com dados públicos ({projection.asOf}). Cenários são hipóteses, não promessas nem
-        recomendação de investimento.{drift > 0.05 && " Sua carteira mudou desde a pesquisa: os valores usam a carteira atual com as premissas daquela data."}
+        recomendação de investimento.{view !== "all" && " As premissas são as mesmas da carteira consolidada; aqui só entram os ativos de " + VIEW_LABEL[view].toLowerCase() + "."}{drift > 0.05 && " Sua carteira mudou desde a pesquisa: os valores usam a carteira atual com as premissas daquela data."}
       </Banner>
 
       <div className="card" style={{ marginBottom: 16 }}>

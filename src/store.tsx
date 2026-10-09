@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { DEFAULT_SETTINGS, type AppState, type ProjectionResult, type ScanResult } from "../shared/types";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { DEFAULT_SETTINGS, type AppState, type Position, type ProjectionResult, type ScanResult, type View } from "../shared/types";
+import { inView } from "../shared/owner";
 import { api, type Config } from "./api";
 
 interface Ctx {
@@ -10,6 +11,21 @@ interface Ctx {
   update: (mutate: (s: AppState) => AppState) => void;
   setScan: (r: ScanResult) => void;
   setProjection: (r: ProjectionResult) => void;
+  /** Visão atual: consolidado, só PF ou só PJ. */
+  view: View;
+  setView: (v: View) => void;
+  /** Posições da visão atual. */
+  visible: Position[];
+}
+
+const VIEW_KEY = "arca:view";
+function readView(): View {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    return v === "PF" || v === "PJ" ? v : "all";
+  } catch {
+    return "all";
+  }
 }
 
 const StoreCtx = createContext<Ctx | null>(null);
@@ -20,6 +36,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const latest = useRef<AppState | null>(null);
+  const [view, setViewState] = useState<View>(readView);
+  const setView = useCallback((v: View) => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* sem storage: só não lembra a escolha */
+    }
+  }, []);
   const timer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
@@ -66,8 +91,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState(latest.current); // o servidor já persistiu a projeção
   }, []);
 
+  const visible = useMemo(() => (state ? inView(state.positions, view) : []), [state, view]);
+
   return (
-    <StoreCtx.Provider value={{ state, config, loadError, saveError, update, setScan, setProjection }}>
+    <StoreCtx.Provider value={{ state, config, loadError, saveError, update, setScan, setProjection, view, setView, visible }}>
       {children}
     </StoreCtx.Provider>
   );

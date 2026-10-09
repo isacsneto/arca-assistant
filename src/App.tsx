@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  ArrowLeftRight, Hexagon, LineChart as LineChartIcon, Loader2, Radar, Scale,
+  ArrowLeftRight, Hexagon, Landmark, LineChart as LineChartIcon, Loader2, Radar, Scale,
   Settings as SettingsIcon, Upload, Wallet,
 } from "lucide-react";
 import type { ProjectionResult, RefreshResult } from "../shared/types";
@@ -12,6 +12,8 @@ import { Rebalance } from "./components/Rebalance";
 import { ImportView } from "./components/ImportView";
 import { ScanView } from "./components/ScanView";
 import { ProjectionView } from "./components/ProjectionView";
+import { InstitutionsView } from "./components/InstitutionsView";
+import { METHODOLOGIES, type View } from "../shared/types";
 import { Transactions } from "./components/Transactions";
 import { SettingsView } from "./components/SettingsView";
 
@@ -19,6 +21,7 @@ const TABS = [
   { id: "portfolio", label: "Carteira", icon: Wallet },
   { id: "rebalance", label: "Rebalancear", icon: Scale },
   { id: "projection", label: "Projeção", icon: LineChartIcon },
+  { id: "institutions", label: "Instituições", icon: Landmark },
   { id: "import", label: "Importar", icon: Upload },
   { id: "scan", label: "Scan de ativos", icon: Radar },
   { id: "tx", label: "Transações", icon: ArrowLeftRight },
@@ -27,7 +30,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 export function App() {
-  const { state, config, loadError, saveError, setProjection } = useStore();
+  const { state, config, loadError, saveError, setProjection, view, setView } = useStore();
   const [tab, setTab] = useState<TabId>("portfolio");
   useEffect(() => {
     // Sem `return`: em Chrome novo scrollTo devolve uma Promise, que o React trataria como cleanup.
@@ -64,6 +67,13 @@ export function App() {
           </span>
           Arca Assistant
         </div>
+        <div className="seg view-switch" role="group" aria-label="Visão da carteira">
+          {(["all", "PF", "PJ"] as View[]).map((v) => (
+            <button key={v} className={view === v ? "active" : ""} onClick={() => setView(v)} title={v === "all" ? "PF + PJ" : undefined}>
+              {v === "all" ? "Consolidado" : v}
+            </button>
+          ))}
+        </div>
         {TABS.map(({ id, label, icon: Icon }) => (
           <button key={id} className={`nav-btn ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>
             <Icon size={18} />
@@ -71,7 +81,7 @@ export function App() {
             {busy[id] && <Loader2 size={14} className="spin" style={{ marginLeft: "auto" }} />}
           </button>
         ))}
-        <div className="sidebar-foot">Filosofia: Arca (Primo Rico)<br />Dados salvos localmente.<br />IA: {config.account ?? "Claude Code"} (login local)</div>
+        <div className="sidebar-foot">Metodologia: {state.settings.methodology === "custom" ? "personalizada" : METHODOLOGIES[state.settings.methodology].label}<br />Dados salvos localmente.<br />IA: {config.account ?? "Claude Code"} (login local)</div>
       </nav>
       <main className="main">
         {!config.hasCredentials && (
@@ -84,6 +94,7 @@ export function App() {
         {tab === "portfolio" && <Portfolio goImport={() => setTab("import")} refreshJob={refreshJob} />}
         {tab === "rebalance" && <Rebalance goScan={() => setTab("scan")} />}
         {tab === "projection" && <ProjectionView job={projectionJob} />}
+        {tab === "institutions" && <InstitutionsView />}
         {tab === "import" && <ImportView done={() => setTab("portfolio")} />}
         {/* Fica montado para o scan continuar mostrando progresso se você trocar de aba. */}
         <div hidden={tab !== "scan"}>

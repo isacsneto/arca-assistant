@@ -1,14 +1,15 @@
 import { useMemo, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, Radar } from "lucide-react";
-import { CLASS_META } from "../../shared/types";
+import { CLASS_META, METHODOLOGIES } from "../../shared/types";
+import { VIEW_LABEL } from "../../shared/owner";
 import { computeAllocation, rebalance, targetsSum } from "../../shared/arca";
 import { useStore } from "../store";
 import { brl, pct } from "../lib/format";
 import { Banner, ClassLabel, Empty, PageHead } from "./ui";
 
 export function Rebalance({ goScan }: { goScan: () => void }) {
-  const { state } = useStore();
-  const { settings, positions, scans } = state!;
+  const { state, visible: positions, view } = useStore();
+  const { settings, scans } = state!;
   const [contribution, setContribution] = useState("5000");
   const [allowSell, setAllowSell] = useState(false);
 
@@ -28,8 +29,8 @@ export function Rebalance({ goScan }: { goScan: () => void }) {
   return (
     <>
       <PageHead
-        title="Rebalancear"
-        subtitle="Quanto colocar (ou tirar) em cada classe para voltar às metas da Arca."
+        title={view === "all" ? "Rebalancear" : "Rebalancear · " + view}
+        subtitle={(view === "all" ? "Carteira consolidada (PF + PJ)" : "Só " + VIEW_LABEL[view].toLowerCase()) + " — quanto colocar (ou tirar) em cada classe para voltar às metas (" + (settings.methodology === "custom" ? "personalizada" : METHODOLOGIES[settings.methodology].label) + ")."}
       />
       {Math.round(sum) !== 100 && <Banner kind="warn">As metas somam {pct(sum, 0)} — ajuste em Ajustes para somarem 100%.</Banner>}
 

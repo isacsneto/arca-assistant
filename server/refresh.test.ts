@@ -9,7 +9,7 @@ const NOW = new Date("2026-10-09T15:00:00Z");
 const ts = (iso: string) => Date.parse(iso) / 1000;
 
 const p = (o: Partial<Position>): Position => ({
-  id: "x", name: "X", institution: "XP", assetClass: "acoes", subtype: "", currency: "BRL",
+  id: "x", name: "X", institution: "XP", owner: "PF", assetClass: "acoes", subtype: "", currency: "BRL",
   value: 100, updatedAt: "2026-09-01T00:00:00Z", source: "", ...o,
 });
 

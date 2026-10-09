@@ -7,6 +7,7 @@ const pos = (assetClass: Position["assetClass"], value: number, currency: Positi
   id: Math.random().toString(),
   name: "x",
   institution: "t",
+  owner: "PF",
   assetClass,
   subtype: "",
   currency,

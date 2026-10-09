@@ -5,7 +5,7 @@ import type { Position, RefreshLine } from "./types";
 
 const NOW = "2026-10-09T15:00:00.000Z";
 const p = (id: string, value: number, quantity?: number): Position => ({
-  id, name: id, institution: "x", assetClass: "acoes", subtype: "", currency: "BRL",
+  id, name: id, institution: "x", owner: "PF", assetClass: "acoes", subtype: "", currency: "BRL",
   value, quantity, updatedAt: "2026-09-01", source: "",
 });
 const line = (id: string, oldValue: number, newValue: number, method: RefreshLine["method"], quantity?: number): RefreshLine => ({

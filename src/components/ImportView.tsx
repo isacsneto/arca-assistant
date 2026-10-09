@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileSpreadsheet, FileText, Image as ImageIcon, Loader2, Sparkles, Upload, X } from "lucide-react";
 import type { ExtractedItem } from "../../shared/types";
-import { CLASS_META } from "../../shared/types";
+import { CLASS_META, OWNERS, type Owner } from "../../shared/types";
+import { parseFileName } from "../../shared/fileHints";
 import { mergeImport, posKey } from "../../shared/importMerge";
 import { api } from "../api";
 import { useStore } from "../store";
@@ -15,7 +16,7 @@ interface Draft extends ExtractedItem {
 }
 
 export function ImportView({ done }: { done: () => void }) {
-  const { state, update, config } = useStore();
+  const { state, update, config, view } = useStore();
   const [files, setFiles] = useState<PreparedFile[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +71,9 @@ export function ImportView({ done }: { done: () => void }) {
 
   const positions = useMemo(() => drafts?.filter((d) => d.kind === "position") ?? [], [drafts]);
   const txs = useMemo(() => drafts?.filter((d) => d.kind === "transaction") ?? [], [drafts]);
-  const existing = useMemo(() => new Set(state!.positions.map((p) => posKey(p.institution, p.ticker, p.name))), [state]);
+  const existing = useMemo(() => new Set(state!.positions.map((p) => posKey(p.owner, p.institution, p.ticker, p.name))), [state]);
+  // Sem PF/PJ no arquivo nem no documento: usa a visão atual (ou PF no consolidado).
+  const fallbackOwner: Owner = view === "PJ" ? "PJ" : "PF";
 
   const patch = (id: string, changes: Partial<Draft>) =>
     setDrafts((ds) => ds!.map((d) => (d._id === id ? { ...d, ...changes } : d)));
@@ -80,7 +83,7 @@ export function ImportView({ done }: { done: () => void }) {
     const chosen = drafts.filter((d) => d.include).map(({ _id: _i, include: _c, ...item }) => item);
     update((s) => ({
       ...s,
-      ...mergeImport(s, chosen, { removeStale, now: new Date().toISOString(), newId: uid }),
+      ...mergeImport(s, chosen, { removeStale, now: new Date().toISOString(), newId: uid, defaultOwner: fallbackOwner }),
     }));
     done();
   };
@@ -119,7 +122,7 @@ export function ImportView({ done }: { done: () => void }) {
             </div>
             <div className="table-wrap">
               <table>
-                <thead><tr><th /><th>Ativo</th><th>Instituição</th><th>Classe</th><th className="right">Valor</th><th>Moeda</th><th /></tr></thead>
+                <thead><tr><th /><th>Ativo</th><th>Instituição</th><th>Titular</th><th>Classe</th><th className="right">Valor</th><th>Moeda</th><th /></tr></thead>
                 <tbody>
                   {positions.map((d) => (
                     <tr key={d._id} style={{ opacity: d.include ? 1 : 0.5 }}>
@@ -129,13 +132,18 @@ export function ImportView({ done }: { done: () => void }) {
                         <div className="muted small" style={{ paddingLeft: 6 }}>{[d.ticker, d.subtype].filter(Boolean).join(" · ")}</div>
                       </td>
                       <td><input className="cell" type="text" value={d.institution} onChange={(e) => patch(d._id, { institution: e.target.value })} /></td>
+                      <td>
+                        <select className="cell" value={d.owner ?? fallbackOwner} onChange={(e) => patch(d._id, { owner: e.target.value as Owner })} aria-label="Titular">
+                          {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      </td>
                       <td style={{ minWidth: 150 }}><ClassSelect value={d.assetClass} onChange={(assetClass) => patch(d._id, { assetClass })} /></td>
                       <td style={{ minWidth: 130 }}><input className="cell num right" type="number" step="0.01" value={d.value} onChange={(e) => patch(d._id, { value: Number(e.target.value) })} /></td>
                       <td>
                         <select className="cell" value={d.currency} onChange={(e) => patch(d._id, { currency: e.target.value as "BRL" | "USD" })}><option>BRL</option><option>USD</option></select>
                       </td>
                       <td className="small">
-                        {existing.has(posKey(d.institution, d.ticker, d.name)) && <span className="chip">atualiza</span>}{" "}
+                        {existing.has(posKey(d.owner ?? fallbackOwner, d.institution, d.ticker, d.name)) && <span className="chip">atualiza</span>}{" "}
                         {d.confidence !== "alta" && <span className={`chip ${d.confidence === "baixa" ? "bad" : "warn"}`} title={d.notes ?? ""}>confiança {d.confidence}</span>}
                       </td>
                     </tr>
@@ -208,6 +216,7 @@ export function ImportView({ done }: { done: () => void }) {
               <div className="thumb" key={f.id}>
                 {f.preview ? <img src={f.preview} alt={f.name} /> : <div className="ph">{icon(f)}</div>}
                 <div className="cap" title={f.name}>{f.name}</div>
+                <FileHintChips name={f.name} />
                 <button className="btn icon sm x" title="Remover" onClick={() => setFiles((fs) => fs.filter((x) => x.id !== f.id))}><X size={14} /></button>
               </div>
             ))}
@@ -222,8 +231,21 @@ export function ImportView({ done }: { done: () => void }) {
         </>
       )}
       <p className="muted small" style={{ marginTop: 22 }}>
-        Dica: um print por instituição com a lista completa de ativos funciona melhor. Depois da leitura você revisa tudo antes de salvar. Classes: {Object.values(CLASS_META).map((m) => m.label).join(" · ")}.
+        Dica: nomeie os arquivos como <b>banco-pf</b> ou <b>banco-pj-dica</b> (ex.: <code>vest-pf.png</code>, <code>itau-pf-cdb100cdi.png</code>) para já definir instituição, titular e o produto. Um print por instituição com a lista completa de ativos funciona melhor. Depois da leitura você revisa tudo antes de salvar. Classes: {Object.values(CLASS_META).map((m) => m.label).join(" · ")}.
       </p>
     </>
+  );
+}
+
+/** Mostra o que foi entendido do nome do arquivo (instituição · titular · dica). */
+function FileHintChips({ name }: { name: string }) {
+  const h = parseFileName(name);
+  if (!h.institution && !h.owner && !h.hint) return <div className="cap muted small">sem dica no nome</div>;
+  return (
+    <div className="cap row wrap" style={{ gap: 4 }}>
+      {h.institution && <span className="chip">{h.institution}</span>}
+      {h.owner && <span className={"chip owner-" + h.owner}>{h.owner}</span>}
+      {h.hint && <span className="chip" title="Dica repassada ao Claude">{h.hint}</span>}
+    </div>
   );
 }

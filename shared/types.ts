@@ -47,6 +47,28 @@ export const DEFAULT_TARGETS: Record<ArcaClass, number> = {
   internacional: 25,
 };
 
+/** Metodologias de alocação prontas; "custom" = percentuais definidos pelo usuário. */
+export const METHODOLOGIES = {
+  arca: {
+    label: "Arca — Primo Rico",
+    desc: "Divisão igual entre as quatro classes (25% cada), como no método Arca de Thiago Nigro.",
+    targets: { acoes: 25, fiis: 25, caixa: 25, internacional: 25 },
+  },
+  grao: {
+    label: "Arca Grão",
+    desc: "Alocação do fundo Arca Grão: 30% ações, 10% imóveis, 40% caixa/renda fixa e 20% internacional.",
+    targets: { acoes: 30, fiis: 10, caixa: 40, internacional: 20 },
+  },
+} as const satisfies Record<string, { label: string; desc: string; targets: Record<ArcaClass, number> }>;
+export type Methodology = keyof typeof METHODOLOGIES | "custom";
+
+/** Descobre a metodologia a partir dos percentuais (para estados antigos sem o campo). */
+export function methodologyOf(targets: Record<ArcaClass, number>): Methodology {
+  for (const [k, m] of Object.entries(METHODOLOGIES))
+    if (ARCA_CLASSES.every((c) => Number(targets[c]) === m.targets[c])) return k as Methodology;
+  return "custom";
+}
+
 /* ------------------------------------------------------------------ */
 /* Modelos                                                             */
 /* ------------------------------------------------------------------ */
@@ -88,6 +110,8 @@ export const ExtractedItemSchema = z.object({
   txType: z
     .enum(["compra", "venda", "deposito", "saque", "dividendo", "juros", "taxa", "transferencia", "outro"])
     .nullable(),
+  /** Titular: PF ou PJ, quando o documento deixa claro (CNPJ, razão social). */
+  owner: z.enum(["PF", "PJ"]).nullable(),
   confidence: z.enum(["alta", "media", "baixa"]),
   notes: z.string().nullable(),
 });
@@ -111,6 +135,12 @@ export interface UploadFile {
 /* ------------------------------------------------------------------ */
 
 export type Currency = "BRL" | "USD";
+
+/** Titular do investimento: pessoa física ou jurídica. */
+export const OWNERS = ["PF", "PJ"] as const;
+export type Owner = (typeof OWNERS)[number];
+/** Visão da carteira: tudo junto ou só um titular. */
+export type View = "all" | Owner;
 export type TxType = NonNullable<ExtractedItem["txType"]>;
 
 export interface Position {
@@ -118,6 +148,7 @@ export interface Position {
   name: string;
   ticker?: string;
   institution: string;
+  owner: Owner;
   assetClass: AssetClass;
   subtype: string;
   currency: Currency;
@@ -134,6 +165,7 @@ export interface Transaction {
   description: string;
   ticker?: string;
   institution: string;
+  owner: Owner;
   assetClass: AssetClass;
   amount: number;
   currency: Currency;
@@ -148,6 +180,7 @@ export interface ModelSetting {
 
 export interface Settings {
   usdBrl: number;
+  methodology: Methodology;
   targets: Record<ArcaClass, number>;
   extraction: ModelSetting;
   scan: ModelSetting;
@@ -158,6 +191,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   usdBrl: 5.5,
+  methodology: "arca",
   targets: DEFAULT_TARGETS,
   extraction: { model: "claude-sonnet-5-5", effort: "medium" },
   scan: { model: "claude-opus-5-5", effort: "high" },

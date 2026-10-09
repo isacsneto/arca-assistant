@@ -172,7 +172,7 @@ test("mapPool respeita o limite de concorrência e processa tudo", async () => {
 });
 
 const onePosition: Partial<AppState> = {
-  positions: [{ id: "p1", name: "PETR4", institution: "XP", assetClass: "acoes", subtype: "", currency: "BRL", value: 10, updatedAt: "", source: "" }],
+  positions: [{ id: "p1", name: "PETR4", institution: "XP", owner: "PF", assetClass: "acoes", subtype: "", currency: "BRL", value: 10, updatedAt: "", source: "" }],
 };
 
 test("POST /api/refresh exige carteira, transmite progresso e NÃO altera o estado", async () => {

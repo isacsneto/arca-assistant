@@ -7,7 +7,7 @@ const close = (a: number, b: number, eps = 1e-6) => assert.ok(Math.abs(a - b) < 
 const rate = (annualReturnPct: number, initialShockPct = 0) => ({ annualReturnPct, initialShockPct, rationale: "" });
 
 const pos = (id: string, assetClass: Position["assetClass"], value: number, currency: Position["currency"] = "BRL"): Position => ({
-  id, name: id, institution: "x", assetClass, subtype: "", currency, value, updatedAt: "", source: "",
+  id, name: id, institution: "x", owner: "PF", assetClass, subtype: "", currency, value, updatedAt: "", source: "",
 });
 
 const assumptions = (o: Partial<ProjectionAssumptions> = {}): ProjectionAssumptions => ({
