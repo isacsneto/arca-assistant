@@ -18,6 +18,21 @@ export function Portfolio({ goImport, refreshJob }: { goImport: () => void; refr
   const [openClass, setOpenClass] = useState<AssetClass | null>(null);
   const toggleClass = (c: AssetClass) => setOpenClass((o) => (o === c ? null : c));
   const [query, setQuery] = useState("");
+  const [collapsed, setCollapsed] = useState<Set<AssetClass>>(readCollapsed);
+  const setCollapsedSaved = (next: Set<AssetClass>) => {
+    setCollapsed(next);
+    try {
+      localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next]));
+    } catch {
+      /* sem storage: só não lembra */
+    }
+  };
+  const toggleGroup = (c: AssetClass) => {
+    const next = new Set(collapsed);
+    if (next.has(c)) next.delete(c);
+    else next.add(c);
+    setCollapsedSaved(next);
+  };
   const [adding, setAdding] = useState(false);
   const settings = state!.settings;
   const positions = visible;
@@ -161,7 +176,11 @@ export function Portfolio({ goImport, refreshJob }: { goImport: () => void; refr
 
       <div className="card">
         <div className="card-head">
-          <h2>Posições</h2>
+          <div className="row" style={{ gap: 10 }}>
+            <h2>Posições</h2>
+            <button className="btn ghost sm" onClick={() => setCollapsedSaved(new Set(ALL_CLASSES))}>Recolher todas</button>
+            <button className="btn ghost sm" onClick={() => setCollapsedSaved(new Set())}>Expandir todas</button>
+          </div>
           <div className="row" style={{ width: 260 }}>
             <Search size={16} className="muted" />
             <input type="text" placeholder="Filtrar por nome, ticker, banco…" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -178,12 +197,22 @@ export function Portfolio({ goImport, refreshJob }: { goImport: () => void; refr
                 const items = filtered.filter((p) => p.assetClass === c);
                 if (!items.length) return null;
                 const sum = items.reduce((s, p) => s + toBRL(p, settings.usdBrl), 0);
+                // Ao filtrar, mostra os resultados mesmo em grupos recolhidos.
+                const isCollapsed = collapsed.has(c) && !query;
                 return [
-                  <tr className="group" key={`g-${c}`}>
-                    <td colSpan={3}><span className="row"><ClassDot c={c} />{CLASS_META[c].label}</span></td>
+                  <tr className="group clickable" key={`g-${c}`} onClick={() => toggleGroup(c)} aria-expanded={!isCollapsed}
+                    tabIndex={0} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggleGroup(c))}
+                    title={isCollapsed ? "Mostrar os ativos" : "Recolher"}>
+                    <td colSpan={3}>
+                      <span className="row">
+                        <ChevronRight size={14} className="chev" style={{ transform: isCollapsed ? undefined : "rotate(90deg)" }} />
+                        <ClassDot c={c} />{CLASS_META[c].label}
+                        <span className="muted small" style={{ fontWeight: 400 }}>· {items.length} ativo{items.length === 1 ? "" : "s"}</span>
+                      </span>
+                    </td>
                     <td className="right num">{brl(sum)}</td><td />
                   </tr>,
-                  ...items
+                  ...(isCollapsed ? [] : items)
                     .sort((a, b) => toBRL(b, settings.usdBrl) - toBRL(a, settings.usdBrl))
                     .map((p) => (
                       <tr key={p.id}>
@@ -268,4 +297,14 @@ function AddPosition({ onAdd, onCancel, defaultOwner }: { onAdd: (p: Position) =
       <button className="btn" type="button" onClick={onCancel}>Cancelar</button>
     </form>
   );
+}
+
+const COLLAPSE_KEY = "arca:collapsedClasses";
+function readCollapsed(): Set<AssetClass> {
+  try {
+    const v = JSON.parse(localStorage.getItem(COLLAPSE_KEY) ?? "[]");
+    return new Set(Array.isArray(v) ? v.filter((c): c is AssetClass => ALL_CLASSES.includes(c)) : []);
+  } catch {
+    return new Set();
+  }
 }

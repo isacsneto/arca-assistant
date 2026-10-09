@@ -254,3 +254,7 @@ select.owner-select { width: auto; padding: 1px 4px; margin-top: 2px; }
 
 .card.inst.is-stale { border-color: var(--warn); }
 .btn.stale-btn { color: var(--warn); border-color: var(--warn); }
+
+tr.group.clickable { cursor: pointer; user-select: none; }
+tr.group.clickable:hover td { background: var(--border); }
+tr.group .chev { color: var(--muted); transition: transform 0.15s; }
