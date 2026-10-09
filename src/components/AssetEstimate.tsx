@@ -1,5 +1,5 @@
 import { ChevronDown, ExternalLink, Loader2, RefreshCw, Sparkles } from "lucide-react";
-import type { AssetEstimate, PhysicalAsset } from "../../shared/assets";
+import { ASSET_DETAIL_HINTS, type AssetEstimate, type PhysicalAsset } from "../../shared/assets";
 import { brl, dateTime, safeUrl } from "../lib/format";
 
 export interface EstimateRun {
@@ -66,6 +66,11 @@ export function EstimateCell({
           detalhes <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : undefined }} />
         </button>
       </div>
+      {e.confidence === "baixa" && (
+        <div className="small est-hint" title={ASSET_DETAIL_HINTS[asset.type].needs}>
+          Faltam detalhes — informe {ASSET_DETAIL_HINTS[asset.type].short} na Observação e estime de novo.
+        </div>
+      )}
       {error && <div className="small" style={{ color: "var(--bad)", marginTop: 4 }}>{error}</div>}
     </div>
   );

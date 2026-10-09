@@ -16,6 +16,15 @@ export const ASSET_TYPES = {
   outros: { label: "Outros", color: "#94a3b8" },
 } as const;
 export type AssetType = keyof typeof ASSET_TYPES;
+
+/** O que informar em cada tipo de bem para a estimativa da IA ficar precisa. */
+export const ASSET_DETAIL_HINTS: Record<keyof typeof ASSET_TYPES, { needs: string; short: string; example: string }> = {
+  imovel: { needs: "bairro e cidade, metragem (m²), quartos, vagas, andar e estado de conservação", short: "bairro, m² e quartos", example: "Apto 82 m², 3 quartos, 2 vagas, Vila Mariana – São Paulo, reformado" },
+  carro: { needs: "marca, modelo, versão, ano/modelo, quilometragem e estado", short: "versão, ano e km", example: "Caoa Chery Tiggo 8 Max Drive 1.6 Turbo 2024/2024, 28 mil km, único dono" },
+  joias: { needs: "peso em gramas, teor (18k/750), marca, pedras (tipo e quilates) e nota fiscal", short: "peso em gramas e pedras", example: "Anel Vivara ouro 18k, 4,2 g, solitário diamante 0,20 ct, com nota" },
+  eletronicos: { needs: "modelo exato, configuração (memória, armazenamento, tela), ano, estado, bateria e garantia", short: "modelo exato, tela e estado", example: 'MacBook Pro 16" M3 Max 36GB/512GB, 2023, bateria 92%, sem marcas' },
+  outros: { needs: "marca, modelo, ano, estado e acessórios", short: "marca, modelo e estado", example: "Bicicleta Caloi Elite Carbon 2022, aro 29, pouco uso" },
+};
 export const ASSET_TYPE_KEYS = Object.keys(ASSET_TYPES) as AssetType[];
 
 /** O que o Claude devolve ao estimar um bem pesquisando anúncios. */

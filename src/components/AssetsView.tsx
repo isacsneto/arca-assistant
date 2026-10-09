@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useRef, useState } from "react";
-import { Plus, Sparkles, Trash2 } from "lucide-react";
-import { ASSET_TYPES, ASSET_TYPE_KEYS, summarizeAssets, type AssetEstimate, type AssetType, type PhysicalAsset } from "../../shared/assets";
+import { Lightbulb, Plus, Sparkles, Trash2 } from "lucide-react";
+import { ASSET_DETAIL_HINTS, ASSET_TYPES, ASSET_TYPE_KEYS, summarizeAssets, type AssetEstimate, type AssetType, type PhysicalAsset } from "../../shared/assets";
 import type { JobEvent } from "../../shared/types";
 import { streamEvents } from "../api";
 import { EstimateCell, EstimateDetails, type EstimateRun } from "./AssetEstimate";
@@ -82,6 +82,19 @@ export function AssetsView() {
         }
       />
 
+      <div className="banner tip">
+        <Lightbulb size={18} />
+        <div className="grow">
+          <b>Quanto mais detalhes no item, melhor a estimativa da IA.</b> A IA compara o seu bem com anúncios reais — sem versão, ano, peso ou
+          metragem ela precisa supor, e a estimativa sai com confiança baixa. Escreva no nome do item ou na <b>Observação</b>:
+          <ul className="tip-list">
+            {ASSET_TYPE_KEYS.map((k) => (
+              <li key={k}><b>{ASSET_TYPES[k].label}:</b> {ASSET_DETAIL_HINTS[k].needs}.</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
       <div className="grid kpis" style={{ marginBottom: 16 }}>
         <div className="card kpi">
           <div className="label">Total em bens</div>
@@ -151,7 +164,7 @@ export function AssetsView() {
                       />
                     </td>
                     <td style={{ minWidth: 110 }}>
-                      <input className="cell small" type="text" placeholder="—" defaultValue={a.notes ?? ""} key={a.notes ?? ""}
+                      <input className="cell small" type="text" placeholder={"Ex.: " + ASSET_DETAIL_HINTS[a.type].needs} title={"Detalhes que melhoram a estimativa: " + ASSET_DETAIL_HINTS[a.type].needs} defaultValue={a.notes ?? ""} key={a.notes ?? ""}
                         onBlur={(e) => e.target.value !== (a.notes ?? "") && patch(a.id, { notes: e.target.value.trim() || undefined })} aria-label="Observação" />
                     </td>
                     <td className="right"><button className="btn ghost icon danger" title="Remover" onClick={() => remove(a.id)}><Trash2 size={16} /></button></td>
@@ -200,14 +213,17 @@ function AddAsset({ onAdd, onCancel, defaultOwner }: { onAdd: (a: PhysicalAsset)
       <label className="field" style={{ width: 150 }}>Tipo
         <select value={type} onChange={(e) => setType(e.target.value as AssetType)}>{ASSET_TYPE_KEYS.map((k) => <option key={k} value={k}>{ASSET_TYPES[k].label}</option>)}</select>
       </label>
-      <label className="field grow" style={{ minWidth: 200 }}>Item<input type="text" value={name} placeholder="Ex.: Tiggo 8 Max Drive 2024" onChange={(e) => setName(e.target.value)} autoFocus /></label>
+      <label className="field grow" style={{ minWidth: 200 }}>Item<input type="text" value={name} placeholder={"Ex.: " + ASSET_DETAIL_HINTS[type].example} onChange={(e) => setName(e.target.value)} autoFocus /></label>
       <label className="field" style={{ width: 80 }}>Titular
         <select value={owner} onChange={(e) => setOwner(e.target.value as Owner)}>{OWNERS.map((o) => <option key={o}>{o}</option>)}</select>
       </label>
       <label className="field" style={{ width: 140 }}>Valor (R$)<input type="number" step="0.01" min="0" value={value} onChange={(e) => setValue(e.target.value)} /></label>
-      <label className="field" style={{ width: 180 }}>Observação<input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
+      <label className="field" style={{ width: 220 }}>Observação<input type="text" value={notes} placeholder="Detalhes extras" onChange={(e) => setNotes(e.target.value)} /></label>
       <button className="btn primary" disabled={!valid}>Adicionar</button>
       <button className="btn" type="button" onClick={onCancel}>Cancelar</button>
+      <p className="small muted" style={{ flexBasis: "100%", margin: 0 }}>
+        <Lightbulb size={13} style={{ verticalAlign: -2 }} /> Para {ASSET_TYPES[type].label.toLowerCase()}, informe <b>{ASSET_DETAIL_HINTS[type].needs}</b> — quanto mais detalhes, mais precisa a estimativa da IA.
+      </p>
     </form>
   );
 }
