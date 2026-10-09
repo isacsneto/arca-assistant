@@ -272,3 +272,35 @@ ${args.text || "(sem texto — use os anexos)"}
 
 Responda somente com o resultado estruturado.`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Estimativa de valor de bens                                         */
+/* ------------------------------------------------------------------ */
+
+export const ASSET_ESTIMATE_SYSTEM = `Você avalia o valor de mercado de bens físicos de uma pessoa no Brasil, pesquisando anúncios e referências ATUAIS na web (com WebSearch e WebFetch). Responda em reais (BRL).
+
+Como pesquisar, por tipo:
+- Veículos: Tabela FIPE do modelo/versão/ano (fipe.org.br, sites que reproduzem a tabela), anúncios de usados do MESMO modelo, versão e ano (Webmotors, OLX, Mobiauto, iCarros, Kavak) e o preço do 0 km atual (site da montadora/concessionárias). Valor sugerido ≈ perto da FIPE e da mediana dos anúncios, descontando a margem de negociação típica (anúncio costuma ficar acima do valor de venda real).
+- Eletrônicos: preço do equivalente NOVO hoje (lojas oficiais, Amazon, Magalu, Kabum) e de USADOS do mesmo modelo/configuração (Mercado Livre, OLX, Enjoei). Eletrônicos desvalorizam rápido — use o mercado de usados.
+- Joias e ouro: cotação atual do grama do ouro (BRL/g) e o teor (18k = 75% de ouro). Se o peso estiver informado, valor base = peso × cotação × 0,75; joias de marca (Vivara, H.Stern…) podem ter algum ágio na revenda, mas a revenda costuma ficar perto do valor do ouro. Se o peso não for informado, estime com cautela e diga a premissa.
+- Imóveis: anúncios comparáveis na mesma região/metragem (ZAP, VivaReal, QuintoAndar) e índice FipeZap do m². Sem localização/metragem, use confiança baixa e diga o que falta.
+- Outros: anúncios do item novo e usado.
+
+Regras:
+- Considere o bem como USADO em bom estado, salvo indicação contrária no nome/observação.
+- estimate = valor sugerido; low/high = faixa razoável. newPrice/usedPrice = referências encontradas (null se não achou).
+- comparables: 3 a 8 anúncios/referências reais que você abriu ou viu nos resultados, com preço e URL; condition "novo", "usado" ou "referencia" (FIPE, cotação do ouro, índice).
+- Nunca invente preços nem URLs. Se achou pouca coisa, reduza a confiança e explique em summary.
+- assumptions: premissas em 1–2 frases (versão, ano, km, estado, peso…). summary: 2–3 frases explicando o número.`;
+
+export function assetEstimatePrompt(args: { type: string; typeLabel: string; name: string; notes?: string; currentValue: number; today: string }): string {
+  return `Hoje: ${args.today}.
+
+Bem a avaliar:
+- Tipo: ${args.typeLabel} (${args.type})
+- Descrição: ${args.name}
+- Observação do usuário: ${args.notes || "(nenhuma)"}
+- Valor que o usuário registrou: R$ ${args.currentValue.toLocaleString("pt-BR")}
+
+Pesquise e responda somente com o resultado estruturado.`;
+}

@@ -271,3 +271,11 @@ tr.group .chev { color: var(--muted); transition: transform 0.15s; }
 .kpi-link:hover { border-color: var(--accent); }
 .assets-kpi { border-style: dashed; }
 tfoot td { border-top: 1px solid var(--border); border-bottom: 0; padding-top: 10px; }
+
+/* ---------- estimativa de bens ---------- */
+.est-running { font-size: 13px; min-width: 170px; }
+.est-last { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+tr.est-row td { background: var(--surface-2); }
+.est-details { padding: 6px 4px; }
+.est-comps { margin: 8px 0 0; padding-left: 18px; font-size: 13px; display: grid; gap: 4px; }
+.est-comps a { display: inline-flex; align-items: center; gap: 3px; }

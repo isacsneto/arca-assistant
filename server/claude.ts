@@ -27,9 +27,10 @@ import {
 } from "../shared/types";
 import { computeAllocation, toBRL } from "../shared/arca";
 import { fileNameNote, finalizeExtraction } from "../shared/importReview";
+import { ASSET_TYPES, AssetEstimateSchema, normalizeEstimate, type AssetEstimate, type PhysicalAsset } from "../shared/assets";
 import {
-  EXTRACTION_SYSTEM, PROJECTION_SYSTEM, PROMPT_IMPORT_SYSTEM, REFINE_SYSTEM, REFRESH_SYSTEM,
-  projectionPrompt, promptImportPrompt, refinePrompt, refreshPrompt, scanPrompt, scanSystem,
+  ASSET_ESTIMATE_SYSTEM, EXTRACTION_SYSTEM, PROJECTION_SYSTEM, PROMPT_IMPORT_SYSTEM, REFINE_SYSTEM, REFRESH_SYSTEM,
+  assetEstimatePrompt, projectionPrompt, promptImportPrompt, refinePrompt, refreshPrompt, scanPrompt, scanSystem,
 } from "./prompts";
 
 /*
@@ -396,4 +397,32 @@ export async function projectWithClaude(
     searches,
     baseTotal,
   };
+}
+
+/** Estima o valor de um bem físico pesquisando anúncios de novos e usados. */
+export async function estimateAsset(
+  asset: PhysicalAsset,
+  setting: { model: string; effort: Effort },
+  emit: (e: JobEvent<AssetEstimate>) => void,
+  signal: AbortSignal,
+): Promise<AssetEstimate> {
+  emit({ type: "status", text: "Procurando anúncios e referências…" });
+  const { data, searches } = await webResearch({
+    prompt: assetEstimatePrompt({
+      type: asset.type,
+      typeLabel: ASSET_TYPES[asset.type].label,
+      name: asset.name,
+      notes: asset.notes,
+      currentValue: asset.value,
+      today: todayBR(),
+    }),
+    system: ASSET_ESTIMATE_SYSTEM,
+    model: setting.model,
+    effort: setting.effort,
+    schema: AssetEstimateSchema,
+    maxTurns: 40,
+    signal,
+    emit,
+  });
+  return { ...normalizeEstimate(data), at: new Date().toISOString(), model: setting.model, searches };
 }

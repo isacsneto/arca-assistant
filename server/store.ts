@@ -31,6 +31,7 @@ export function withDefaults(raw: Partial<AppState>): AppState {
       scan: { ...base.settings.scan, ...raw.settings?.scan },
       refresh: { ...base.settings.refresh, ...raw.settings?.refresh },
       projection: { ...base.settings.projection, ...raw.settings?.projection },
+      estimate: { ...base.settings.estimate, ...raw.settings?.estimate },
     },
   };
 }

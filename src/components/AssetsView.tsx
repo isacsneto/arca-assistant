@@ -1,6 +1,9 @@
-import { useMemo, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
-import { ASSET_TYPES, ASSET_TYPE_KEYS, summarizeAssets, type AssetType, type PhysicalAsset } from "../../shared/assets";
+import { Fragment, useMemo, useRef, useState } from "react";
+import { Plus, Sparkles, Trash2 } from "lucide-react";
+import { ASSET_TYPES, ASSET_TYPE_KEYS, summarizeAssets, type AssetEstimate, type AssetType, type PhysicalAsset } from "../../shared/assets";
+import type { JobEvent } from "../../shared/types";
+import { streamEvents } from "../api";
+import { EstimateCell, EstimateDetails, type EstimateRun } from "./AssetEstimate";
 import { inView, VIEW_LABEL } from "../../shared/owner";
 import { OWNERS, type Owner } from "../../shared/types";
 import { useStore } from "../store";
@@ -9,9 +12,46 @@ import { Empty, PageHead } from "./ui";
 
 /** Patrimônio físico: fora da carteira de investimentos. */
 export function AssetsView() {
-  const { state, update, view } = useStore();
+  const { state, update, view, config } = useStore();
   const assets = state!.assets;
   const [adding, setAdding] = useState(false);
+  const [runs, setRuns] = useState<Record<string, EstimateRun>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [openId, setOpenId] = useState<string | null>(null);
+  const controllers = useRef<Record<string, AbortController>>({});
+
+  /** Pesquisa anúncios e grava a estimativa no bem (o valor só muda se o usuário clicar em "Usar"). */
+  const estimate = async (a: PhysicalAsset) => {
+    controllers.current[a.id]?.abort();
+    const ctrl = new AbortController();
+    controllers.current[a.id] = ctrl;
+    const setRun = (r: EstimateRun) => setRuns((s) => ({ ...s, [a.id]: r }));
+    setRun({ status: "Procurando anúncios…" });
+    setErrors(({ [a.id]: _drop, ...rest }) => rest);
+    try {
+      await streamEvents<JobEvent<AssetEstimate>>("/api/assets/estimate", { asset: a }, (e) => {
+        if (e.type === "search") setRun({ status: "Pesquisando…", last: e.query });
+        else if (e.type === "fetch") setRun({ status: "Lendo anúncio…", last: hostOf(e.url) });
+        else if (e.type === "status") setRun({ status: e.text });
+        else if (e.type === "error") setErrors((s) => ({ ...s, [a.id]: e.message }));
+        else if (e.type === "result")
+          update((s) => ({ ...s, assets: s.assets.map((x) => (x.id === a.id ? { ...x, estimate: e.result } : x)) }));
+      }, ctrl.signal);
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") setErrors((s) => ({ ...s, [a.id]: (err as Error).message }));
+    } finally {
+      setRuns(({ [a.id]: _drop, ...rest }) => rest);
+    }
+  };
+
+  /** Estima todos os bens da visão, 2 por vez. */
+  const estimateAll = async () => {
+    const queue = visible.filter((a) => !runs[a.id]);
+    const worker = async () => {
+      for (let a = queue.shift(); a; a = queue.shift()) await estimate(a);
+    };
+    await Promise.all([worker(), worker()]);
+  };
 
   const summary = useMemo(() => summarizeAssets(assets, view), [assets, view]);
   const visible = useMemo(
@@ -31,7 +71,15 @@ export function AssetsView() {
       <PageHead
         title={view === "all" ? "Bens" : `Bens · ${view}`}
         subtitle="Patrimônio físico — carros, imóveis, joias, eletrônicos. Fica fora da carteira de investimentos: não entra na Arca, no rebalanceamento nem na projeção."
-        actions={<button className="btn primary" onClick={() => setAdding((v) => !v)}><Plus size={16} /> Adicionar bem</button>}
+        actions={
+          <>
+            <button className="btn" disabled={!visible.length || !config!.hasCredentials || Object.keys(runs).length > 0} onClick={() => void estimateAll()}
+              title="Pesquisa anúncios para todos os bens (2 por vez)">
+              <Sparkles size={16} /> Estimar todos
+            </button>
+            <button className="btn primary" onClick={() => setAdding((v) => !v)}><Plus size={16} /> Adicionar bem</button>
+          </>
+        }
       />
 
       <div className="grid kpis" style={{ marginBottom: 16 }}>
@@ -64,10 +112,11 @@ export function AssetsView() {
         ) : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Tipo</th><th>Item</th><th>Titular</th><th className="right">Valor (R$)</th><th>Observação</th><th /></tr></thead>
+              <thead><tr><th>Tipo</th><th>Item</th><th>Titular</th><th className="right">Valor (R$)</th><th>Estimativa (IA)</th><th>Observação</th><th /></tr></thead>
               <tbody>
                 {visible.map((a) => (
-                  <tr key={a.id}>
+                  <Fragment key={a.id}>
+                  <tr>
                     <td style={{ minWidth: 130 }}>
                       <span className="row" style={{ gap: 6 }}>
                         <span className="dot" style={{ background: ASSET_TYPES[a.type].color }} />
@@ -89,16 +138,37 @@ export function AssetsView() {
                       <input className="cell num right" type="number" step="0.01" min="0" defaultValue={a.value.toFixed(2)} key={a.value}
                         onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v >= 0 && v !== a.value) patch(a.id, { value: v }); }} aria-label={`Valor de ${a.name}`} />
                     </td>
+                    <td style={{ minWidth: 190 }}>
+                      <EstimateCell
+                        asset={a}
+                        run={runs[a.id]}
+                        error={errors[a.id]}
+                        disabled={!config!.hasCredentials || !!runs[a.id]}
+                        open={openId === a.id}
+                        onEstimate={() => void estimate(a)}
+                        onUse={(value) => patch(a.id, { value })}
+                        onToggle={() => setOpenId((o) => (o === a.id ? null : a.id))}
+                      />
+                    </td>
                     <td style={{ minWidth: 110 }}>
                       <input className="cell small" type="text" placeholder="—" defaultValue={a.notes ?? ""} key={a.notes ?? ""}
                         onBlur={(e) => e.target.value !== (a.notes ?? "") && patch(a.id, { notes: e.target.value.trim() || undefined })} aria-label="Observação" />
                     </td>
                     <td className="right"><button className="btn ghost icon danger" title="Remover" onClick={() => remove(a.id)}><Trash2 size={16} /></button></td>
                   </tr>
+                  {openId === a.id && a.estimate && (
+                    <tr className="est-row"><td colSpan={7}><EstimateDetails e={a.estimate} /></td></tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
               <tfoot>
-                <tr><td colSpan={3}><b>Total</b></td><td className="right num"><b>{brl(summary.total)}</b></td><td colSpan={2} /></tr>
+                <tr>
+                  <td colSpan={3}><b>Total</b></td>
+                  <td className="right num"><b>{brl(summary.total)}</b></td>
+                  <td className="num muted small">{estimatedTotal(visible)}</td>
+                  <td colSpan={2} />
+                </tr>
               </tfoot>
             </table>
           </div>
@@ -140,4 +210,20 @@ function AddAsset({ onAdd, onCancel, defaultOwner }: { onAdd: (a: PhysicalAsset)
       <button className="btn" type="button" onClick={onCancel}>Cancelar</button>
     </form>
   );
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+/** Soma das estimativas (com o valor registrado para bens ainda sem estimativa). */
+function estimatedTotal(list: PhysicalAsset[]): string {
+  const withEst = list.filter((a) => a.estimate).length;
+  if (!withEst) return "";
+  const total = list.reduce((s, a) => s + (a.estimate ? Math.round(a.estimate.estimate) : a.value), 0);
+  return `IA: ${brl(total)}${withEst < list.length ? ` (${withEst}/${list.length} estimados)` : ""}`;
 }

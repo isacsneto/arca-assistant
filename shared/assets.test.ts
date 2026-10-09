@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sanitizeAssets, summarizeAssets, type PhysicalAsset } from "./assets";
+import { normalizeEstimate, sanitizeAssets, summarizeAssets, type PhysicalAsset } from "./assets";
 
 const a = (o: Partial<PhysicalAsset>): PhysicalAsset => ({
   id: Math.random().toString(), type: "carro", name: "x", value: 0, owner: "PF", updatedAt: "2026-10-10", ...o,
@@ -34,4 +34,23 @@ test("sanitizeAssets aceita estado antigo/parcial sem quebrar", () => {
   assert.deepEqual([out[0].type, out[0].value, out[0].owner], ["outros", 120000, "PF"]);
   assert.equal(out[1].owner, "PJ");
   assert.equal(out[1].notes, undefined);
+});
+
+test("normalizeEstimate ordena a faixa e completa novo/usado pelos anúncios", () => {
+  const out = normalizeEstimate({
+    estimate: 14500, low: 16500, high: 12500, newPrice: null, usedPrice: null, confidence: "baixa", assumptions: "", summary: "",
+    comparables: [
+      { title: "a", price: 17000, condition: "usado", url: "u" },
+      { title: "b", price: 14900, condition: "usado", url: "u" },
+      { title: "c", price: 14999, condition: "usado", url: "u" },
+      { title: "d", price: 21754, condition: "novo", url: "u" },
+      { title: "e", price: 0, condition: "usado", url: "u" },
+    ],
+  });
+  assert.deepEqual([out.low, out.estimate, out.high], [12500, 14500, 16500]);
+  assert.equal(out.newPrice, 21754);
+  assert.equal(out.usedPrice, 14999, "mediana dos usados; preço zero ignorado");
+  assert.equal(out.comparables.length, 4);
+  const kept = normalizeEstimate({ ...out, newPrice: 20000, usedPrice: 15000 });
+  assert.deepEqual([kept.newPrice, kept.usedPrice], [20000, 15000], "valores do modelo prevalecem");
 });

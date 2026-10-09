@@ -281,6 +281,8 @@ export interface Settings {
   scan: ModelSetting;
   refresh: ModelSetting;
   projection: ModelSetting;
+  /** Estimativa de valor dos bens (pesquisa de anúncios). */
+  estimate: ModelSetting;
   investorProfile: string;
   /** Instituições (por titular) marcadas como desatualizadas — pedem atualização ao abrir o app. */
   staleInstitutions: StaleMark[];
@@ -304,6 +306,7 @@ export const DEFAULT_SETTINGS: Settings = {
   scan: { model: "claude-opus-5-5", effort: "high" },
   refresh: { model: "claude-sonnet-5-5", effort: "medium" },
   projection: { model: "claude-opus-5-5", effort: "high" },
+  estimate: { model: "claude-sonnet-5-5", effort: "medium" },
   staleInstitutions: [],
   reviewIntervalDays: 14,
   lastReviewAt: null,

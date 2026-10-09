@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import { createApp, mapPool, type Deps } from "./app";
 import { ClaudeError } from "./claude";
 import { withDefaults } from "./store";
+import type { AssetEstimate } from "../shared/assets";
 import type { AppState, ArcaClass, JobEvent, ProjectionResult, RefreshResult, ScanEvent, ScanResult } from "../shared/types";
 
 function memStore(initial: Partial<AppState> = {}) {
@@ -36,6 +37,9 @@ async function withServer(
     scanClass: async (c) => fakeScan(c),
     refineImport: async () => ({ items: [], files: [], questions: [], warnings: [] }),
     interpretPrompt: async () => ({ operations: [], questions: [], warnings: [] }),
+    estimateAsset: async () => {
+      throw new Error("não usado");
+    },
     refreshValues: async () => ({ runAt: "", usdBrl: null, lines: [] }),
     projectPortfolio: async () => {
       throw new Error("não usado");
@@ -318,4 +322,26 @@ test("PUT /api/state salva os bens; cliente sem o campo não apaga os existentes
     await fetch(`${base}/api/state`, { ...json(withoutAssets), method: "PUT" });
     assert.equal(store.saved!.assets.length, 1, "PUT sem 'assets' mantém os bens");
   });
+});
+
+test("POST /api/assets/estimate valida o bem, usa o modelo dos ajustes e transmite progresso", async () => {
+  let got: unknown = null;
+  const est: AssetEstimate = { estimate: 140000, low: 130000, high: 150000, newPrice: 190000, usedPrice: 145000, confidence: "media", assumptions: "", summary: "", comparables: [], at: "x", model: "m", searches: 2 };
+  await withServer(
+    {
+      estimateAsset: async (asset, setting, emit) => {
+        got = [asset.name, asset.type, setting.model];
+        emit({ type: "search", query: "Tiggo 8 Max Drive 2024 FIPE" });
+        return { ...est };
+      },
+    },
+    async (base) => {
+      assert.equal((await fetch(`${base}/api/assets/estimate`, json({ asset: { id: "1", name: "  " } }))).status, 400);
+      const r = await fetch(`${base}/api/assets/estimate`, json({ asset: { id: "c1", type: "carro", name: "Tiggo 8 Max Drive 2024", value: 150000 } }));
+      const events = parseSse<JobEvent<{ estimate: number }>>(await r.text());
+      assert.deepEqual(events.map((e) => e.type), ["search", "result", "done"]);
+      assert.equal((events[1] as { result: { estimate: number } }).result.estimate, 140000);
+      assert.deepEqual(got, ["Tiggo 8 Max Drive 2024", "carro", "claude-sonnet-5-5"]);
+    },
+  );
 });

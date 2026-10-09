@@ -9,7 +9,7 @@ import {
 import type { Store } from "./store";
 import { ClaudeError, explainError, type AuthInfo } from "./claude";
 import { mapPool } from "./pool";
-import { sanitizeAssets } from "../shared/assets";
+import { sanitizeAssets, type AssetEstimate, type PhysicalAsset } from "../shared/assets";
 
 export { mapPool };
 
@@ -21,6 +21,7 @@ export interface Deps {
   interpretPrompt: (req: PromptImportRequest, positions: AppState["positions"], model: string, effort: Effort, signal?: AbortSignal) => Promise<PromptPlan>;
   refineImport: (req: RefineRequest, model: string, effort: Effort, signal?: AbortSignal) => Promise<ExtractionResult>;
   scanClass: (c: ArcaClass, state: AppState, emit: (e: ScanEvent) => void, signal: AbortSignal) => Promise<ScanResult>;
+  estimateAsset: (asset: PhysicalAsset, setting: { model: string; effort: Effort }, emit: (e: JobEvent<AssetEstimate>) => void, signal: AbortSignal) => Promise<AssetEstimate>;
   refreshValues: (state: AppState, emit: (e: JobEvent<RefreshResult>) => void, signal: AbortSignal) => Promise<RefreshResult>;
   projectPortfolio: (state: AppState, emit: (e: JobEvent<ProjectionResult>) => void, signal: AbortSignal) => Promise<ProjectionResult>;
   fetchFx?: () => Promise<number>;
@@ -227,6 +228,24 @@ export function createApp(deps: Deps) {
       }
     });
   }
+
+  // Estimativa de um bem: o cliente envia o bem e grava o resultado (não altera o valor sozinho).
+  app.post("/api/assets/estimate", async (req, res) => {
+    const [asset] = sanitizeAssets([req.body?.asset]);
+    if (!asset || !asset.name.trim()) {
+      res.status(400).json({ error: "Informe o bem a estimar." });
+      return;
+    }
+    const sse = openSse<JobEvent<AssetEstimate>>(res);
+    try {
+      const result = await deps.estimateAsset(asset, state.settings.estimate, sse.send, sse.signal);
+      sse.send({ type: "result", result });
+    } catch (err) {
+      if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });
+    } finally {
+      sse.end();
+    }
+  });
 
   // Atualizar valores: só propõe; o cliente revisa e aplica pelo PUT /api/state.
   job("/api/refresh", deps.refreshValues);

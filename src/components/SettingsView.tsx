@@ -119,6 +119,8 @@ export function SettingsView() {
               tip="Pesquisa longa na web com análise de balanços: Opus 5.5 com esforço alto é um bom ponto de partida." />
             <ModelPicker title="Atualizar valores" value={settings.refresh} models={config!.models} onChange={(refresh) => set({ refresh })}
               tip="Ações, FIIs e ETFs usam cotação de mercado direto; o Claude só estima renda fixa e o que não tem cotação. Sonnet 5.5 médio basta." />
+            <ModelPicker title="Estimar valor dos bens" value={settings.estimate} models={config!.models} onChange={(estimate) => set({ estimate })}
+              tip="Pesquisa anúncios de novos e usados (FIPE, OLX, Mercado Livre…): Sonnet 5.5 médio é suficiente." />
             <ModelPicker title="Projeção de cenários" value={settings.projection} models={config!.models} onChange={(projection) => set({ projection })}
               tip="Pesquisa macro e de longo prazo para definir premissas: Opus 5.5 com esforço alto." />
           </div>

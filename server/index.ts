@@ -1,6 +1,6 @@
 import { createApp } from "./app";
 import { fileStore } from "./store";
-import { authStatus, extractFromFiles, interpretPrompt, projectWithClaude, refineImport, refreshWithClaude, scanClass } from "./claude";
+import { authStatus, estimateAsset, extractFromFiles, interpretPrompt, projectWithClaude, refineImport, refreshWithClaude, scanClass } from "./claude";
 import { refreshValues } from "./refresh";
 import { yahooQuote } from "./quotes";
 
@@ -14,6 +14,7 @@ const app = createApp({
   refreshValues: (state, emit, signal) =>
     refreshValues(state, { fetchQuote: yahooQuote, claudeRefresh: refreshWithClaude }, emit, signal),
   projectPortfolio: projectWithClaude,
+  estimateAsset,
 });
 
 const port = Number(process.env.PORT) || 3001;
