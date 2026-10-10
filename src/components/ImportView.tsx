@@ -10,6 +10,7 @@ import { api } from "../api";
 import { useStore } from "../store";
 import type { PreparedFile } from "../lib/files";
 import { useUploads } from "../lib/useUploads";
+import { useAi } from "../lib/useAi";
 import { money, uid } from "../lib/format";
 import { Banner, ClassSelect, PageHead } from "./ui";
 import { PromptImport } from "./PromptImport";
@@ -29,7 +30,7 @@ interface Review {
 
 const toItem = ({ _id: _i, include: _c, ...item }: Draft): ExtractedItem => item;
 
-/** Converte a resposta do Claude em rascunhos editáveis. */
+/** Converte a resposta da IA em rascunhos editáveis. */
 function toReview(res: ExtractionResult, previous?: Draft[]): Review {
   const asked = new Set(res.questions.flatMap((q) => q.itemIndexes));
   const sameShape = previous && previous.length === res.items.length;
@@ -48,6 +49,8 @@ function toReview(res: ExtractionResult, previous?: Draft[]): Review {
 
 export function ImportView({ done, target }: { done: () => void; target?: { institution: string; owner: Owner } | null }) {
   const { state, update, config, view } = useStore();
+  const ai = useAi();
+  const aiName = ai.name;
   const { files, setFiles, addFiles, toUpload, error, setError, notice } = useUploads();
   const [mode, setMode] = useState<"files" | "text">("files");
   const [busy, setBusy] = useState<string | null>(null);
@@ -88,7 +91,7 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
   };
 
   const processFiles = () =>
-    run("Lendo arquivos com Claude…", async (signal) => {
+    run(`Lendo arquivos com ${aiName}…`, async (signal) => {
       const res = await api.importFiles(toUpload(), signal);
       setReview(toReview(res));
       setAnswers({});
@@ -96,7 +99,7 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
     });
 
   const sendAnswers = () =>
-    run("Claude revisando com as suas respostas…", async (signal) => {
+    run(`${aiName} revisando com as suas respostas…`, async (signal) => {
       if (!review) return;
       const payload: ImportAnswer[] = review.questions
         .filter((q) => answers[q.id]?.trim())
@@ -149,7 +152,7 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
     const answered = review.questions.filter((q) => answers[q.id]?.trim()).length;
     const blocked = pending > 0 && !skipQuestions;
     const duplicates = review.files.filter((f) => f.duplicateOf);
-    // O aviso de prints repetidos já tem banner próprio; não repetir nos avisos do Claude.
+    // O aviso de prints repetidos já tem banner próprio; não repetir nos avisos da IA.
     const otherWarnings = duplicates.length ? review.warnings.filter((w) => !/duplicad|repetid|idêntic/i.test(w)) : review.warnings;
     const indexOf = new Map(drafts.map((d, i) => [d._id, i]));
     const asked = new Set(review.questions.flatMap((q) => q.itemIndexes));
@@ -158,12 +161,12 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
       <>
         <PageHead
           title="Revisar importação"
-          subtitle="Confira como o Claude entendeu cada arquivo, responda às perguntas dele e ajuste o que precisar antes de salvar."
+          subtitle="Confira como a IA entendeu cada arquivo, responda às perguntas dela e ajuste o que precisar antes de salvar."
           actions={
             <>
               <button className="btn" onClick={() => setReview(null)} disabled={!!busy}>Voltar</button>
               <button className="btn primary" disabled={!included || blocked || !!busy} onClick={commit}
-                title={blocked ? "Responda às perguntas do Claude (ou marque para salvar sem responder)" : undefined}>
+                title={blocked ? "Responda às perguntas da IA (ou marque para salvar sem responder)" : undefined}>
                 Salvar {included} itens
               </button>
             </>
@@ -177,7 +180,7 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
           <div className="card question-card" style={{ marginBottom: 16 }}>
             <div className="card-head">
               <div>
-                <h2 className="row"><HelpCircle size={18} /> O Claude precisa de {pending === 1 ? "uma resposta" : `${pending} respostas`}</h2>
+                <h2 className="row"><HelpCircle size={18} /> {aiName} precisa de {pending === 1 ? "uma resposta" : `${pending} respostas`}</h2>
                 <p className="muted small">Para classificar estes ativos com segurança. Escolha uma opção ou escreva a sua.</p>
               </div>
             </div>
@@ -205,10 +208,10 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
             <div className="row wrap spread" style={{ marginTop: 14 }}>
               <label className="check small">
                 <input type="checkbox" checked={skipQuestions} onChange={(e) => setSkipQuestions(e.target.checked)} />
-                Salvar sem responder (usar os palpites do Claude)
+                Salvar sem responder (usar os palpites da IA)
               </label>
               <button className="btn primary" disabled={!answered || !!busy} onClick={sendAnswers}>
-                <Send size={15} /> Enviar {answered || ""} resposta{answered === 1 ? "" : "s"} ao Claude
+                <Send size={15} /> Enviar {answered || ""} resposta{answered === 1 ? "" : "s"} para {aiName}
               </button>
             </div>
           </div>
@@ -216,7 +219,7 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
 
         {otherWarnings.length > 0 && (
           <Banner kind="warn">
-            <b>Avisos do Claude:</b>
+            <b>Avisos da IA:</b>
             <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>{otherWarnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
           </Banner>
         )}
@@ -229,7 +232,7 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
         {/* -------- leitura dos arquivos -------- */}
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-head">
-            <h2 className="row"><MessageSquare size={17} /> Como o Claude entendeu cada arquivo</h2>
+            <h2 className="row"><MessageSquare size={17} /> Como a IA entendeu cada arquivo</h2>
             <span className="muted small">mudar instituição/titular aqui vale para todos os itens do arquivo</span>
           </div>
           <div className="table-wrap">
@@ -297,7 +300,7 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
                           <select className="cell" value={d.currency} onChange={(e) => patch(d._id, { currency: e.target.value as "BRL" | "USD" })}><option>BRL</option><option>USD</option></select>
                         </td>
                         <td className="small">
-                          {pendingQ && <span className="chip warn" title="Há uma pergunta do Claude sobre este item">pergunta</span>}{" "}
+                          {pendingQ && <span className="chip warn" title="Há uma pergunta da IA sobre este item">pergunta</span>}{" "}
                           {existing.has(posKey(d.owner ?? fallbackOwner, d.institution, d.ticker, d.name)) && <span className="chip">atualiza</span>}{" "}
                           {d.confidence !== "alta" && !pendingQ && <span className={`chip ${d.confidence === "baixa" ? "bad" : "warn"}`} title={d.notes ?? ""}>confiança {d.confidence}</span>}
                         </td>
@@ -339,7 +342,7 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
 
   /* ---------------- upload ---------------- */
   const ex = state!.settings.extraction;
-  const modelLabel = config!.models.find((m) => m.id === ex.model)?.label ?? ex.model;
+  const modelLabel = ai.modelLabel("extraction");
   const icon = (f: PreparedFile) => (f.kind === "image" ? <ImageIcon size={26} /> : f.kind === "pdf" ? <FileText size={26} /> : <FileSpreadsheet size={26} />);
   const nearDups = files.filter((f) => f.looksLike).length;
 
@@ -348,8 +351,8 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
       <PageHead
         title="Importar"
         subtitle={mode === "files"
-          ? "Prints do app do banco/corretora, PDFs, CSV ou XLSX (BTG, XP, Nubank, Inter…). O Claude lê, confere os nomes dos arquivos e pergunta o que não souber classificar."
-          : "Escreva o que mudou — aportes, resgates, compras, novos saldos. O Claude encontra a posição certa, pergunta se tiver dúvida e você confere antes de aplicar."}
+          ? "Prints do app do banco/corretora, PDFs, CSV ou XLSX (BTG, XP, Nubank, Inter…). A IA lê, confere os nomes dos arquivos e pergunta o que não souber classificar."
+          : "Escreva o que mudou — aportes, resgates, compras, novos saldos. A IA encontra a posição certa, pergunta se tiver dúvida e você confere antes de aplicar."}
         actions={
           <div className="seg" role="tablist" aria-label="Tipo de importação">
             <button role="tab" aria-selected={mode === "files"} className={mode === "files" ? "active" : ""} onClick={() => setMode("files")}>Arquivos</button>
@@ -387,7 +390,7 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
         <>
           {nearDups > 0 && (
             <Banner kind="warn">
-              {nearDups === 1 ? "Um print parece" : `${nearDups} prints parecem`} quase idêntico{nearDups === 1 ? "" : "s"} a outro do lote (marcado em amarelo). Remova se for repetido — se não, o Claude confere o conteúdo e conta cada ativo uma vez só.
+              {nearDups === 1 ? "Um print parece" : `${nearDups} prints parecem`} quase idêntico{nearDups === 1 ? "" : "s"} a outro do lote (marcado em amarelo). Remova se for repetido — se não, a IA confere o conteúdo e conta cada ativo uma vez só.
             </Banner>
           )}
           <div className="thumbs">
@@ -411,14 +414,14 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
         </>
       )}
       <p className="muted small" style={{ marginTop: 22 }}>
-        Dica: para registrar um aporte ou resgate sem print, use a aba <b>Texto</b>. Nomeie os arquivos como <b>banco-pf</b> ou <b>banco-pj-dica</b> (ex.: <code>vest-pf.png</code>, <code>itau-pf-cdb100cdi.png</code>) para já definir instituição, titular e o produto — o Claude confere essa leitura. Arquivos idênticos são ignorados automaticamente e prints repetidos são contados uma vez só. Classes: {Object.values(CLASS_META).map((m) => m.label).join(" · ")}.
+        Dica: para registrar um aporte ou resgate sem print, use a aba <b>Texto</b>. Nomeie os arquivos como <b>banco-pf</b> ou <b>banco-pj-dica</b> (ex.: <code>vest-pf.png</code>, <code>itau-pf-cdb100cdi.png</code>) para já definir instituição, titular e o produto — a IA confere essa leitura. Arquivos idênticos são ignorados automaticamente e prints repetidos são contados uma vez só. Classes: {Object.values(CLASS_META).map((m) => m.label).join(" · ")}.
       </p>
       </>}
     </>
   );
 }
 
-/** Leitura automática do nome do arquivo (o Claude confirma ou corrige na revisão). */
+/** Leitura automática do nome do arquivo (a IA confirma ou corrige na revisão). */
 function FileHintChips({ name }: { name: string }) {
   const h = parseFileName(name);
   if (!h.institution && !h.owner && !h.hint) return <div className="cap muted small">sem dica no nome</div>;
@@ -426,7 +429,7 @@ function FileHintChips({ name }: { name: string }) {
     <div className="cap row wrap" style={{ gap: 4 }}>
       {h.institution && <span className="chip">{h.institution}</span>}
       {h.owner && <span className={"chip owner-" + h.owner}>{h.owner}</span>}
-      {h.hint && <span className="chip" title="Dica repassada ao Claude">{h.hint}</span>}
+      {h.hint && <span className="chip" title="Dica repassada à IA">{h.hint}</span>}
     </div>
   );
 }

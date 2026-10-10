@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DEFAULT_SETTINGS, type AppState, type Position, type ProjectionResult, type ScanResult, type View } from "../shared/types";
 import { inView } from "../shared/owner";
+import { aiSettings, isAiReady } from "../shared/ai";
 import { api, type Config } from "./api";
 
 interface Ctx {
@@ -16,6 +17,8 @@ interface Ctx {
   setView: (v: View) => void;
   /** Posições da visão atual. */
   visible: Position[];
+  /** Busca de novo o status dos provedores de IA (após salvar chave, instalar CLI…). */
+  refreshConfig: () => Promise<void>;
 }
 
 const VIEW_KEY = "arca:view";
@@ -93,8 +96,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const visible = useMemo(() => (state ? inView(state.positions, view) : []), [state, view]);
 
+  // "IA pronta" é calculado aqui, com os ajustes atuais (trocar de provedor reflete na hora).
+  const effectiveConfig = useMemo(
+    () => (config && state ? { ...config, hasCredentials: isAiReady(aiSettings(state.settings), config.aiStatus) } : config),
+    [config, state],
+  );
+  const refreshConfig = useCallback(async () => {
+    setConfig(await api.getConfig(true));
+  }, []);
+
   return (
-    <StoreCtx.Provider value={{ state, config, loadError, saveError, update, setScan, setProjection, view, setView, visible }}>
+    <StoreCtx.Provider value={{ state, config: effectiveConfig, loadError, saveError, update, setScan, setProjection, view, setView, visible, refreshConfig }}>
       {children}
     </StoreCtx.Provider>
   );

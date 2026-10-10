@@ -6,12 +6,15 @@ import {
 } from "../../shared/types";
 import { targetsSum } from "../../shared/arca";
 import { api } from "../api";
+import { AiProviderSettings } from "./AiProviderSettings";
+import { aiSettings } from "../../shared/ai";
 import { useStore } from "../store";
 import { Banner, ClassDot, PageHead } from "./ui";
 
 export function SettingsView() {
   const { state, config, update } = useStore();
   const settings = state!.settings;
+  const isClaude = aiSettings(settings).provider === "claude";
   const [fxMsg, setFxMsg] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
   const file = useRef<HTMLInputElement>(null);
@@ -60,6 +63,8 @@ export function SettingsView() {
       <PageHead title="Ajustes" />
       {msg && <Banner kind={msg.kind}>{msg.text}</Banner>}
       <div className="stack-lg">
+        <AiProviderSettings />
+
         <section className="card">
           <div className="card-head">
             <div>
@@ -111,17 +116,24 @@ export function SettingsView() {
         </section>
 
         <section className="card">
-          <div className="card-head"><div><h2>Modelos do Claude</h2><p className="muted small">Escolha o modelo e o esforço de raciocínio de cada tarefa. Mais esforço = mais preciso, porém mais lento e mais caro.</p></div></div>
+          <div className="card-head"><div>
+            <h2>{isClaude ? "Modelos do Claude" : "Esforço por tarefa"}</h2>
+            <p className="muted small">
+              {isClaude
+                ? "Escolha o modelo e o esforço de raciocínio de cada tarefa. Mais esforço = mais preciso, porém mais lento e mais caro."
+                : "Quanto a IA raciocina em cada tarefa (os modelos do provedor ficam na seção acima). Mais esforço = mais preciso, porém mais lento."}
+            </p>
+          </div></div>
           <div className="grid two">
-            <ModelPicker title="Ler prints e arquivos" value={settings.extraction} models={config!.models} onChange={(extraction) => set({ extraction })}
+            <ModelPicker showModel={isClaude} title="Ler prints e arquivos" value={settings.extraction} models={config!.models} onChange={(extraction) => set({ extraction })}
               tip="Sonnet 5.5 com esforço médio costuma bastar. Suba o esforço se os valores saírem errados." />
-            <ModelPicker title="Scan de melhores ativos" value={settings.scan} models={config!.models} onChange={(scan) => set({ scan })}
+            <ModelPicker showModel={isClaude} title="Scan de melhores ativos" value={settings.scan} models={config!.models} onChange={(scan) => set({ scan })}
               tip="Pesquisa longa na web com análise de balanços: Opus 5.5 com esforço alto é um bom ponto de partida." />
-            <ModelPicker title="Atualizar valores" value={settings.refresh} models={config!.models} onChange={(refresh) => set({ refresh })}
-              tip="Ações, FIIs e ETFs usam cotação de mercado direto; o Claude só estima renda fixa e o que não tem cotação. Sonnet 5.5 médio basta." />
-            <ModelPicker title="Estimar valor dos bens" value={settings.estimate} models={config!.models} onChange={(estimate) => set({ estimate })}
+            <ModelPicker showModel={isClaude} title="Atualizar valores" value={settings.refresh} models={config!.models} onChange={(refresh) => set({ refresh })}
+              tip="Ações, FIIs e ETFs usam cotação de mercado direto; a IA só estima renda fixa e o que não tem cotação. Sonnet 5.5 médio basta." />
+            <ModelPicker showModel={isClaude} title="Estimar valor dos bens" value={settings.estimate} models={config!.models} onChange={(estimate) => set({ estimate })}
               tip="Pesquisa anúncios de novos e usados (FIPE, OLX, Mercado Livre…): Sonnet 5.5 médio é suficiente." />
-            <ModelPicker title="Projeção de cenários" value={settings.projection} models={config!.models} onChange={(projection) => set({ projection })}
+            <ModelPicker showModel={isClaude} title="Projeção de cenários" value={settings.projection} models={config!.models} onChange={(projection) => set({ projection })}
               tip="Pesquisa macro e de longo prazo para definir premissas: Opus 5.5 com esforço alto." />
           </div>
         </section>
@@ -182,7 +194,8 @@ export function SettingsView() {
   );
 }
 
-function ModelPicker({ title, value, models, onChange, tip }: {
+function ModelPicker({ title, value, models, onChange, tip, showModel = true }: {
+  showModel?: boolean;
   title: string; value: ModelSetting; models: { id: string; label: string; tier: string; hint: string }[];
   onChange: (v: ModelSetting) => void; tip: string;
 }) {
@@ -190,17 +203,19 @@ function ModelPicker({ title, value, models, onChange, tip }: {
   return (
     <div className="stack">
       <h3>{title}</h3>
-      <label className="field">Modelo
-        <select value={value.model} onChange={(e) => onChange({ ...value, model: e.target.value })}>
-          {models.map((m) => <option key={m.id} value={m.id}>{m.label} — {m.tier}</option>)}
-        </select>
-        {current && <span className="hint">{current.hint}</span>}
-      </label>
+      {showModel && (
+        <label className="field">Modelo
+          <select value={value.model} onChange={(e) => onChange({ ...value, model: e.target.value })}>
+            {models.map((m) => <option key={m.id} value={m.id}>{m.label} — {m.tier}</option>)}
+          </select>
+          {current && <span className="hint">{current.hint}</span>}
+        </label>
+      )}
       <label className="field">Esforço
         <select value={value.effort} onChange={(e) => onChange({ ...value, effort: e.target.value as ModelSetting["effort"] })}>
           {EFFORTS.map((ef) => <option key={ef} value={ef}>{EFFORT_LABEL[ef]}</option>)}
         </select>
-        <span className="hint">{tip}</span>
+        {showModel && <span className="hint">{tip}</span>}
       </label>
     </div>
   );

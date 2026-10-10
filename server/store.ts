@@ -3,6 +3,8 @@ import path from "node:path";
 import { DEFAULT_SETTINGS, methodologyOf, type AppState } from "../shared/types";
 import { withOwner } from "../shared/owner";
 import { sanitizeAssets } from "../shared/assets";
+import { aiSettings } from "../shared/ai";
+import { stateFile } from "./paths";
 
 export interface Store {
   load(): AppState;
@@ -32,11 +34,12 @@ export function withDefaults(raw: Partial<AppState>): AppState {
       refresh: { ...base.settings.refresh, ...raw.settings?.refresh },
       projection: { ...base.settings.projection, ...raw.settings?.projection },
       estimate: { ...base.settings.estimate, ...raw.settings?.estimate },
+      ai: aiSettings({ ai: raw.settings?.ai ?? base.settings.ai }),
     },
   };
 }
 
-export function fileStore(file = path.resolve(process.cwd(), "data", "state.json")): Store {
+export function fileStore(file = stateFile()): Store {
   return {
     load() {
       try {

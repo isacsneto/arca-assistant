@@ -132,7 +132,7 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
       </div>
       {result.ratesUsed && <p className="muted small" style={{ marginTop: 10 }}>Taxas de referência: {result.ratesUsed}</p>}
       <p className="muted small" style={{ marginTop: 6 }}>
-        Cotação = preço de mercado (Yahoo Finance). Indexador = estimativa do Claude acumulando CDI/Selic/IPCA desde a última atualização (valor bruto, antes de IR).
+        Cotação = preço de mercado (Yahoo Finance). Indexador = estimativa da IA acumulando CDI/Selic/IPCA desde a última atualização (valor bruto, antes de IR).
         Saldos em conta são mantidos. Para o valor exato de renda fixa, importe um print novo do banco.
       </p>
     </div>

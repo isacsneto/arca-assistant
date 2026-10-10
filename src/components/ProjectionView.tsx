@@ -9,6 +9,7 @@ import { brl0, dateTime, safeUrl } from "../lib/format";
 import { Banner, ClassLabel, Empty, PageHead } from "./ui";
 import { VIEW_LABEL } from "../../shared/owner";
 import { JobProgress } from "./JobProgress";
+import { useAi } from "../lib/useAi";
 
 const compact = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact", maximumFractionDigits: 1 });
 const pctTxt = (n: number, d = 1) => `${n > 0 ? "+" : ""}${n.toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d })}%`;
@@ -25,7 +26,7 @@ export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
   const allTotal = state!.positions.reduce((s, p) => s + (p.currency === "USD" ? p.value * settings.usdBrl : p.value), 0);
   const [real, setReal] = useState(false);
 
-  const modelLabel = config!.models.find((m) => m.id === settings.projection.model)?.label ?? settings.projection.model;
+  const modelLabel = useAi().modelLabel("projection");
   const years = useMemo(() => Array.from({ length: 31 }, (_, i) => i), []);
   const yearly = useMemo(
     () => (projection ? project(positions, settings.usdBrl, projection, years) : null),
@@ -62,7 +63,7 @@ export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
           <div className="card">
             <Empty title={positions.length ? "Nenhuma projeção ainda" : "Sua carteira está vazia"}>
               <p style={{ maxWidth: 560, margin: "0 auto" }}>
-                O Claude ({modelLabel}) pesquisa inflação, juros, situação fiscal, valuation das bolsas e o histórico de longo prazo de cada classe para
+                A IA ({modelLabel}) pesquisa inflação, juros, situação fiscal, valuation das bolsas e o histórico de longo prazo de cada classe para
                 definir as premissas dos dois cenários. Os valores são calculados sobre a sua carteira atual, sem novos aportes. Leva alguns minutos.
               </p>
             </Empty>

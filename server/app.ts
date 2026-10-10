@@ -3,28 +3,33 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   ARCA_CLASSES, MODEL_OPTIONS,
-  type AppState, type ArcaClass, type Effort, type ExtractionResult, type JobEvent,
+  type AppState, type ArcaClass, type ExtractionResult, type JobEvent,
   type ProjectionResult, type PromptImportRequest, type PromptPlan, type RefineRequest, type RefreshResult, type ScanEvent, type ScanResult, type UploadFile,
 } from "../shared/types";
 import type { Store } from "./store";
-import { ClaudeError, explainError, type AuthInfo } from "./claude";
+import { AiError, explainError } from "./ai";
+import { PROVIDER_IDS, aiFor, aiSettings, isAiReady, type AiStatus, type AiTask, type ProviderId } from "../shared/ai";
 import { mapPool } from "./pool";
+import { attachmentsRoot } from "./paths";
 import { sanitizeAssets, type AssetEstimate, type PhysicalAsset } from "../shared/assets";
 import { AttachmentError, collectGarbage, deleteAttachment, loadForClaude, readAttachment, saveAttachments } from "./attachments";
 
 export { mapPool };
 
-/** Dependências externas — injetáveis para os testes não chamarem o Claude de verdade. */
+/** Dependências externas — injetáveis para os testes não chamarem a IA de verdade. */
 export interface Deps {
   store: Store;
-  authStatus: () => Promise<AuthInfo>;
-  extractFromFiles: (files: UploadFile[], model: string, effort: Effort, signal?: AbortSignal) => Promise<ExtractionResult>;
-  interpretPrompt: (req: PromptImportRequest, positions: AppState["positions"], model: string, effort: Effort, signal?: AbortSignal) => Promise<PromptPlan>;
-  refineImport: (req: RefineRequest, model: string, effort: Effort, signal?: AbortSignal) => Promise<ExtractionResult>;
+  /** Status de instalação/login/chave de cada provedor de IA. */
+  aiStatus: (force?: boolean) => Promise<AiStatus>;
+  /** Salva (ou remove, com null) a chave de API de um provedor. */
+  setApiKey: (provider: ProviderId, key: string | null) => void;
+  extractFromFiles: (files: UploadFile[], ai: AiTask, signal?: AbortSignal) => Promise<ExtractionResult>;
+  interpretPrompt: (req: PromptImportRequest, positions: AppState["positions"], ai: AiTask, signal?: AbortSignal) => Promise<PromptPlan>;
+  refineImport: (req: RefineRequest, ai: AiTask, signal?: AbortSignal) => Promise<ExtractionResult>;
   scanClass: (c: ArcaClass, state: AppState, emit: (e: ScanEvent) => void, signal: AbortSignal) => Promise<ScanResult>;
   estimateAsset: (
     asset: PhysicalAsset,
-    setting: { model: string; effort: Effort },
+    ai: AiTask,
     emit: (e: JobEvent<AssetEstimate>) => void,
     signal: AbortSignal,
     files?: UploadFile[],
@@ -79,7 +84,7 @@ export function createApp(deps: Deps) {
   app.use(express.json({ limit: "80mb" }));
 
   let state = store.load();
-  const attachmentsDir = deps.attachmentsDir ?? path.resolve(process.cwd(), "data", "attachments");
+  const attachmentsDir = deps.attachmentsDir ?? attachmentsRoot();
 
   app.get("/api/state", (_req, res) => {
     res.json(state);
@@ -106,9 +111,33 @@ export function createApp(deps: Deps) {
     void collectGarbage(attachmentsDir, state.assets).catch(() => undefined);
   });
 
-  app.get("/api/config", async (_req, res) => {
-    const auth = await deps.authStatus();
-    res.json({ hasCredentials: auth.loggedIn, account: auth.account, models: MODEL_OPTIONS });
+  app.get("/api/config", async (req, res) => {
+    const status = await deps.aiStatus(req.query.refresh === "1");
+    const ai = aiSettings(state.settings);
+    const s = status[ai.provider];
+    res.json({
+      hasCredentials: isAiReady(ai, status),
+      account: ai.auth === "apiKey" ? "chave de API" : s?.account,
+      provider: ai.provider,
+      auth: ai.auth,
+      aiStatus: status,
+      models: MODEL_OPTIONS,
+    });
+  });
+
+  // Chave de API de um provedor: só entra (ou sai); nunca é devolvida ao navegador.
+  app.put("/api/ai/key", (req, res) => {
+    const { provider, key } = (req.body ?? {}) as { provider?: string; key?: string | null };
+    if (!provider || !(PROVIDER_IDS as string[]).includes(provider)) {
+      res.status(400).json({ error: "Provedor inválido." });
+      return;
+    }
+    if (key != null && (typeof key !== "string" || key.trim().length < 8 || key.length > 400)) {
+      res.status(400).json({ error: "Chave inválida." });
+      return;
+    }
+    deps.setApiKey(provider as ProviderId, key?.trim() || null);
+    res.json({ ok: true });
   });
 
   // Cotação do dólar (opcional; o usuário também pode digitar manualmente).
@@ -131,8 +160,7 @@ export function createApp(deps: Deps) {
       if (!res.writableEnded) ctrl.abort();
     });
     try {
-      const { model, effort } = state.settings.extraction;
-      res.json(await deps.extractFromFiles(files, model, effort, ctrl.signal));
+      res.json(await deps.extractFromFiles(files, aiFor(state.settings, "extraction"), ctrl.signal));
     } catch (err) {
       const e = explainError(err);
       if (!res.headersSent) res.status(e.status).json({ error: e.message });
@@ -160,8 +188,7 @@ export function createApp(deps: Deps) {
       if (!res.writableEnded) ctrl.abort();
     });
     try {
-      const { model, effort } = state.settings.extraction;
-      res.json(await deps.interpretPrompt({ text, answers, files }, state.positions, model, effort, ctrl.signal));
+      res.json(await deps.interpretPrompt({ text, answers, files }, state.positions, aiFor(state.settings, "prompt"), ctrl.signal));
     } catch (err) {
       const e = explainError(err);
       if (!res.headersSent) res.status(e.status).json({ error: e.message });
@@ -180,8 +207,7 @@ export function createApp(deps: Deps) {
       if (!res.writableEnded) ctrl.abort();
     });
     try {
-      const { model, effort } = state.settings.extraction;
-      res.json(await deps.refineImport(body as RefineRequest, model, effort, ctrl.signal));
+      res.json(await deps.refineImport(body as RefineRequest, aiFor(state.settings, "refine"), ctrl.signal));
     } catch (err) {
       const e = explainError(err);
       if (!res.headersSent) res.status(e.status).json({ error: e.message });
@@ -296,7 +322,7 @@ export function createApp(deps: Deps) {
       // Anexos vêm do disco (o que está salvo para o bem), não do corpo da requisição.
       const saved = state.assets.find((a) => a.id === asset.id);
       const files = saved?.attachments?.length ? await loadForClaude(attachmentsDir, saved.id, saved.attachments) : [];
-      const result = await deps.estimateAsset(asset, state.settings.estimate, sse.send, sse.signal, files);
+      const result = await deps.estimateAsset(asset, aiFor(state.settings, "estimate"), sse.send, sse.signal, files);
       sse.send({ type: "result", result });
     } catch (err) {
       if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });
@@ -321,7 +347,7 @@ export function createApp(deps: Deps) {
   }
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    const e = err instanceof ClaudeError ? err : null;
+    const e = err instanceof AiError ? err : null;
     const tooBig = (err as { type?: string })?.type === "entity.too.large";
     const badJson = (err as { type?: string })?.type === "entity.parse.failed";
     res.status(tooBig ? 413 : badJson ? 400 : (e?.status ?? 500)).json({

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Check, Copy, FileSpreadsheet, FileText, HelpCircle, Loader2, Paperclip, Send, Sparkles, X } from "lucide-react";
 import { useUploads } from "../lib/useUploads";
+import { useAi } from "../lib/useAi";
 import type { PromptPlan } from "../../shared/types";
 import { applyPromptOps, previewOps } from "../../shared/promptOps";
 import { clearStaleFor } from "../../shared/reminders";
@@ -21,9 +22,10 @@ const TX_LABEL: Record<string, string> = {
   juros: "juros", taxa: "taxa", transferencia: "transferência", outro: "lançamento",
 };
 
-/** Import por texto: descreva o que mudou e o Claude propõe as operações. */
+/** Import por texto: descreva o que mudou e a IA propõe as operações. */
 export function PromptImport({ done }: { done: () => void }) {
   const { state, update, config } = useStore();
+  const aiName = useAi().name;
   const [text, setText] = useState("");
   const [plan, setPlan] = useState<PromptPlan | null>(null);
   const [history, setHistory] = useState<{ question: string; answer: string }[]>([]);
@@ -153,7 +155,7 @@ export function PromptImport({ done }: { done: () => void }) {
           <button className="btn primary" disabled={!canInterpret} onClick={start}>
             {busy
               ? <><Loader2 size={16} className="spin" /> {uploads.files.length ? "Lendo anexos e interpretando…" : "Interpretando…"}</>
-              : <><Sparkles size={16} /> Interpretar com Claude{uploads.files.length ? ` (+${uploads.files.length} anexo${uploads.files.length > 1 ? "s" : ""})` : ""}</>}
+              : <><Sparkles size={16} /> Interpretar com {aiName}{uploads.files.length ? ` (+${uploads.files.length} anexo${uploads.files.length > 1 ? "s" : ""})` : ""}</>}
           </button>
           {busy && <button className="btn" onClick={() => abort.current?.abort()}>Cancelar</button>}
         </div>
@@ -163,7 +165,7 @@ export function PromptImport({ done }: { done: () => void }) {
 
       {plan && plan.questions.length > 0 && (
         <div className="card question-card">
-          <h2 className="row" style={{ marginBottom: 10 }}><HelpCircle size={18} /> O Claude precisa saber</h2>
+          <h2 className="row" style={{ marginBottom: 10 }}><HelpCircle size={18} /> {aiName} precisa saber</h2>
           <div className="stack">
             {plan.questions.map((q) => (
               <div className="question" key={q.id}>
@@ -233,7 +235,7 @@ export function PromptImport({ done }: { done: () => void }) {
       )}
 
       {plan && preview.length === 0 && plan.questions.length === 0 && (
-        <Banner kind="warn">O Claude não encontrou nenhuma movimentação nesse texto. Tente descrever com valor, instituição e produto.</Banner>
+        <Banner kind="warn">A IA não encontrou nenhuma movimentação nesse texto. Tente descrever com valor, instituição e produto.</Banner>
       )}
     </div>
   );

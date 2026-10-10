@@ -1,3 +1,4 @@
+import type { AiStatus, ProviderId } from "../shared/ai";
 import type { AppState, ExtractionResult, PromptImportRequest, PromptPlan, RefineRequest, ScanEvent, UploadFile } from "../shared/types";
 
 export interface ModelOption {
@@ -10,6 +11,9 @@ export interface ModelOption {
 export interface Config {
   hasCredentials: boolean;
   account?: string;
+  provider: ProviderId;
+  auth: "local" | "apiKey";
+  aiStatus: AiStatus;
   models: ModelOption[];
 }
 
@@ -27,7 +31,10 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ positions: s.positions, transactions: s.transactions, assets: s.assets, settings: s.settings }),
     }).then((r) => json<{ ok: true }>(r)),
-  getConfig: () => fetch("/api/config").then((r) => json<Config>(r)),
+  getConfig: (refresh = false) => fetch(`/api/config${refresh ? "?refresh=1" : ""}`).then((r) => json<Config>(r)),
+  /** Salva (ou remove, com null) a chave de API de um provedor — fica só no servidor. */
+  setAiKey: (provider: ProviderId, key: string | null) =>
+    fetch("/api/ai/key", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, key }) }).then((r) => json<{ ok: true }>(r)),
   getFx: () => fetch("/api/fx").then((r) => json<{ usdBrl: number }>(r)),
   importFiles: (files: UploadFile[], signal?: AbortSignal) =>
     fetch("/api/import", {

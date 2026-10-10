@@ -3,3 +3,5 @@ dist
 .env
 data/state.json
 data/attachments/
+data/secrets.json
+demo-data/

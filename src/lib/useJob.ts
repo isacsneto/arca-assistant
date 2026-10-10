@@ -5,7 +5,7 @@ import { streamEvents } from "../api";
 export interface JobState<R> {
   running: boolean;
   status: string;
-  /** Últimas buscas/páginas lidas, para mostrar o que o Claude está fazendo. */
+  /** Últimas buscas/páginas lidas, para mostrar o que a IA está fazendo. */
   feed: string[];
   searches: number;
   error: string | null;

@@ -1,29 +1,36 @@
 import { createApp } from "./app";
 import { fileStore } from "./store";
-import { authStatus, estimateAsset, extractFromFiles, interpretPrompt, projectWithClaude, refineImport, refreshWithClaude, scanClass } from "./claude";
+import { aiStatus, setApiKey } from "./ai";
+import { estimateAsset, extractFromFiles, interpretPrompt, projectWithAi, refineImport, refreshWithAi, scanClass } from "./tasks";
 import { refreshValues } from "./refresh";
 import { yahooQuote } from "./quotes";
+import { dataDir } from "./paths";
+import { PROVIDERS, aiSettings, isAiReady } from "../shared/ai";
 
+const store = fileStore();
 const app = createApp({
-  store: fileStore(),
-  authStatus,
+  store,
+  aiStatus,
+  setApiKey,
   extractFromFiles,
   refineImport,
   interpretPrompt,
   scanClass,
-  refreshValues: (state, emit, signal) =>
-    refreshValues(state, { fetchQuote: yahooQuote, claudeRefresh: refreshWithClaude }, emit, signal),
-  projectPortfolio: projectWithClaude,
+  refreshValues: (state, emit, signal) => refreshValues(state, { fetchQuote: yahooQuote, claudeRefresh: refreshWithAi }, emit, signal),
+  projectPortfolio: projectWithAi,
   estimateAsset,
 });
 
 const port = Number(process.env.PORT) || 3001;
-// Só na própria máquina: a API expõe sua carteira e usa sua assinatura do Claude.
+// Só na própria máquina: a API expõe sua carteira e usa sua IA/assinatura.
 const host = process.env.HOST || "127.0.0.1";
 app.listen(port, host, () => {
-  console.log(`Arca Assistant API em http://${host}:${port}`);
-  void authStatus().then((a) => {
-    if (!a.loggedIn) console.warn("⚠ Claude Code não está logado. Rode `claude auth login` e reinicie.");
-    else console.log(`Claude Code conectado${a.account ? ` (${a.account})` : ""} — usando o login local, sem API key.`);
+  console.log(`Arca Assistant em http://${host}:${port}  (dados: ${dataDir()})`);
+  void aiStatus().then((status) => {
+    const ai = aiSettings(store.load().settings);
+    const p = PROVIDERS[ai.provider];
+    const mode = ai.auth === "apiKey" ? "chave de API" : "login local";
+    if (isAiReady(ai, status)) console.log(`IA: ${p.label} (${mode}${status[ai.provider].account ? ` · ${status[ai.provider].account}` : ""})`);
+    else console.warn(`⚠ IA ${p.label} (${mode}) não está pronta. Configure em Ajustes → Provedor de IA.`);
   });
 });

@@ -15,6 +15,7 @@ import { ProjectionView } from "./components/ProjectionView";
 import { InstitutionsView } from "./components/InstitutionsView";
 import { AssetsView } from "./components/AssetsView";
 import { METHODOLOGIES, type Owner, type View } from "../shared/types";
+import { PROVIDERS, aiSettings } from "../shared/ai";
 import { RemindersDialog } from "./components/RemindersDialog";
 import { Transactions } from "./components/Transactions";
 import { SettingsView } from "./components/SettingsView";
@@ -66,6 +67,7 @@ export function App() {
       </div>
     );
 
+  const aiConf = aiSettings(state.settings);
   const busy: Partial<Record<TabId, boolean>> = { portfolio: refreshJob.running, projection: projectionJob.running };
 
   return (
@@ -91,13 +93,23 @@ export function App() {
             {busy[id] && <Loader2 size={14} className="spin" style={{ marginLeft: "auto" }} />}
           </button>
         ))}
-        <div className="sidebar-foot">Metodologia: {state.settings.methodology === "custom" ? "personalizada" : METHODOLOGIES[state.settings.methodology].label}<br />Dados salvos localmente.<br />IA: {config.account ?? "Claude Code"} (login local)</div>
+        <div className="sidebar-foot">
+          Metodologia: {state.settings.methodology === "custom" ? "personalizada" : METHODOLOGIES[state.settings.methodology].label}<br />
+          Dados salvos localmente.<br />
+          IA: {PROVIDERS[aiConf.provider].label} · {aiConf.auth === "apiKey" ? "chave de API" : config.aiStatus?.[aiConf.provider]?.account ?? "login local"}
+        </div>
       </nav>
       <main className="main">
         {!config.hasCredentials && (
           <Banner kind="warn">
-            O Claude Code não está logado neste computador. Rode <code>claude auth login</code> no terminal e recarregue — sem isso,
-            importar e escanear não funcionam.
+            A IA ({PROVIDERS[aiConf.provider].label}, {aiConf.auth === "apiKey" ? "chave de API" : "login local"}) não está pronta —{" "}
+            {aiConf.auth === "apiKey"
+              ? "cadastre a chave de API"
+              : !config.aiStatus?.[aiConf.provider]?.installed
+                ? "o CLI não está instalado"
+                : <>rode <code>{PROVIDERS[aiConf.provider].loginCmd}</code> no terminal</>}
+            . Sem isso, importar, escanear e projetar não funcionam.{" "}
+            <button className="btn sm" onClick={() => setTab("settings")}>Configurar IA</button>
           </Banner>
         )}
         {saveError && <Banner kind="bad">Falha ao salvar no servidor: {saveError}</Banner>}

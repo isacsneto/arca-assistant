@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { PhysicalAsset } from "./assets";
+import { DEFAULT_AI, type AiSettings } from "./ai";
 
 /* ------------------------------------------------------------------ */
 /* Classes da Arca (Primo Rico / Thiago Nigro)                         */
@@ -283,6 +284,8 @@ export interface Settings {
   projection: ModelSetting;
   /** Estimativa de valor dos bens (pesquisa de anúncios). */
   estimate: ModelSetting;
+  /** Provedor de IA (Claude, Codex, Cursor) e modo de acesso (login local ou chave de API). */
+  ai: AiSettings;
   investorProfile: string;
   /** Instituições (por titular) marcadas como desatualizadas — pedem atualização ao abrir o app. */
   staleInstitutions: StaleMark[];
@@ -307,6 +310,7 @@ export const DEFAULT_SETTINGS: Settings = {
   refresh: { model: "claude-sonnet-5-5", effort: "medium" },
   projection: { model: "claude-opus-5-5", effort: "high" },
   estimate: { model: "claude-sonnet-5-5", effort: "medium" },
+  ai: DEFAULT_AI,
   staleInstitutions: [],
   reviewIntervalDays: 14,
   lastReviewAt: null,

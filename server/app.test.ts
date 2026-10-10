@@ -5,7 +5,14 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createApp, mapPool, type Deps } from "./app";
-import { ClaudeError } from "./claude";
+import { AiError as ClaudeError } from "./ai";
+import type { AiStatus, ProviderId } from "../shared/ai";
+
+const readyStatus = (o: Partial<AiStatus["claude"]> = {}): AiStatus => ({
+  claude: { installed: true, loggedIn: true, account: "Claude Max", hasKey: false, ...o },
+  codex: { installed: true, loggedIn: true, account: "ChatGPT", hasKey: false },
+  cursor: { installed: false, loggedIn: null, hasKey: false },
+});
 import { withDefaults } from "./store";
 import type { AssetEstimate } from "../shared/assets";
 import type { AppState, ArcaClass, JobEvent, ProjectionResult, RefreshResult, ScanEvent, ScanResult } from "../shared/types";
@@ -35,7 +42,8 @@ async function withServer(
   const app = createApp({
     store,
     distDir: "__nao_existe__",
-    authStatus: async () => ({ loggedIn: true, account: "Claude Max" }),
+    aiStatus: async () => readyStatus(),
+    setApiKey: () => undefined,
     extractFromFiles: async () => ({ items: [], files: [], questions: [], warnings: [] }),
     scanClass: async (c) => fakeScan(c),
     refineImport: async () => ({ items: [], files: [], questions: [], warnings: [] }),
@@ -71,7 +79,7 @@ function parseSse<E = ScanEvent>(text: string): E[] {
 }
 
 test("GET /api/config reflete o login local", async () => {
-  await withServer({ authStatus: async () => ({ loggedIn: false }) }, async (base) => {
+  await withServer({ aiStatus: async () => readyStatus({ loggedIn: false }) }, async (base) => {
     const c = await (await fetch(`${base}/api/config`)).json();
     assert.equal(c.hasCredentials, false);
     assert.ok(c.models.length >= 3);
@@ -103,8 +111,8 @@ test("POST /api/import: sem arquivos é 400; repassa modelo/esforço dos ajustes
   let seen: unknown[] = [];
   await withServer(
     {
-      extractFromFiles: async (files, model, effort) => {
-        seen = [files.length, model, effort];
+      extractFromFiles: async (files, ai) => {
+        seen = [files.length, ai.model, ai.effort];
         return { items: [], files: [], questions: [], warnings: ["ok"] };
       },
     },
@@ -254,8 +262,8 @@ test("POST /api/import/refine valida o pedido e repassa respostas ao Claude", as
   let got: unknown = null;
   await withServer(
     {
-      refineImport: async (req, model) => {
-        got = [req.answers[0].answer, model];
+      refineImport: async (req, ai) => {
+        got = [req.answers[0].answer, ai.model];
         return { items: [], files: [], questions: [], warnings: ["revisado"] };
       },
     },
@@ -333,8 +341,8 @@ test("POST /api/assets/estimate valida o bem, usa o modelo dos ajustes e transmi
   const est: AssetEstimate = { estimate: 140000, low: 130000, high: 150000, newPrice: 190000, usedPrice: 145000, confidence: "media", assumptions: "", summary: "", comparables: [], at: "x", model: "m", searches: 2 };
   await withServer(
     {
-      estimateAsset: async (asset, setting, emit) => {
-        got = [asset.name, asset.type, setting.model];
+      estimateAsset: async (asset, ai, emit) => {
+        got = [asset.name, asset.type, ai.model];
         emit({ type: "search", query: "Tiggo 8 Max Drive 2024 FIPE" });
         return { ...est };
       },
@@ -385,5 +393,53 @@ test("anexos de bens: enviar, abrir, apagar; estimativa recebe os anexos salvos"
       assert.equal((await fetch(`${base}/api/assets/car1/attachments/${attachments[0].id}`)).status, 404);
     },
     { assets: [car] } as Partial<AppState>,
+  );
+});
+
+test("GET /api/config reflete o provedor escolhido; PUT /api/ai/key valida e nunca devolve a chave", async () => {
+  const keys: Partial<Record<ProviderId, string | null>> = {};
+  await withServer(
+    {
+      aiStatus: async () => ({ ...readyStatus(), codex: { installed: true, loggedIn: false, hasKey: Boolean(keys.codex) } }),
+      setApiKey: (p, k) => void (keys[p] = k),
+    },
+    async (base) => {
+      const c1 = await (await fetch(`${base}/api/config`)).json();
+      assert.equal(c1.provider, "codex");
+      assert.equal(c1.auth, "apiKey");
+      assert.equal(c1.hasCredentials, false, "sem chave ainda");
+
+      assert.equal((await fetch(`${base}/api/ai/key`, { ...json({ provider: "xpto", key: "sk-12345678" }), method: "PUT" })).status, 400);
+      assert.equal((await fetch(`${base}/api/ai/key`, { ...json({ provider: "codex", key: "curta" }), method: "PUT" })).status, 400);
+      assert.equal((await fetch(`${base}/api/ai/key`, { ...json({ provider: "codex", key: " sk-test-1234567890 " }), method: "PUT" })).status, 200);
+      assert.equal(keys.codex, "sk-test-1234567890");
+
+      const c2 = await (await fetch(`${base}/api/config`)).json();
+      assert.equal(c2.hasCredentials, true);
+      assert.ok(!JSON.stringify(c2).includes("sk-test"), "a chave nunca volta ao navegador");
+      const st = await (await fetch(`${base}/api/state`)).json();
+      assert.ok(!JSON.stringify(st).includes("sk-test"));
+
+      await fetch(`${base}/api/ai/key`, { ...json({ provider: "codex", key: null }), method: "PUT" });
+      assert.equal(keys.codex, null);
+    },
+    { settings: { ai: { provider: "codex", auth: "apiKey", models: { codex: { strong: "", fast: "" }, cursor: { strong: "", fast: "" } } } } } as Partial<AppState>,
+  );
+});
+
+test("as tarefas recebem o provedor/modelo do Codex quando ele está escolhido", async () => {
+  let seen: unknown = null;
+  await withServer(
+    {
+      extractFromFiles: async (_files, ai) => {
+        seen = ai;
+        return { items: [], files: [], questions: [], warnings: [] };
+      },
+    },
+    async (base) => {
+      await fetch(`${base}/api/import`, json({ files: [{ name: "a.csv", kind: "text", data: "x" }] }));
+      assert.deepEqual(seen, { task: "extraction", provider: "codex", auth: "local", model: "gpt-5.5", effort: "medium" });
+    },
+    { settings: { ai: { provider: "codex", auth: "local", models: { codex: { strong: "gpt-6-astra", fast: "gpt-5.5" }, cursor: { strong: "", fast: "" } } } } } as Partial<AppState>,
   );
 });

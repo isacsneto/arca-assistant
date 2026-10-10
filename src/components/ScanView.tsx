@@ -5,6 +5,7 @@ import { runScan } from "../api";
 import { useStore } from "../store";
 import { dateTime, safeUrl } from "../lib/format";
 import { Banner, ClassLabel, Empty, PageHead } from "./ui";
+import { useAi } from "../lib/useAi";
 
 interface Progress {
   status: string;
@@ -24,7 +25,8 @@ export function ScanView() {
   const abort = useRef<AbortController | null>(null);
 
   const scanSettings = state!.settings.scan;
-  const modelLabel = config!.models.find((m) => m.id === scanSettings.model)?.label ?? scanSettings.model;
+  const ai = useAi();
+  const modelLabel = ai.modelLabel("scan");
 
   const onEvent = (e: ScanEvent) => {
     if (e.type === "done") return;
@@ -71,7 +73,7 @@ export function ScanView() {
     <>
       <PageHead
         title="Scan de ativos"
-        subtitle="O Claude pesquisa na web balanços de empresas, relatórios de fundos e a situação fiscal do governo para sugerir as melhores opções de cada classe da Arca."
+        subtitle="A IA pesquisa na web balanços de empresas, relatórios de fundos e a situação fiscal do governo para sugerir as melhores opções de cada classe da Arca."
       />
       {error && <Banner kind="bad">{error}</Banner>}
 
@@ -93,7 +95,7 @@ export function ScanView() {
           )}
         </div>
         <p className="muted small" style={{ marginTop: 10 }}>
-          Modelo: {modelLabel} · esforço {EFFORT_LABEL[scanSettings.effort].toLowerCase()} (altere em Ajustes). Cada categoria faz dezenas de buscas e leva alguns minutos; usa o limite da sua assinatura do Claude (até 2 categorias em paralelo).
+          Modelo: {modelLabel} · esforço {EFFORT_LABEL[scanSettings.effort].toLowerCase()} (altere em Ajustes). Cada categoria faz dezenas de buscas e leva alguns minutos; usa o limite da sua assinatura{ai.viaApi ? " / créditos da sua chave de API" : ""} de {ai.name} (até 2 categorias em paralelo).
         </p>
       </div>
 
