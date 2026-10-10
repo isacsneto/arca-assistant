@@ -94,7 +94,26 @@ npm run local:stop       # para (volta no próximo login) · npm run local:unins
 npm run local            # qualquer sistema: roda em primeiro plano, reiniciando se cair
 ```
 
-O app continua escutando só em `127.0.0.1`. Com o [Tailscale](https://tailscale.com/download) instalado, o `local:install` publica o app **só na sua rede Tailscale** (`tailscale serve`, com HTTPS), em `https://<seu-pc>.<sua-rede>.ts.net`, para abrir no celular ou em outro computador. Ninguém fora da sua rede enxerga o endereço. Logs em `data/logs/`. Não deixe o app exposto na internet: ele não tem tela de login.
+A opção mais barata é o seu próprio computador: custo zero, a IA usa o login que você já tem (sem pagar chave de API) e os dados não saem da sua máquina.
+
+**Passo a passo (Windows)**
+
+1. Opcional, para abrir no celular ou em outro computador: instale o [Tailscale](https://tailscale.com/download) (grátis para uso pessoal) no PC e nos outros aparelhos, todos com a mesma conta.
+2. Na pasta do app, rode `npm run local:install`. Ele:
+   - cria a tarefa **"Arca Assistant"** no Agendador do Windows, que sobe o app escondido toda vez que você faz login (com o seu usuário, para usar o login local do Claude/Codex);
+   - se o Tailscale estiver instalado, publica o app **só na sua rede Tailscale** (`tailscale serve`, com HTTPS). Se ele pedir para habilitar HTTPS na rede, abra o link mostrado e rode o comando de novo.
+3. Abra `http://localhost:3001` no PC, ou `https://<seu-pc>.<sua-rede>.ts.net` nos outros aparelhos (o comando mostra o endereço).
+
+**Bom saber**
+
+- O PC precisa estar ligado e com você logado no Windows. Se ele dormir, o app fica fora do ar até acordar.
+- O app reinicia sozinho se cair, e só uma instância roda por vez (duas gravando o mesmo `data/` se sobrescreveriam). Logs em `data/logs/server.log`.
+- Depois de um `git pull`, rode `npm run local:stop` e `npm run local:install` de novo: o app recompila ao subir.
+- Para desenvolver com `npm run dev`, rode antes `npm run local:stop` (os dois usam a porta 3001).
+- `npm run local:uninstall` remove a tarefa e o `tailscale serve`.
+- Em macOS ou Linux, use `npm run local` com o gerenciador de serviços do sistema (launchd, systemd) ou com o `pm2`.
+- O servidor continua escutando só em `127.0.0.1`, e o endereço do Tailscale só existe dentro da sua rede. **Não exponha o app na internet** (porta aberta no roteador, Funnel, túnel público): ele não tem tela de login, e quem acessar vê sua carteira.
+- Hospedagens como Vercel, Netlify e Render grátis não servem: apagam os arquivos salvos, não rodam os CLIs de IA e cortam tarefas longas. Se quiser 24 h sem depender do PC, use uma VPS pequena (ou a VM grátis da Oracle Cloud) acessada pelo Tailscale.
 
 ### 🏦 Open Finance (opcional)
 
