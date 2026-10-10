@@ -5,3 +5,5 @@ data/state.json
 data/attachments/
 data/secrets.json
 demo-data/
+data/logs/
+data/local.pid

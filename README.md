@@ -86,6 +86,16 @@ Em **Ajustes → Provedor de IA** você escolhe o provedor e o modo de acesso. O
 - No Claude você escolhe o modelo de cada tarefa (Opus para pesquisas longas, Sonnet para leitura…). No Codex e no Cursor, um modelo **forte** (scan e projeção) e um **rápido** (o resto) — em branco usa o padrão do CLI.
 - O esforço de raciocínio é ajustável por tarefa em todos.
 
+### 🖥️ Deixar rodando no seu PC (grátis)
+
+```bash
+npm run local:install    # Windows: sobe sozinho a cada login + acesso pelo Tailscale
+npm run local:stop       # para (volta no próximo login) · npm run local:uninstall remove tudo
+npm run local            # qualquer sistema: roda em primeiro plano, reiniciando se cair
+```
+
+O app continua escutando só em `127.0.0.1`. Com o [Tailscale](https://tailscale.com/download) instalado, o `local:install` publica o app **só na sua rede Tailscale** (`tailscale serve`, com HTTPS), em `https://<seu-pc>.<sua-rede>.ts.net`, para abrir no celular ou em outro computador. Ninguém fora da sua rede enxerga o endereço. Logs em `data/logs/`. Não deixe o app exposto na internet: ele não tem tela de login.
+
 ### 🏦 Open Finance (opcional)
 
 1. Crie a conta em [meu.pluggy.ai](https://meu.pluggy.ai) e conecte seus bancos (a autorização é feita no app de cada banco).
