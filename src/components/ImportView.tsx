@@ -17,6 +17,7 @@ import { PromptImport } from "./PromptImport";
 import { clearStaleFor } from "../../shared/reminders";
 import { clock } from "../../shared/videoFrames";
 import { OpenFinanceImport } from "./OpenFinanceImport";
+import { openFinanceSettings, withSyncedConnections, type OpenFinanceImport as OfResult } from "../../shared/openFinance";
 
 interface Draft extends ExtractedItem {
   _id: string;
@@ -26,6 +27,8 @@ interface Draft extends ExtractedItem {
 interface Review {
   /** De onde vieram os itens: arquivos lidos pela IA ou Open Finance. */
   source: "files" | "openfinance";
+  /** Open Finance: qual conexão gerou cada bloco (para gravar a instituição final). */
+  ofConnections?: OfResult["connections"];
   drafts: Draft[];
   files: FileReading[];
   questions: ImportQuestion[];
@@ -134,18 +137,22 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
       },
     );
 
+  // Open Finance como fonte da verdade: importar substitui tudo daquela instituição (por titular).
+  const forceReplace = review?.source === "openfinance" && openFinanceSettings(state!.settings.openFinance).sourceOfTruth;
+
   const commit = () => {
     if (!review) return;
+    const replace = removeStale || forceReplace;
     const chosen = review.drafts.filter((d) => d.include).map(toItem);
     const touched = chosen.map((d) => ({ institution: d.institution, owner: d.owner ?? fallbackOwner }));
     update((s) => ({
       ...s,
-      ...mergeImport(s, chosen, { removeStale, now: new Date().toISOString(), newId: uid, defaultOwner: fallbackOwner }),
+      ...mergeImport(s, chosen, { removeStale: replace, now: new Date().toISOString(), newId: uid, defaultOwner: fallbackOwner }),
       // Importou dados da instituição: ela deixa de estar desatualizada.
       settings: {
         ...s.settings,
         staleInstitutions: clearStaleFor(s.settings.staleInstitutions, touched),
-        ...(review.source === "openfinance" && { openFinance: { ...s.settings.openFinance, lastSyncAt: new Date().toISOString() } }),
+        ...(review.source === "openfinance" && { openFinance: withSyncedConnections(s.settings.openFinance, review.files, review.ofConnections ?? [], new Date().toISOString()) }),
       },
     }));
     done();
@@ -247,27 +254,27 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
             <span className="muted small">mudar instituição/titular aqui vale para todos os itens {review.source === "openfinance" ? "da conexão" : "do arquivo"}</span>
           </div>
           <div className="table-wrap">
-            <table>
+            <table className="mc t-files">
               <thead><tr><th>{review.source === "openfinance" ? "Conexão" : "Arquivo"}</th><th>Instituição</th><th>Titular</th><th>{review.source === "openfinance" ? "Conector" : "Produto (nome do arquivo)"}</th><th>O que mostra</th></tr></thead>
               <tbody>
                 {review.files.map((f) => (
                   <tr key={f.file}>
-                    <td style={{ minWidth: 160 }}>
+                    <td className="ga-main" style={{ minWidth: 160 }}>
                       <b className="small">{f.file}</b>
                       {f.duplicateOf && <div><span className="chip warn"><Copy size={11} /> repete {f.duplicateOf}</span></div>}
                     </td>
-                    <td style={{ minWidth: 150 }}>
+                    <td className="ga-a" data-l="Instituição" style={{ minWidth: 150 }}>
                       <input className="cell" type="text" value={f.institution ?? ""} placeholder="não identificada"
                         onChange={(e) => patchFile(f.file, { institution: e.target.value || null })} />
                     </td>
-                    <td style={{ minWidth: 80 }}>
+                    <td className="ga-b" data-l="Titular" style={{ minWidth: 80 }}>
                       <select className="cell" value={f.owner ?? ""} onChange={(e) => patchFile(f.file, { owner: (e.target.value || null) as Owner | null })} aria-label="Titular do arquivo">
                         <option value="">?</option>
                         {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </td>
-                    <td className="small">{f.productHint ?? <span className="muted">—</span>}</td>
-                    <td className="small muted" style={{ minWidth: 200 }}>{f.summary || "—"}</td>
+                    <td className="small ga-c">{f.productHint ?? <span className="muted">—</span>}</td>
+                    <td className="small muted ga-d" style={{ minWidth: 200 }}>{f.summary || "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -282,35 +289,40 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
             <div className="card-head">
               <h2>Posições ({positions.length})</h2>
               <label className="check small" title={review.source === "openfinance" ? "O Open Finance traz a carteira inteira de cada instituição; itens antigos com nome diferente seriam duplicados" : "Útil quando o print mostra a carteira inteira daquela instituição"}>
-                <input type="checkbox" checked={removeStale} onChange={(e) => setRemoveStale(e.target.checked)} />
+                <input type="checkbox" checked={removeStale || forceReplace} disabled={forceReplace} onChange={(e) => setRemoveStale(e.target.checked)} />
                 Remover posições antigas dessas instituições que não vieram aqui
               </label>
             </div>
+            {forceReplace && (
+              <p className="muted small" style={{ marginTop: -6, marginBottom: 10 }}>
+                O Open Finance é a fonte da verdade (Ajustes → Open Finance): tudo o que você tinha nessas instituições, por titular, é substituído pelo que veio daqui.
+              </p>
+            )}
             <div className="table-wrap">
-              <table>
+              <table className="mc t-review">
                 <thead><tr><th /><th>Ativo</th><th>Instituição</th><th>Titular</th><th>Classe</th><th className="right">Valor</th><th>Moeda</th><th /></tr></thead>
                 <tbody>
                   {positions.map((d) => {
                     const pendingQ = asked.has(indexOf.get(d._id)!);
                     return (
                       <tr key={d._id} style={{ opacity: d.include ? 1 : 0.5 }}>
-                        <td><input type="checkbox" checked={d.include} onChange={(e) => patch(d._id, { include: e.target.checked })} aria-label="Incluir" /></td>
-                        <td style={{ minWidth: 200 }}>
+                        <td className="ga-chk"><input type="checkbox" checked={d.include} onChange={(e) => patch(d._id, { include: e.target.checked })} aria-label="Incluir" /></td>
+                        <td className="ga-main" style={{ minWidth: 200 }}>
                           <input className="cell" type="text" value={d.name} onChange={(e) => patch(d._id, { name: e.target.value })} />
                           <div className="muted small" style={{ paddingLeft: 6 }}>{[d.ticker, d.subtype, d.sourceFile].filter(Boolean).join(" · ")}</div>
                         </td>
-                        <td style={{ minWidth: 150 }}><input className="cell" type="text" value={d.institution} onChange={(e) => patch(d._id, { institution: e.target.value })} /></td>
-                        <td style={{ minWidth: 80 }}>
+                        <td className="ga-a" style={{ minWidth: 150 }}><input className="cell" type="text" value={d.institution} onChange={(e) => patch(d._id, { institution: e.target.value })} /></td>
+                        <td className="ga-b" style={{ minWidth: 80 }}>
                           <select className="cell" value={d.owner ?? fallbackOwner} onChange={(e) => patch(d._id, { owner: e.target.value as Owner })} aria-label="Titular">
                             {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
                           </select>
                         </td>
-                        <td style={{ minWidth: 150 }}><ClassSelect value={d.assetClass} onChange={(assetClass) => patch(d._id, { assetClass, confidence: "alta" })} /></td>
-                        <td style={{ minWidth: 130 }}><input className="cell num right" type="number" step="0.01" value={d.value} onChange={(e) => patch(d._id, { value: Number(e.target.value) })} /></td>
-                        <td>
+                        <td className="ga-c" style={{ minWidth: 150 }}><ClassSelect value={d.assetClass} onChange={(assetClass) => patch(d._id, { assetClass, confidence: "alta" })} /></td>
+                        <td className="ga-val" style={{ minWidth: 130 }}><input className="cell num right" type="number" step="0.01" value={d.value} onChange={(e) => patch(d._id, { value: Number(e.target.value) })} /></td>
+                        <td className="ga-d">
                           <select className="cell" value={d.currency} onChange={(e) => patch(d._id, { currency: e.target.value as "BRL" | "USD" })}><option>BRL</option><option>USD</option></select>
                         </td>
-                        <td className="small">
+                        <td className="small ga-e">
                           {pendingQ && <span className="chip warn" title="Há uma pergunta da IA sobre este item">pergunta</span>}{" "}
                           {existing.has(posKey(d.owner ?? fallbackOwner, d.institution, d.ticker, d.name)) && <span className="chip">atualiza</span>}{" "}
                           {d.confidence !== "alta" && !pendingQ && <span className={`chip ${d.confidence === "baixa" ? "bad" : "warn"}`} title={d.notes ?? ""}>confiança {d.confidence}</span>}
@@ -328,18 +340,18 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
           <div className="card">
             <div className="card-head"><h2>Transações ({txs.length})</h2></div>
             <div className="table-wrap">
-              <table>
+              <table className="mc t-rtx">
                 <thead><tr><th /><th>Data</th><th>Tipo</th><th>Descrição</th><th>Instituição</th><th>Titular</th><th className="right">Valor</th></tr></thead>
                 <tbody>
                   {txs.map((d) => (
                     <tr key={d._id} style={{ opacity: d.include ? 1 : 0.5 }}>
-                      <td><input type="checkbox" checked={d.include} onChange={(e) => patch(d._id, { include: e.target.checked })} aria-label="Incluir" /></td>
-                      <td className="num">{d.date ?? "—"}</td>
-                      <td><span className="chip">{d.txType ?? "outro"}</span></td>
-                      <td>{d.ticker ? <b>{d.ticker} </b> : null}{d.name}</td>
-                      <td className="muted">{d.institution}</td>
-                      <td><span className={"chip owner-" + (d.owner ?? fallbackOwner)}>{d.owner ?? fallbackOwner}</span></td>
-                      <td className="right num">{money(d.value, d.currency)}</td>
+                      <td className="ga-chk"><input type="checkbox" checked={d.include} onChange={(e) => patch(d._id, { include: e.target.checked })} aria-label="Incluir" /></td>
+                      <td className="num mc-hide">{d.date ?? "—"}</td>
+                      <td className="mc-hide"><span className="chip">{d.txType ?? "outro"}</span></td>
+                      <td className="ga-main">{d.ticker ? <b>{d.ticker} </b> : null}{d.name}<div className="muted small m-only">{[d.date, d.txType ?? "outro"].filter(Boolean).join(" · ")}</div></td>
+                      <td className="muted ga-sub">{d.institution}</td>
+                      <td className="ga-a"><span className={"chip owner-" + (d.owner ?? fallbackOwner)}>{d.owner ?? fallbackOwner}</span></td>
+                      <td className="right num ga-val">{money(d.value, d.currency)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -381,7 +393,7 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
         </Banner>
       )}
       {mode === "openfinance" ? (
-        <OpenFinanceImport goSettings={goSettings} onResult={(res) => { setReview(toReview(res, undefined, "openfinance")); setRemoveStale(true); setAnswers({}); setSkipQuestions(false); }} />
+        <OpenFinanceImport goSettings={goSettings} onResult={(res) => { setReview({ ...toReview(res, undefined, "openfinance"), ofConnections: res.connections }); setRemoveStale(true); setAnswers({}); setSkipQuestions(false); }} />
       ) : mode === "text" ? <PromptImport done={done} /> : <>
       {error && <Banner kind="bad">{error}</Banner>}
       {progress && <Banner><span className="row"><Loader2 size={16} className="spin" /> {progress}</span></Banner>}
@@ -397,7 +409,8 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
         onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && input.current?.click()}
       >
         <Upload size={30} />
-        <div className="big">Arraste arquivos, clique para escolher ou cole um print (Ctrl+V)</div>
+        <div className="big d-only">Arraste arquivos, clique para escolher ou cole um print (Ctrl+V)</div>
+        <div className="big m-only">Toque para escolher prints, vídeos ou arquivos</div>
         <div className="muted small">PNG, JPG, WEBP, vídeo de tela (MP4, MOV, WEBM), PDF, CSV, XLSX</div>
         <input ref={input} type="file" hidden multiple accept="image/*,video/*,.mov,.mkv,.pdf,.csv,.tsv,.txt,.xlsx,.xls,.xlsm,.ods,.ofx"
           onChange={(e) => { void addFiles([...(e.target.files ?? [])]); e.target.value = ""; }} />

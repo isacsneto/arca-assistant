@@ -14,9 +14,9 @@
     "demo": "node scripts/demo.mjs",
     "demo:reset": "node scripts/demo.mjs --reset",
     "local": "node scripts/local.mjs",
-    "local:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/install.ps1",
-    "local:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/stop.ps1",
-    "local:uninstall": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/stop.ps1 -Uninstall"
+    "local:install": "node scripts/service.mjs install",
+    "local:stop": "node scripts/service.mjs stop",
+    "local:uninstall": "node scripts/service.mjs uninstall"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.296",

@@ -13,6 +13,8 @@ const METHOD: Record<RefreshLine["method"], { label: string; cls: string }> = {
   cotacao: { label: "cotação", cls: "ok" },
   indexador: { label: "indexador", cls: "warn" },
   mantido: { label: "mantido", cls: "" },
+  openfinance: { label: "Open Finance", cls: "ok" },
+  removido: { label: "saiu", cls: "bad" },
 };
 
 /** Revisão do "Atualizar valores": mostra antes/depois e aplica só o que o usuário aprovar. */
@@ -91,9 +93,10 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
       </div>
 
       {job.error && <Banner kind="warn">{job.error}</Banner>}
+      {result.warnings?.map((w) => <Banner kind="warn" key={w}>{w}</Banner>)}
 
       <div className="table-wrap">
-        <table>
+        <table className="mc t-refresh">
           <thead>
             <tr><th /><th>Ativo</th><th className="right">Antes</th><th className="right">Agora</th><th>Como</th></tr>
           </thead>
@@ -104,26 +107,26 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
               const href = l.source ? safeUrl(l.source) : null;
               return (
                 <tr key={l.id} style={{ opacity: change && !approved.has(l.id) ? 0.5 : 1 }}>
-                  <td>
+                  <td className="ga-chk">
                     <input type="checkbox" disabled={!change} checked={approved.has(l.id)} onChange={() => toggle(l.id)} aria-label={`Aplicar ${l.name}`} />
                   </td>
-                  <td style={{ minWidth: 200 }}>
+                  <td className="ga-main" style={{ minWidth: 200 }}>
                     <b>{l.name}</b>
                     <div className="muted small">
                       {l.note}
                       {l.source && (href ? <> · <a href={href} target="_blank" rel="noreferrer noopener">fonte</a></> : ` · ${l.source}`)}
                     </div>
                   </td>
-                  <td className="right num muted">{money(l.oldValue, l.currency)}</td>
-                  <td className="right num">
+                  <td className="right num muted ga-side" data-l="antes">{money(l.oldValue, l.currency)}</td>
+                  <td className="right num ga-val">
                     <b>{money(l.newValue, l.currency)}</b>
-                    {change && (
+                    {change && !l.add && l.method !== "removido" && (
                       <div className="small" style={{ color: pct >= 0 ? "var(--ok)" : "var(--bad)" }}>
                         {pct >= 0 ? "+" : ""}{pct.toFixed(2).replace(".", ",")}%
                       </div>
                     )}
                   </td>
-                  <td><span className={`chip ${METHOD[l.method].cls}`}>{METHOD[l.method].label}</span></td>
+                  <td className="ga-a"><span className={`chip ${METHOD[l.method].cls}`}>{l.add ? "novo" : METHOD[l.method].label}</span></td>
                 </tr>
               );
             })}
@@ -133,6 +136,7 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
       {result.ratesUsed && <p className="muted small" style={{ marginTop: 10 }}>Taxas de referência: {result.ratesUsed}</p>}
       <p className="muted small" style={{ marginTop: 6 }}>
         Cotação = preço de mercado (Yahoo Finance). Indexador = estimativa da IA acumulando CDI/Selic/IPCA desde a última atualização (valor bruto, antes de IR).
+        Open Finance = valor líquido informado pelo banco (instituições conectadas): ativos novos entram e os que não vieram saem.
         Saldos em conta são mantidos. Para o valor exato de renda fixa, importe um print novo do banco.
       </p>
     </div>

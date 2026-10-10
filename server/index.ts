@@ -5,12 +5,14 @@ import { estimateAsset, extractFromFiles, interpretPrompt, projectWithAi, refine
 import { refreshValues } from "./refresh";
 import { yahooQuote } from "./quotes";
 import { dataDir, secretsFile } from "./paths";
-import { filePluggyCredentials, pluggyClient } from "./pluggy";
+import { fetchConnections, filePluggyCredentials, pluggyClient } from "./pluggy";
+import { openFinanceSettings } from "../shared/openFinance";
 import { sampleVideo } from "./video";
 import { PROVIDERS, aiSettings, isAiReady } from "../shared/ai";
 
 const store = fileStore();
 const pluggyCredentials = filePluggyCredentials(secretsFile());
+const pluggy = pluggyClient(() => pluggyCredentials.get());
 const app = createApp({
   store,
   aiStatus,
@@ -19,10 +21,20 @@ const app = createApp({
   refineImport,
   interpretPrompt,
   scanClass,
-  refreshValues: (state, emit, signal) => refreshValues(state, { fetchQuote: yahooQuote, claudeRefresh: refreshWithAi }, emit, signal),
+  refreshValues: (state, emit, signal) =>
+    refreshValues(state, {
+      fetchQuote: yahooQuote,
+      claudeRefresh: refreshWithAi,
+      // Open Finance como fonte da verdade: as instituições conectadas vêm da Pluggy.
+      openFinance: async (s, sig) => {
+        const of = openFinanceSettings(s.settings.openFinance);
+        if (!of.sourceOfTruth || !of.connections.length || !pluggyCredentials.get()) return null;
+        return fetchConnections(pluggy, of.connections, { includeAccounts: of.includeAccounts, signal: sig });
+      },
+    }, emit, signal),
   projectPortfolio: projectWithAi,
   estimateAsset,
-  pluggy: { credentials: pluggyCredentials, client: pluggyClient(() => pluggyCredentials.get()) },
+  pluggy: { credentials: pluggyCredentials, client: pluggy },
   sampleVideo,
 });
 

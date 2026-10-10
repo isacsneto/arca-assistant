@@ -93,28 +93,28 @@ export function OpenFinanceSettings() {
 
       {of.connections.length > 0 ? (
         <div className="table-wrap">
-          <table>
+          <table className="mc t-of">
             <thead><tr><th>Conexão (itemId)</th><th>Instituição na carteira</th><th>Titular</th><th /></tr></thead>
             <tbody>
               {of.connections.map((c) => {
                 const info = nameOf(c.itemId);
                 return (
                   <tr key={c.itemId}>
-                    <td className="small">
+                    <td className="small ga-main" style={{ wordBreak: "break-all" }}>
                       {info?.name && <b>{info.name} </b>}
                       <code>{c.itemId}</code>
                       {info?.status === "NOT_FOUND" && <span className="chip bad">não encontrada</span>}
                     </td>
-                    <td style={{ minWidth: 180 }}>
+                    <td className="ga-a" data-l="Instituição na carteira" style={{ minWidth: 180 }}>
                       <input className="cell" type="text" value={c.institution ?? ""} placeholder={info?.name ?? "automático (nome do banco)"}
                         onChange={(e) => patch(c.itemId, { institution: e.target.value || undefined })} />
                     </td>
-                    <td>
+                    <td className="ga-b" data-l="Titular">
                       <select className="cell" value={c.owner} onChange={(e) => patch(c.itemId, { owner: e.target.value as Owner })} aria-label="Titular">
                         {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </td>
-                    <td>
+                    <td className="ga-act">
                       <button className="btn icon sm ghost" title="Remover conexão" onClick={() => setConnections(of.connections.filter((x) => x.itemId !== c.itemId))}>
                         <Trash2 size={14} />
                       </button>
@@ -134,7 +134,14 @@ export function OpenFinanceSettings() {
         <button className="btn sm" disabled={!/^[0-9a-f-]{10,64}$/i.test(newId.trim())}><Plus size={14} /> Adicionar</button>
       </form>
 
-      <label className="check small" style={{ marginTop: 12 }}>
+      <label className="check small" style={{ marginTop: 14, alignItems: "flex-start" }}>
+        <input type="checkbox" checked={of.sourceOfTruth} onChange={(e) => set({ sourceOfTruth: e.target.checked })} style={{ marginTop: 2 }} />
+        <span>
+          <b>Usar o Open Finance como fonte da verdade</b> das instituições conectadas: ao importar, substitui tudo o que você tem nelas
+          (por titular), e o <b>Atualizar valores</b> da Carteira traz os valores de lá — inclusive ativos novos e os que saíram. Você revisa antes de aplicar.
+        </span>
+      </label>
+      <label className="check small" style={{ marginTop: 10 }}>
         <input type="checkbox" checked={of.includeAccounts} onChange={(e) => set({ includeAccounts: e.target.checked })} />
         Incluir saldo de conta corrente e poupança (como Caixa)
       </label>

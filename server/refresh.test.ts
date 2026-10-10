@@ -111,3 +111,48 @@ test("sem internet para cotações: usa o dólar dos ajustes e manda tudo ao Cla
   assert.equal(r.usdBrl, null);
   assert.deepEqual(claudeCalledWith, ["petr"]);
 });
+
+test("Open Finance como fonte da verdade: instituições conectadas vêm da Pluggy, fora da cotação/IA", async () => {
+  const positions = [
+    p({ id: "petr", ticker: "PETR4", quantity: 500, value: 20000, institution: "BTG Pactual" }),
+    p({ id: "cdb", name: "CDB BTG", assetClass: "caixa", value: 30000, institution: "BTG Pactual" }),
+    p({ id: "velho", name: "LCI antiga", assetClass: "caixa", value: 5000, institution: "BTG Pactual" }),
+    p({ id: "voo", ticker: "VOO", quantity: 1, value: 3000, currency: "USD", institution: "Avenue" }),
+    p({ id: "pj", name: "CDB BTG", assetClass: "caixa", value: 1000, institution: "BTG Pactual", owner: "PJ" }),
+  ];
+  let quoted: string[] = [];
+  const deps: RefreshDeps = {
+    fetchQuote: async (s) => {
+      quoted.push(s);
+      return quotes[s] ?? null;
+    },
+    claudeRefresh: async () => ({ updates: [], ratesUsed: "" }),
+    now: () => NOW,
+    openFinance: async () => [{
+      connection: { itemId: "aaaaaaaaaa", owner: "PF", institution: "BTG Pactual" },
+      item: { id: "aaaaaaaaaa", lastUpdatedAt: "2026-10-09T03:00:00Z" },
+      investments: [
+        { id: "1", name: "Petrobras", code: "PETR4", type: "EQUITY", subtype: "STOCK", balance: 21000, quantity: 500 },
+        { id: "2", name: "CDB BTG", type: "FIXED_INCOME", subtype: "CDB", balance: 30500 },
+        { id: "3", name: "Tesouro Selic 2031", type: "FIXED_INCOME", subtype: "TREASURY", balance: 7000 },
+      ],
+      accounts: [],
+    }],
+  };
+  const r = await refreshValues(withDefaults({ positions }), deps, () => undefined, new AbortController().signal);
+  const line = (id: string) => r.lines.find((l) => l.id === id)!;
+  assert.deepEqual([line("petr").method, line("petr").newValue], ["openfinance", 21000]);
+  assert.deepEqual([line("cdb").method, line("cdb").newValue], ["openfinance", 30500]);
+  assert.deepEqual([line("velho").method, line("velho").newValue], ["removido", 0]);
+  assert.equal(line("voo").method, "cotacao", "instituição fora do Open Finance segue pela cotação");
+  assert.notEqual(line("pj").method, "openfinance", "PJ da mesma instituição não é coberto pela conexão PF");
+  assert.ok(!quoted.includes("PETR4.SA"), "posição coberta não consulta cotação");
+  const added = r.lines.filter((l) => l.add);
+  assert.deepEqual(added.map((l) => [l.add!.name, l.add!.institution, l.newValue]), [["Tesouro Selic 2031", "BTG Pactual", 7000]]);
+
+  // Open Finance fora do ar: tudo segue pela cotação/IA, com aviso.
+  quoted = [];
+  const down = await refreshValues(withDefaults({ positions }), { ...deps, openFinance: async () => { throw new Error("sem rede"); } }, () => undefined, new AbortController().signal);
+  assert.equal(down.lines.find((l) => l.id === "petr")!.method, "cotacao");
+  assert.match(down.warnings![0], /sem rede/);
+});

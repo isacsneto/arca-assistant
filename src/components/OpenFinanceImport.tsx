@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Landmark, Loader2 } from "lucide-react";
-import { openFinanceSettings } from "../../shared/openFinance";
-import type { ExtractionResult } from "../../shared/types";
+import { openFinanceSettings, type OpenFinanceImport as OfResult } from "../../shared/openFinance";
 import { api, type OpenFinanceStatus } from "../api";
 import { useStore } from "../store";
 import { Banner } from "./ui";
 
 /** Importar → Open Finance: busca as conexões do Meu Pluggy e abre a mesma tela de revisão dos prints. */
-export function OpenFinanceImport({ onResult, goSettings }: { onResult: (r: ExtractionResult) => void; goSettings?: () => void }) {
+export function OpenFinanceImport({ onResult, goSettings }: { onResult: (r: OfResult) => void; goSettings?: () => void }) {
   const { state } = useStore();
   const of = openFinanceSettings(state!.settings.openFinance);
   const [status, setStatus] = useState<OpenFinanceStatus | null>(null);

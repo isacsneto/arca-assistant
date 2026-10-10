@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  ArrowLeftRight, Car, Hexagon, Landmark, LineChart as LineChartIcon, Loader2, Radar, Scale,
+  ArrowLeftRight, Car, Ellipsis, Hexagon, Landmark, LineChart as LineChartIcon, Loader2, Radar, Scale,
   Settings as SettingsIcon, Upload, Wallet,
 } from "lucide-react";
 import type { ProjectionResult, RefreshResult } from "../shared/types";
@@ -32,6 +32,9 @@ const TABS = [
   { id: "settings", label: "Ajustes", icon: SettingsIcon },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
+/** No celular: abas da barra de baixo; o resto fica em "Mais". */
+const PRIMARY: TabId[] = ["portfolio", "rebalance", "import", "projection"];
+const SHORT: Partial<Record<TabId, string>> = { rebalance: "Rebalancear", scan: "Scan" };
 
 export function App() {
   const { state, config, loadError, saveError, setProjection, view, setView, update } = useStore();
@@ -42,7 +45,12 @@ export function App() {
   useEffect(() => {
     if (needsReviewStart) update((s) => ({ ...s, settings: { ...s.settings, lastReviewAt: new Date().toISOString() } }));
   }, [needsReviewStart, update]);
-  const [tab, setTab] = useState<TabId>("portfolio");
+  const [tab, setTabState] = useState<TabId>("portfolio");
+  const [moreOpen, setMoreOpen] = useState(false);
+  const setTab = (t: TabId) => {
+    setTabState(t);
+    setMoreOpen(false);
+  };
   useEffect(() => {
     // Sem `return`: em Chrome novo scrollTo devolve uma Promise, que o React trataria como cleanup.
     window.scrollTo(0, 0);
@@ -69,6 +77,29 @@ export function App() {
 
   const aiConf = aiSettings(state.settings);
   const busy: Partial<Record<TabId, boolean>> = { portfolio: refreshJob.running, projection: projectionJob.running };
+  const viewSwitch = (
+    <div className="seg view-switch" role="group" aria-label="Visão da carteira">
+      {(["all", "PF", "PJ"] as View[]).map((v) => (
+        <button key={v} className={view === v ? "active" : ""} onClick={() => setView(v)} title={v === "all" ? "PF + PJ" : undefined}>
+          {v === "all" ? "Consolidado" : v}
+        </button>
+      ))}
+    </div>
+  );
+  const footer = (
+    <div className="sidebar-foot">
+      Metodologia: {state.settings.methodology === "custom" ? "personalizada" : METHODOLOGIES[state.settings.methodology].label}<br />
+      Dados salvos localmente.<br />
+      IA: {PROVIDERS[aiConf.provider].label} · {aiConf.auth === "apiKey" ? "chave de API" : config.aiStatus?.[aiConf.provider]?.account ?? "login local"}
+    </div>
+  );
+  const navButton = ({ id, label, icon: Icon }: (typeof TABS)[number]) => (
+    <button key={id} className={`nav-btn ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>
+      <Icon size={18} />
+      {label}
+      {busy[id] && <Loader2 size={14} className="spin" style={{ marginLeft: "auto" }} />}
+    </button>
+  );
 
   return (
     <div className="app">
@@ -79,26 +110,15 @@ export function App() {
           </span>
           Arca Assistant
         </div>
-        <div className="seg view-switch" role="group" aria-label="Visão da carteira">
-          {(["all", "PF", "PJ"] as View[]).map((v) => (
-            <button key={v} className={view === v ? "active" : ""} onClick={() => setView(v)} title={v === "all" ? "PF + PJ" : undefined}>
-              {v === "all" ? "Consolidado" : v}
-            </button>
-          ))}
-        </div>
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button key={id} className={`nav-btn ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>
-            <Icon size={18} />
-            {label}
-            {busy[id] && <Loader2 size={14} className="spin" style={{ marginLeft: "auto" }} />}
-          </button>
-        ))}
-        <div className="sidebar-foot">
-          Metodologia: {state.settings.methodology === "custom" ? "personalizada" : METHODOLOGIES[state.settings.methodology].label}<br />
-          Dados salvos localmente.<br />
-          IA: {PROVIDERS[aiConf.provider].label} · {aiConf.auth === "apiKey" ? "chave de API" : config.aiStatus?.[aiConf.provider]?.account ?? "login local"}
-        </div>
+        {viewSwitch}
+        {TABS.map(navButton)}
+        {footer}
       </nav>
+      {/* Celular: topo compacto com a visão PF/PJ */}
+      <header className="topbar">
+        <div className="brand"><span className="brand-mark"><Hexagon size={15} /></span>Arca</div>
+        {viewSwitch}
+      </header>
       <main className="main">
         {!config.hasCredentials && (
           <Banner kind="warn">
@@ -126,6 +146,29 @@ export function App() {
         {tab === "tx" && <Transactions />}
         {tab === "settings" && <SettingsView />}
       </main>
+      {/* Celular: barra de abas + folha "Mais" */}
+      <nav className="tabbar" aria-label="Navegação">
+        {TABS.filter((t) => PRIMARY.includes(t.id)).map(({ id, label, icon: Icon }) => (
+          <button key={id} className={tab === id && !moreOpen ? "active" : ""} onClick={() => setTab(id)} aria-current={tab === id ? "page" : undefined}>
+            <Icon size={22} strokeWidth={tab === id ? 2.3 : 1.8} />
+            {SHORT[id] ?? label}
+            {busy[id] && <span className="busy-dot" />}
+          </button>
+        ))}
+        <button className={!PRIMARY.includes(tab) || moreOpen ? "active" : ""} onClick={() => setMoreOpen((o) => !o)} aria-expanded={moreOpen}>
+          <Ellipsis size={22} />
+          {PRIMARY.includes(tab) ? "Mais" : (SHORT[tab] ?? TABS.find((t) => t.id === tab)!.label)}
+        </button>
+      </nav>
+      {moreOpen && (
+        <div className="sheet-backdrop" onClick={() => setMoreOpen(false)}>
+          <div className="sheet" role="dialog" aria-label="Mais opções" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-grip" />
+            {TABS.filter((t) => !PRIMARY.includes(t.id)).map(navButton)}
+            {footer}
+          </div>
+        </div>
+      )}
       <RemindersDialog onUpdate={(t) => { setImportTarget(t); setTab("import"); }} />
     </div>
   );

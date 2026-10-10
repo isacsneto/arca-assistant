@@ -86,12 +86,12 @@ export function InstitutionsView() {
               const isOpen = open === g.key;
               return (
                 <div className={"card inst" + (g.owners.some((o) => isStale(state!.settings, g.institution, o)) ? " is-stale" : "")} key={g.key}>
-                  <div className="row" style={{ alignItems: "center", gap: 10 }}>
+                  <div className="row inst-row" style={{ alignItems: "center", gap: 10 }}>
                   <button type="button" className="inst-head grow" onClick={() => setOpen(isOpen ? null : g.key)} aria-expanded={isOpen}>
                     <ChevronRight size={16} className="chev" style={{ transform: isOpen ? "rotate(90deg)" : undefined }} />
                     <span className="inst-swatch" style={{ background: `var(--inst-${i % 6})` }}><Landmark size={14} /></span>
-                    <div className="grow">
-                      <div className="row" style={{ gap: 6 }}>
+                    <div className="grow inst-info">
+                      <div className="row wrap" style={{ gap: 6 }}>
                         <b>{g.institution}</b>
                         {g.owners.map((o) => <span key={o} className={`chip owner-${o}`}>{o}</span>)}
                         {g.owners.some((o) => isStale(state!.settings, g.institution, o)) && <span className="chip stale"><BellRing size={11} /> desatualizada</span>}
@@ -102,7 +102,7 @@ export function InstitutionsView() {
                         ))}
                       </div>
                     </div>
-                    <div className="right">
+                    <div className="right inst-total">
                       <div className="num"><b>{brl(g.total)}</b></div>
                       <div className="muted small num">{pct((g.total / grand) * 100)} do total · {g.items.length} ativo{g.items.length === 1 ? "" : "s"}</div>
                     </div>
@@ -110,7 +110,7 @@ export function InstitutionsView() {
                   {(() => {
                     const stale = g.owners.every((o) => isStale(state!.settings, g.institution, o));
                     return (
-                      <button type="button" className={"btn sm" + (stale ? " stale-btn" : "")} onClick={() => toggleStale(g)}
+                      <button type="button" className={"btn sm inst-stale" + (stale ? " stale-btn" : "")} onClick={() => toggleStale(g)}
                         title={stale ? "Desmarcar: os valores já estão em dia" : "Pedir para atualizar esta instituição sempre que abrir o app"}>
                         {stale ? <><BellOff size={14} /> Desmarcar</> : <><BellRing size={14} /> Marcar desatualizada</>}
                       </button>
@@ -119,16 +119,16 @@ export function InstitutionsView() {
                   </div>
                   {isOpen && (
                     <div className="table-wrap" style={{ marginTop: 12 }}>
-                      <table>
+                      <table className="mc t-inst">
                         <thead><tr><th>Ativo</th><th>Classe</th>{view === "all" && <th>Titular</th>}<th className="right">Valor</th><th className="right">% na instituição</th></tr></thead>
                         <tbody>
                           {g.items.map(({ p, v }) => (
                             <tr key={p.id}>
-                              <td><b>{p.ticker ? `${p.ticker} · ` : ""}{p.name}</b><div className="muted small">{p.subtype}</div></td>
-                              <td><span className="row" style={{ gap: 6 }}><ClassDot c={p.assetClass} />{CLASS_META[p.assetClass].label}</span></td>
-                              {view === "all" && <td><span className={`chip owner-${p.owner}`}>{p.owner}</span></td>}
-                              <td className="right num">{brl(v)}</td>
-                              <td className="right num muted">{pct((v / g.total) * 100)}</td>
+                              <td className="ga-main"><b>{p.ticker ? `${p.ticker} · ` : ""}{p.name}</b><div className="muted small">{p.subtype}</div></td>
+                              <td className="ga-sub"><span className="row" style={{ gap: 6 }}><ClassDot c={p.assetClass} />{CLASS_META[p.assetClass].label}{view === "all" && <span className={`chip owner-${p.owner} m-only`}>{p.owner}</span>}</span></td>
+                              {view === "all" && <td className="mc-hide"><span className={`chip owner-${p.owner}`}>{p.owner}</span></td>}
+                              <td className="right num ga-val">{brl(v)}</td>
+                              <td className="right num muted ga-side">{pct((v / g.total) * 100)}</td>
                             </tr>
                           ))}
                         </tbody>

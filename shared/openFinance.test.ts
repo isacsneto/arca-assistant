@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { classifyInvestment, institutionName, openFinanceSettings, tickerOf, toImport, type ConnectionData, type PluggyInvestment } from "./openFinance";
+import { classifyInvestment, institutionName, openFinanceSettings, tickerOf, toImport, withSyncedConnections, type ConnectionData, type PluggyInvestment } from "./openFinance";
 
 const inv = (o: Partial<PluggyInvestment>): PluggyInvestment => ({ id: "x", name: "Investimento", balance: 1000, ...o });
 
@@ -95,8 +95,20 @@ test("converte conexões em itens de importação, com avisos e sem itens zerado
 });
 
 test("ajustes do Open Finance são normalizados", () => {
-  assert.deepEqual(openFinanceSettings(undefined), { connections: [], includeAccounts: true, lastSyncAt: null });
+  assert.deepEqual(openFinanceSettings(undefined), { connections: [], includeAccounts: true, sourceOfTruth: true, lastSyncAt: null });
   const s = openFinanceSettings({ connections: [{ itemId: " abc ", owner: "PJ", institution: "  " }, { itemId: "", owner: "PF" }] as never, includeAccounts: false });
   assert.deepEqual(s.connections, [{ itemId: "abc", owner: "PJ" }]);
   assert.equal(s.includeAccounts, false);
+});
+
+test("depois de importar, cada conexão guarda a instituição e o titular finais", () => {
+  const of = withSyncedConnections(
+    { connections: [{ itemId: "a", owner: "PF" }, { itemId: "b", owner: "PF" }] },
+    [{ file: "Open Finance · Banco Inter PF", institution: "Inter", owner: "PJ" }],
+    [{ itemId: "a", file: "Open Finance · Banco Inter PF", institution: "Banco Inter", owner: "PF" }],
+    "2026-10-10T00:00:00Z",
+  );
+  assert.deepEqual(of.connections, [{ itemId: "a", owner: "PJ", institution: "Inter" }, { itemId: "b", owner: "PF" }]);
+  assert.equal(of.lastSyncAt, "2026-10-10T00:00:00Z");
+  assert.equal(of.sourceOfTruth, true, "fonte da verdade vem ligada por padrão");
 });

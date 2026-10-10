@@ -1,4 +1,5 @@
 import type { AiStatus, ProviderId } from "../shared/ai";
+import type { OpenFinanceImport } from "../shared/openFinance";
 import type { AppState, ExtractionResult, PromptImportRequest, PromptPlan, RefineRequest, ScanEvent, UploadFile } from "../shared/types";
 
 export interface ModelOption {
@@ -73,7 +74,7 @@ export const api = {
     }).then((r) => json<{ ok: true }>(r)),
   openFinanceItems: () => fetch("/api/openfinance/items").then((r) => json<{ items: OpenFinanceItem[] }>(r)),
   openFinanceSync: (signal?: AbortSignal) =>
-    fetch("/api/openfinance/sync", { method: "POST", signal }).then((r) => json<ExtractionResult>(r)),
+    fetch("/api/openfinance/sync", { method: "POST", signal }).then((r) => json<OpenFinanceImport>(r)),
   refineImport: (body: RefineRequest, signal?: AbortSignal) =>
     fetch("/api/import/refine", {
       method: "POST",

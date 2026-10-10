@@ -126,13 +126,13 @@ export function AssetsView() {
           </Empty>
         ) : (
           <div className="table-wrap">
-            <table>
+            <table className="mc t-assets">
               <thead><tr><th>Tipo</th><th>Item</th><th>Titular</th><th className="right">Valor (R$)</th><th>Estimativa (IA)</th><th>Observação</th><th /></tr></thead>
               <tbody>
                 {visible.map((a) => (
                   <Fragment key={a.id}>
                   <tr>
-                    <td style={{ minWidth: 130 }}>
+                    <td className="ga-a" style={{ minWidth: 130 }}>
                       <span className="row" style={{ gap: 6 }}>
                         <span className="dot" style={{ background: ASSET_TYPES[a.type].color }} />
                         <select className="cell" value={a.type} onChange={(e) => patch(a.id, { type: e.target.value as AssetType })} aria-label="Tipo">
@@ -140,7 +140,7 @@ export function AssetsView() {
                         </select>
                       </span>
                     </td>
-                    <td style={{ minWidth: 200, width: "40%" }}>
+                    <td className="ga-main" style={{ minWidth: 200, width: "40%" }}>
                       <div className="row" style={{ gap: 4 }}>
                         <input className="cell grow" type="text" defaultValue={a.name} key={a.name}
                           onBlur={(e) => e.target.value.trim() && e.target.value !== a.name && patch(a.id, { name: e.target.value.trim() })} aria-label="Item" />
@@ -151,16 +151,16 @@ export function AssetsView() {
                         </button>
                       </div>
                     </td>
-                    <td style={{ minWidth: 70 }}>
+                    <td className="ga-b" style={{ minWidth: 70 }}>
                       <select className="cell" value={a.owner} onChange={(e) => patch(a.id, { owner: e.target.value as Owner })} aria-label="Titular">
                         {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </td>
-                    <td className="right" style={{ minWidth: 120 }}>
+                    <td className="right ga-val" style={{ minWidth: 120 }}>
                       <input className="cell num right" type="number" step="0.01" min="0" defaultValue={a.value.toFixed(2)} key={a.value}
                         onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v >= 0 && v !== a.value) patch(a.id, { value: v }); }} aria-label={`Valor de ${a.name}`} />
                     </td>
-                    <td style={{ minWidth: 190 }}>
+                    <td className="ga-c" data-l="Estimativa (IA)" style={{ minWidth: 190 }}>
                       <EstimateCell
                         asset={a}
                         run={runs[a.id]}
@@ -172,11 +172,11 @@ export function AssetsView() {
                         onToggle={() => setOpenId((o) => (o === a.id ? null : a.id))}
                       />
                     </td>
-                    <td style={{ minWidth: 110 }}>
+                    <td className="ga-d" data-l="Observação" style={{ minWidth: 110 }}>
                       <input className="cell small" type="text" placeholder={"Ex.: " + ASSET_DETAIL_HINTS[a.type].needs} title={"Detalhes que melhoram a estimativa: " + ASSET_DETAIL_HINTS[a.type].needs} defaultValue={a.notes ?? ""} key={a.notes ?? ""}
                         onBlur={(e) => e.target.value !== (a.notes ?? "") && patch(a.id, { notes: e.target.value.trim() || undefined })} aria-label="Observação" />
                     </td>
-                    <td className="right"><button className="btn ghost icon danger" title="Remover" onClick={() => remove(a.id)}><Trash2 size={16} /></button></td>
+                    <td className="right ga-act"><button className="btn ghost icon danger" title="Remover" onClick={() => remove(a.id)}><Trash2 size={16} /></button></td>
                   </tr>
                   {openId === a.id && (
                     <tr className="est-row">

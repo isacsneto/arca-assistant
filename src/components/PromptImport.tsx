@@ -205,13 +205,13 @@ export function PromptImport({ done }: { done: () => void }) {
             </button>
           </div>
           <div className="table-wrap">
-            <table>
+            <table className="mc t-ops">
               <thead><tr><th /><th>O que será feito</th><th>Posição</th><th className="right">Antes</th><th /><th className="right">Depois</th></tr></thead>
               <tbody>
                 {preview.map((r) => (
                   <tr key={r.index} style={{ opacity: r.error || !approved.has(r.index) ? 0.55 : 1 }}>
-                    <td><input type="checkbox" disabled={!!r.error} checked={approved.has(r.index) && !r.error} onChange={() => toggle(r.index)} aria-label="Aplicar" /></td>
-                    <td style={{ minWidth: 220 }}>
+                    <td className="ga-chk"><input type="checkbox" disabled={!!r.error} checked={approved.has(r.index) && !r.error} onChange={() => toggle(r.index)} aria-label="Aplicar" /></td>
+                    <td className="ga-main" style={{ minWidth: 220 }}>
                       {r.op.explanation}
                       <div className="small">
                         {r.op.transaction && <span className="chip">registra {TX_LABEL[r.op.transaction.type] ?? r.op.transaction.type}</span>}{" "}
@@ -220,13 +220,13 @@ export function PromptImport({ done }: { done: () => void }) {
                         {r.error && <span className="chip bad">{r.error}</span>}
                       </div>
                     </td>
-                    <td style={{ minWidth: 160 }}>
+                    <td className="ga-a" style={{ minWidth: 160 }}>
                       <b>{r.label}</b>
                       <div className="muted small">{r.institution}{r.owner && <> · <span className={"chip owner-" + r.owner}>{r.owner}</span></>}</div>
                     </td>
-                    <td className="right num muted">{r.before == null ? "—" : money(r.before, r.currency)}</td>
-                    <td className="muted"><ArrowRight size={14} /></td>
-                    <td className="right num"><b>{r.after == null ? "—" : money(r.after, r.currency)}</b></td>
+                    <td className="right num muted mc-hide">{r.before == null ? "—" : money(r.before, r.currency)}</td>
+                    <td className="muted mc-hide"><ArrowRight size={14} /></td>
+                    <td className="right num ga-val"><b>{r.after == null ? "—" : money(r.after, r.currency)}</b><div className="muted small m-only">antes {r.before == null ? "—" : money(r.before, r.currency)}</div></td>
                   </tr>
                 ))}
               </tbody>

@@ -160,7 +160,7 @@ export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
       <div className="card" style={{ marginBottom: 16 }}>
         <h2 style={{ marginBottom: 10 }}>Tabela</h2>
         <div className="table-wrap">
-          <table>
+          <table className="mc t-horiz">
             <thead>
               <tr>
                 <th>Horizonte</th>
@@ -169,14 +169,14 @@ export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
               </tr>
             </thead>
             <tbody>
-              <tr><td>Hoje</td><td className="right num">{brl0(start)}</td><td /><td className="right num">{brl0(start)}</td><td /></tr>
+              <tr><td className="ga-main">Hoje</td><td className="right num ga-a">{brl0(start)}</td><td /><td className="right num ga-b">{brl0(start)}</td><td /></tr>
               {PROJECTION_HORIZONS.map((y) => (
                 <tr key={y}>
-                  <td>{y} anos</td>
-                  <td className="right num"><b>{brl0(val(y, "base"))}</b></td>
-                  <td className="right num muted">{pctTxt(impliedCagr(start, val(y, "base"), y))}</td>
-                  <td className="right num"><b>{brl0(val(y, "worst"))}</b></td>
-                  <td className="right num muted">{pctTxt(impliedCagr(start, val(y, "worst"), y))}</td>
+                  <td className="ga-main">{y} anos</td>
+                  <td className="right num ga-a"><b>{brl0(val(y, "base"))}</b><div className="muted small m-only">{pctTxt(impliedCagr(start, val(y, "base"), y))} a.a.</div></td>
+                  <td className="right num muted mc-hide">{pctTxt(impliedCagr(start, val(y, "base"), y))}</td>
+                  <td className="right num ga-b"><b>{brl0(val(y, "worst"))}</b><div className="muted small m-only">{pctTxt(impliedCagr(start, val(y, "worst"), y))} a.a.</div></td>
+                  <td className="right num muted mc-hide">{pctTxt(impliedCagr(start, val(y, "worst"), y))}</td>
                 </tr>
               ))}
             </tbody>
@@ -200,7 +200,7 @@ export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
       <div className="card" style={{ marginBottom: 16 }}>
         <h2 style={{ marginBottom: 10 }}>Premissas</h2>
         <div className="table-wrap">
-          <table>
+          <table className="mc t-prem">
             <thead>
               <tr><th>Classe / ativo</th><th>{SERIES.base.label}</th><th>{SERIES.worst.label}</th></tr>
             </thead>
@@ -209,9 +209,9 @@ export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
                 .filter((c) => presentClasses.includes(c.assetClass))
                 .map((c) => (
                   <tr key={c.assetClass}>
-                    <td style={{ minWidth: 150 }}><ClassLabel c={c.assetClass} /></td>
-                    <td><b className="num">{rateTxt(c.base)}</b><div className="muted small">{c.base.rationale}</div></td>
-                    <td><b className="num">{rateTxt(c.worst)}</b><div className="muted small">{c.worst.rationale}</div></td>
+                    <td className="ga-main" style={{ minWidth: 150 }}><ClassLabel c={c.assetClass} /></td>
+                    <td className="ga-a" data-l={SERIES.base.label}><b className="num">{rateTxt(c.base)}</b><div className="muted small">{c.base.rationale}</div></td>
+                    <td className="ga-b" data-l={SERIES.worst.label}><b className="num">{rateTxt(c.worst)}</b><div className="muted small">{c.worst.rationale}</div></td>
                   </tr>
                 ))}
               {projection.assets
@@ -220,9 +220,9 @@ export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
                   const p = assetsById.get(a.positionId)!;
                   return (
                     <tr key={a.positionId}>
-                      <td style={{ paddingLeft: 26 }}>{p.ticker ?? p.name}<div className="muted small">{CLASS_META[p.assetClass].label} · premissa própria</div></td>
-                      <td><b className="num">{rateTxt(a.base)}</b><div className="muted small">{a.base.rationale}</div></td>
-                      <td><b className="num">{rateTxt(a.worst)}</b><div className="muted small">{a.worst.rationale}</div></td>
+                      <td className="ga-main" style={{ paddingLeft: 26 }}>{p.ticker ?? p.name}<div className="muted small">{CLASS_META[p.assetClass].label} · premissa própria</div></td>
+                      <td className="ga-a" data-l={SERIES.base.label}><b className="num">{rateTxt(a.base)}</b><div className="muted small">{a.base.rationale}</div></td>
+                      <td className="ga-b" data-l={SERIES.worst.label}><b className="num">{rateTxt(a.worst)}</b><div className="muted small">{a.worst.rationale}</div></td>
                     </tr>
                   );
                 })}

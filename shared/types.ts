@@ -414,7 +414,10 @@ export interface RefreshLine {
   currency: Currency;
   oldValue: number;
   newValue: number;
-  method: RefreshMethod;
+  /** openfinance = valor da Pluggy; removido = não veio do Open Finance (sai da carteira). */
+  method: RefreshMethod | "openfinance" | "removido";
+  /** Ativo novo vindo do Open Finance (a linha não corresponde a uma posição existente). */
+  add?: ExtractedItem;
   /** Quantidade conhecida ou inferida (cotação na data da última atualização). */
   quantity?: number;
   unitPrice?: number;
@@ -427,6 +430,8 @@ export interface RefreshResult {
   usdBrl: number | null;
   lines: RefreshLine[];
   ratesUsed?: string;
+  /** Avisos (ex.: conexão do Open Finance com erro). */
+  warnings?: string[];
 }
 
 /* ------------------------------------------------------------------ */

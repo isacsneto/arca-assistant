@@ -1,6 +1,7 @@
 import type { AppState, ClaudeRefresh, JobEvent, Position, RefreshLine, RefreshResult } from "../shared/types";
 import { closeAt, convert, yahooSymbols, type FetchQuote } from "./quotes";
 import { mapPool } from "./pool";
+import { openFinanceRefresh, openFinanceSettings, type ConnectionData } from "../shared/openFinance";
 
 export interface RefreshDeps {
   fetchQuote: FetchQuote;
@@ -12,6 +13,8 @@ export interface RefreshDeps {
     signal: AbortSignal,
   ) => Promise<ClaudeRefresh>;
   now?: () => Date;
+  /** Dados das conexões do Open Finance, quando ele é a fonte da verdade (null = não usar). */
+  openFinance?: (state: AppState, signal: AbortSignal) => Promise<ConnectionData[] | null>;
 }
 
 const DAY = 86_400_000;
@@ -78,15 +81,38 @@ export async function refreshValues(
   const fx = await deps.fetchQuote("BRL=X").catch(() => null);
   const usdBrl = fx?.price ?? state.settings.usdBrl;
 
+  // Open Finance primeiro: as instituições conectadas ficam fora da cotação/IA.
+  const extra: RefreshLine[] = [];
+  const warnings: string[] = [];
+  let covered = new Set<string>();
+  if (deps.openFinance) {
+    try {
+      const data = await deps.openFinance(state, signal);
+      if (data?.length) {
+        emit({ type: "status", text: `Buscando no Open Finance (${data.length} ${data.length === 1 ? "conexão" : "conexões"})…` });
+        const of = openFinanceRefresh(state.positions, data, { includeAccounts: openFinanceSettings(state.settings.openFinance).includeAccounts });
+        covered = of.covered;
+        warnings.push(...of.warnings);
+        for (const l of of.lines) {
+          if (l.add) extra.push(l);
+          else lines.set(l.id, l);
+        }
+      }
+    } catch (err) {
+      if (signal.aborted) throw err;
+      warnings.push(`Open Finance indisponível agora (${err instanceof Error ? err.message : String(err)}) — usei cotação/IA.`);
+    }
+  }
+
   emit({ type: "status", text: "Buscando cotações de mercado…" });
   const pending: Position[] = [];
-  await mapPool(state.positions, 4, async (p) => {
+  await mapPool(state.positions.filter((p) => !covered.has(p.id)), 4, async (p) => {
     if (signal.aborted) return;
     const line = await priceFromQuote(p, deps.fetchQuote, usdBrl);
     if (line) lines.set(p.id, line);
     else pending.push(p);
   });
-  emit({ type: "status", text: `${lines.size} posições atualizadas pela cotação.` });
+  emit({ type: "status", text: `${lines.size - covered.size} posições atualizadas pela cotação.` });
 
   // Sem cotação: o que foi atualizado há menos de 1 dia não muda; o resto vai para o Claude.
   const forClaude: Position[] = [];
@@ -129,7 +155,8 @@ export async function refreshValues(
   return {
     runAt: now.toISOString(),
     usdBrl: fx?.price ?? null,
-    lines: state.positions.map((p) => lines.get(p.id) ?? kept(p, "Não processado.")),
+    lines: [...state.positions.map((p) => lines.get(p.id) ?? kept(p, "Não processado.")), ...extra],
     ratesUsed,
+    ...(warnings.length && { warnings }),
   };
 }

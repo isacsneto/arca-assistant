@@ -122,8 +122,8 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-head"><h2>Alocação atual × meta da Arca</h2><span className="muted small">clique numa classe para ver os ativos · traço vertical = meta</span></div>
-        <div className="row wrap" style={{ alignItems: "flex-start", gap: 24 }}>
-          <div style={{ width: 210, height: 210, flex: "none" }}>
+        <div className="row wrap alloc-wrap" style={{ alignItems: "flex-start", gap: 24 }}>
+          <div className="donut">
             <ResponsiveContainer>
               <PieChart>
                 <Pie data={pieTarget} dataKey="value" innerRadius={42} outerRadius={60} stroke="none" isAnimationActive={false}>
@@ -188,14 +188,14 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
             <button className="btn ghost sm" onClick={() => setCollapsedSaved(new Set(ALL_CLASSES))}>Recolher todas</button>
             <button className="btn ghost sm" onClick={() => setCollapsedSaved(new Set())}>Expandir todas</button>
           </div>
-          <div className="row" style={{ width: 260 }}>
+          <div className="row positions-tools" style={{ width: 260 }}>
             <Search size={16} className="muted" />
             <input type="text" placeholder="Filtrar por nome, ticker, banco…" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
         </div>
         {adding && <AddPosition defaultOwner={view === "all" ? "PF" : view} onAdd={(p) => { update((s) => ({ ...s, positions: [...s.positions, p] })); setAdding(false); }} onCancel={() => setAdding(false)} />}
         <div className="table-wrap">
-          <table>
+          <table className="mc t-pos">
             <thead>
               <tr><th>Ativo</th><th>Instituição</th><th>Classe</th><th className="right">Valor</th><th /></tr>
             </thead>
@@ -223,11 +223,11 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
                     .sort((a, b) => toBRL(b, settings.usdBrl) - toBRL(a, settings.usdBrl))
                     .map((p) => (
                       <tr key={p.id}>
-                        <td style={{ minWidth: 200 }}>
+                        <td className="ga-main" style={{ minWidth: 200 }}>
                           <div><b>{p.ticker ? `${p.ticker} · ` : ""}{p.name}</b></div>
                           <div className="muted small">{p.subtype}{p.quantity != null ? ` · ${p.quantity.toLocaleString("pt-BR")} un.` : ""}</div>
                         </td>
-                        <td className="muted">
+                        <td className="muted ga-sub">
                           {p.institution}
                           <div>
                             <select className="cell owner-select small" value={p.owner} onChange={(e) => patch(p.id, { owner: e.target.value as Owner })} aria-label={"Titular de " + p.name}>
@@ -235,8 +235,8 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
                             </select>
                           </div>
                         </td>
-                        <td style={{ minWidth: 175 }}><ClassSelect value={p.assetClass} onChange={(assetClass) => patch(p.id, { assetClass })} /></td>
-                        <td className="right" style={{ minWidth: 130 }}>
+                        <td className="ga-a" style={{ minWidth: 175 }}><ClassSelect value={p.assetClass} onChange={(assetClass) => patch(p.id, { assetClass })} /></td>
+                        <td className="right ga-val" style={{ minWidth: 130 }}>
                           <input
                             className="cell num right"
                             type="number"
@@ -248,7 +248,7 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
                           />
                           {p.currency === "USD" && <div className="muted small num">US$ · ≈ {brl(toBRL(p, settings.usdBrl))}</div>}
                         </td>
-                        <td className="right"><button className="btn ghost icon danger" title="Remover" onClick={() => remove(p.id)}><Trash2 size={16} /></button></td>
+                        <td className="right ga-act"><button className="btn ghost icon danger" title="Remover" onClick={() => remove(p.id)}><Trash2 size={16} /></button></td>
                       </tr>
                     )),
                 ];

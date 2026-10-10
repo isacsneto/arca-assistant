@@ -35,3 +35,21 @@ test("isChange ignora mantidos e diferenças de centavos", () => {
   assert.equal(isChange(line("a", 100, 101, "cotacao")), true);
   assert.equal(isChange(line("a", 100, 101, "mantido")), false);
 });
+
+test("Open Finance: atualiza, remove o que saiu e cria o que entrou (só o aprovado)", () => {
+  const positions = [p("a", 100), p("b", 200), p("c", 300)];
+  const lines: RefreshLine[] = [
+    { id: "a", name: "A", currency: "BRL", oldValue: 100, newValue: 110, method: "openfinance", quantity: 7, note: "" },
+    { id: "b", name: "B", currency: "BRL", oldValue: 200, newValue: 0, method: "removido", note: "" },
+    { id: "c", name: "C", currency: "BRL", oldValue: 300, newValue: 0, method: "removido", note: "" },
+    {
+      id: "of-new:x:0", name: "N", currency: "BRL", oldValue: 0, newValue: 50, method: "openfinance", note: "",
+      add: { kind: "position", sourceFile: "OF", institution: "BTG Pactual", name: "Novo", ticker: null, assetClass: "caixa", subtype: "CDB", currency: "BRL", value: 50, quantity: null, date: null, txType: null, owner: "PF", confidence: "alta", notes: null },
+    },
+  ];
+  assert.ok(lines.every(isChange));
+  const out = applyRefresh(positions, lines, new Set(["a", "b", "of-new:x:0"]), "2026-10-10T00:00:00Z", () => "novo-id");
+  assert.deepEqual(out.map((x) => [x.id, x.value]), [["a", 110], ["c", 300], ["novo-id", 50]]);
+  assert.equal(out[0].quantity, 7);
+  assert.equal(out[2].institution, "BTG Pactual");
+});

@@ -40,13 +40,13 @@ export function ClassAssets({
         <p className="muted small">Nenhum ativo nesta classe.</p>
       ) : (
         <div className="table-wrap">
-          <table>
+          <table className="mc t-cls">
             <tbody>
               {items.map(({ p, v }) => {
                 const share = total > 0 ? (v / total) * 100 : 0;
                 return (
                   <tr key={p.id}>
-                    <td style={{ minWidth: 180 }}>
+                    <td className="ga-main" style={{ minWidth: 180 }}>
                       <b>{p.ticker ? `${p.ticker} · ` : ""}{p.name}</b>
                       <div className="muted small">
                         {p.institution}
@@ -54,13 +54,13 @@ export function ClassAssets({
                         {p.subtype ? ` · ${p.subtype}` : ""}
                       </div>
                     </td>
-                    <td style={{ width: "34%", minWidth: 120 }}>
+                    <td className="ga-a" style={{ width: "34%", minWidth: 120 }}>
                       <div className="bar" style={{ height: 8 }} title={`${pct(share)} da classe`}>
                         <div className="fill" style={{ width: `${share}%`, background: color }} />
                       </div>
                     </td>
-                    <td className="right num muted" style={{ width: 70 }}>{pct(share)}</td>
-                    <td className="right num" style={{ width: 130 }}><b>{brl(v)}</b></td>
+                    <td className="right num muted ga-side" style={{ width: 70 }}>{pct(share)}</td>
+                    <td className="right num ga-val" style={{ width: 130 }}><b>{brl(v)}</b></td>
                   </tr>
                 );
               })}

@@ -15,7 +15,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 ![Claude](https://img.shields.io/badge/Claude-Agent%20SDK-d97757)
 ![Codex](https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white)
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
-![Testes](https://img.shields.io/badge/testes-143%20passando-2ea44f)
+![Testes](https://img.shields.io/badge/testes-146%20passando-2ea44f)
 
 <br/>
 
@@ -33,14 +33,15 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 |---|---|
 | 📸 **Importa qualquer coisa** | Prints do app do banco, PDFs, CSV/XLSX (BTG, XP, Nubank, Itaú, Inter…) ou uma frase: *"17000.30 adicionados à caixinha cdb do inter pj"*. A IA extrai, classifica e **pergunta quando não tem certeza**. |
 | 🎬 **Vídeo de tela** | Grave a tela rolando o app do banco em vez de tirar dez prints. O app escolhe **um quadro por tela** (descarta o borrão da rolagem e as repetições) e a IA lê como prints. MP4, MOV, WEBM… |
-| 🏦 **Open Finance** | Conecte seus bancos pelo [Meu Pluggy](https://meu.pluggy.ai) (grátis para uso pessoal) e puxe os investimentos direto da fonte — renda fixa, ações, FIIs, ETFs, fundos, previdência — já classificados na Arca e revisados por você antes de salvar. |
+| 🏦 **Open Finance** | Conecte seus bancos pelo [Meu Pluggy](https://meu.pluggy.ai) (grátis para uso pessoal) e puxe os investimentos direto da fonte — renda fixa, ações, FIIs, ETFs, fundos, previdência — já classificados na Arca. Pode ser a **fonte da verdade**: substitui o que havia na instituição e alimenta o *Atualizar valores*. |
+| 📱 **No celular** | Interface feita para iPhone e Android (barra de abas, folhas que sobem de baixo, campos sem zoom) e **instalável na tela inicial**. Acesso de fora de casa pelo Tailscale, sem expor nada na internet. |
 | 🧠 **Entende o nome do arquivo** | `itau-pf-cdb100cdi.png` → Itaú · pessoa física · CDB 100% do CDI. A IA confere a leitura. |
 | 🔁 **Detecta duplicados** | Arquivo idêntico (SHA-256), print quase igual (hash visual) e mesma tela em prints diferentes (a IA compara o conteúdo). |
 | 🏛️ **Carteira pela Arca** | Ações · Imóveis (FIIs) · Caixa/Renda Fixa · Internacional — Arca do Primo Rico (25/25/25/25), Arca Grão (30/10/40/20) ou sua própria divisão. Clique numa classe e veja os ativos. |
 | 👥 **PF e PJ** | Visão consolidada ou separada por titular em todas as telas, inclusive na projeção. |
 | ⚖️ **Rebalanceamento** | Diz quanto aportar em cada classe (ou quanto vender) para voltar às metas, e onde colocar o dinheiro. |
 | 🔎 **Scan de ativos** | A IA pesquisa balanços, relatórios de FIIs, a situação fiscal do governo e ETFs, e devolve um ranking com tese, métricas, riscos e fontes. |
-| 🔄 **Atualizar valores** | Ações, FIIs, ETFs, dólar e cripto pela cotação de mercado; renda fixa estimada pela IA acumulando CDI/Selic/IPCA. Você revisa antes de aplicar. |
+| 🔄 **Atualizar valores** | Ações, FIIs, ETFs, dólar e cripto pela cotação de mercado; renda fixa estimada pela IA acumulando CDI/Selic/IPCA; instituições conectadas ao Open Finance, direto do banco. Você revisa antes de aplicar. |
 | 📈 **Projeção 5–30 anos** | Cenário mais provável e pior caso plausível, com premissas pesquisadas (Focus, juros, fiscal, valuation) e a conta feita pelo app — nominal e em reais de hoje. |
 | 🏦 **Por instituição** | Quanto você tem em cada banco/corretora. Marque uma como desatualizada e o app lembra você de atualizar. |
 | 🚗 **Bens físicos** | Carros, imóveis, joias e eletrônicos fora dos investimentos, com **estimativa de valor por IA** (FIPE, anúncios de novos e usados, cotação do ouro) e anexos (fotos, nota fiscal). |
@@ -86,34 +87,54 @@ Em **Ajustes → Provedor de IA** você escolhe o provedor e o modo de acesso. O
 - No Claude você escolhe o modelo de cada tarefa (Opus para pesquisas longas, Sonnet para leitura…). No Codex e no Cursor, um modelo **forte** (scan e projeção) e um **rápido** (o resto) — em branco usa o padrão do CLI.
 - O esforço de raciocínio é ajustável por tarefa em todos.
 
-### 🖥️ Deixar rodando no seu PC (grátis)
-
-```bash
-npm run local:install    # Windows: sobe sozinho a cada login + acesso pelo Tailscale
-npm run local:stop       # para (volta no próximo login) · npm run local:uninstall remove tudo
-npm run local            # qualquer sistema: roda em primeiro plano, reiniciando se cair
-```
+### 🖥️ Deixar rodando sozinho no seu computador (grátis)
 
 A opção mais barata é o seu próprio computador: custo zero, a IA usa o login que você já tem (sem pagar chave de API) e os dados não saem da sua máquina.
 
-**Passo a passo (Windows)**
+```bash
+npm run local:install    # sobe sozinho a cada login (Windows, macOS ou Linux) + acesso pelo Tailscale
+npm run local:stop       # para agora (volta no próximo login; local:install religa)
+npm run local:uninstall  # remove a inicialização automática e o tailscale serve
+npm run local            # roda em primeiro plano, reiniciando se cair (sem instalar nada)
+```
 
-1. Opcional, para abrir no celular ou em outro computador: instale o [Tailscale](https://tailscale.com/download) (grátis para uso pessoal) no PC e nos outros aparelhos, todos com a mesma conta.
-2. Na pasta do app, rode `npm run local:install`. Ele:
-   - cria a tarefa **"Arca Assistant"** no Agendador do Windows, que sobe o app escondido toda vez que você faz login (com o seu usuário, para usar o login local do Claude/Codex);
-   - se o Tailscale estiver instalado, publica o app **só na sua rede Tailscale** (`tailscale serve`, com HTTPS). Se ele pedir para habilitar HTTPS na rede, abra o link mostrado e rode o comando de novo.
-3. Abra `http://localhost:3001` no PC, ou `https://<seu-pc>.<sua-rede>.ts.net` nos outros aparelhos (o comando mostra o endereço).
+O `local:install` compila o app, sobe o servidor em `http://localhost:3001` e reinicia se ele cair. Só uma instância roda por vez, porque duas gravando o mesmo `data/` se sobrescreveriam. Os logs ficam em `data/logs/server.log`.
+
+| Sistema | O que o `local:install` cria | Observações |
+|---|---|---|
+| **Windows** | Tarefa **"Arca Assistant"** no Agendador, ao fazer login (janela oculta) | Rode no PowerShell, sem `!` na frente. Não precisa ser administrador. |
+| **macOS** | LaunchAgent `~/Library/LaunchAgents/com.arca-assistant.plist` (`RunAtLoad` + `KeepAlive`) | Usa o Tailscale do app da Mac App Store ou o CLI. |
+| **Linux** | Serviço systemd do usuário `~/.config/systemd/user/arca-assistant.service` | Para rodar mesmo sem você logado: `sudo loginctl enable-linger $USER`. Se o `tailscale serve` recusar: `sudo tailscale set --operator=$USER`. |
+
+Os serviços rodam com o **seu usuário**, para a IA usar o login local do Claude ou do Codex que você já fez no terminal.
 
 **Bom saber**
 
-- O PC precisa estar ligado e com você logado no Windows. Se ele dormir, o app fica fora do ar até acordar.
-- O app reinicia sozinho se cair, e só uma instância roda por vez (duas gravando o mesmo `data/` se sobrescreveriam). Logs em `data/logs/server.log`.
-- Depois de um `git pull`, rode `npm run local:stop` e `npm run local:install` de novo: o app recompila ao subir.
+- O computador precisa estar ligado (e, no Windows e no macOS, com você logado). Se ele dormir, o app fica fora do ar até acordar; desative a suspensão automática se quiser acesso o tempo todo.
+- Depois de um `git pull`, rode `npm run local:stop` e `npm run local:install`: o app recompila ao subir.
 - Para desenvolver com `npm run dev`, rode antes `npm run local:stop` (os dois usam a porta 3001).
-- `npm run local:uninstall` remove a tarefa e o `tailscale serve`.
-- Em macOS ou Linux, use `npm run local` com o gerenciador de serviços do sistema (launchd, systemd) ou com o `pm2`.
-- O servidor continua escutando só em `127.0.0.1`, e o endereço do Tailscale só existe dentro da sua rede. **Não exponha o app na internet** (porta aberta no roteador, Funnel, túnel público): ele não tem tela de login, e quem acessar vê sua carteira.
-- Hospedagens como Vercel, Netlify e Render grátis não servem: apagam os arquivos salvos, não rodam os CLIs de IA e cortam tarefas longas. Se quiser 24 h sem depender do PC, use uma VPS pequena (ou a VM grátis da Oracle Cloud) acessada pelo Tailscale.
+
+### 📱 Acessar pelo celular com o Tailscale
+
+O [Tailscale](https://tailscale.com/download) cria uma rede privada entre os seus aparelhos (grátis para uso pessoal). O app continua escutando só em `127.0.0.1`; o Tailscale entrega o endereço **apenas para os aparelhos logados na sua conta**.
+
+1. Instale o Tailscale no computador que roda o app e entre com a sua conta (Google, Microsoft, Apple ou GitHub).
+2. Rode `npm run local:install`. Ele configura o `tailscale serve` com HTTPS e mostra o endereço, algo como `https://meu-pc.tail1234.ts.net`.
+   - Na primeira vez o Tailscale pode pedir para **habilitar HTTPS/Serve na sua rede**: abra o link que aparecer, confirme e rode o comando de novo.
+   - O primeiro acesso pode levar até um minuto, enquanto o certificado é emitido.
+3. No celular, instale o app **Tailscale** ([iPhone](https://apps.apple.com/app/tailscale/id1470499037) · [Android](https://play.google.com/store/apps/details?id=com.tailscale.ipn)), entre com a **mesma conta** e deixe a VPN ligada.
+4. Abra o endereço `https://….ts.net` no navegador do celular.
+
+**Instalar como app na tela inicial**
+
+- **iPhone (Safari):** abra o endereço → botão **Compartilhar** → **Adicionar à Tela de Início** → **Adicionar**. O Arca abre em tela cheia, com ícone próprio, barra de abas embaixo e respeitando a Dynamic Island.
+- **Android (Chrome):** abra o endereço → menu **⋮** → **Instalar app** (ou **Adicionar à tela inicial**).
+
+O app instalado é só um atalho para o seu servidor: com a VPN do Tailscale desligada, ou o computador desligado, ele não abre.
+
+> 🔒 **Não exponha o app na internet** (porta aberta no roteador, Tailscale Funnel, túnel público): ele não tem tela de login, e quem acessar vê sua carteira. O `tailscale serve` é diferente do Funnel: só a sua rede enxerga.
+
+Hospedagens como Vercel, Netlify e Render grátis não servem: apagam os arquivos salvos, não rodam os CLIs de IA e cortam tarefas longas. Se quiser o app 24 h sem depender do seu computador, use uma VPS pequena (ou a VM grátis da Oracle Cloud), rode o `npm run local:install` lá (Linux) e acesse pelo Tailscale do mesmo jeito.
 
 ### 🏦 Open Finance (opcional)
 
@@ -122,7 +143,12 @@ A opção mais barata é o seu próprio computador: custo zero, a IA usa o login
 3. Clique em **Buscar conexões** (ou cole o `itemId` de cada banco) e marque se cada uma é PF ou PJ.
 4. **Importar → Open Finance → Buscar investimentos**: revise e salve.
 
-O plano gratuito do Meu Pluggy cobre até 5 conexões do mesmo titular, atualizadas a cada 24 h. Corretoras de fora do Brasil não fazem parte do Open Finance — para elas, use print, vídeo ou texto. As credenciais ficam só no servidor (`data/secrets.json` ou `PLUGGY_CLIENT_ID` / `PLUGGY_CLIENT_SECRET`).
+Com **"Usar o Open Finance como fonte da verdade"** ligado (padrão), cada instituição conectada passa a ser espelho do banco:
+
+- **ao importar**, tudo o que você tinha nela (por titular) é substituído pelo que veio do Open Finance;
+- no **Atualizar valores** da Carteira, os valores dela vêm da Pluggy, e não da cotação nem da IA. Ativos novos aparecem para entrar e os que sumiram aparecem para sair. Você revisa antes de aplicar.
+
+O plano gratuito do Meu Pluggy cobre até 5 conexões do mesmo titular, atualizadas a cada 24 h. Corretoras de fora do Brasil não fazem parte do Open Finance; para elas, use print, vídeo ou texto. As credenciais ficam só no servidor (`data/secrets.json` ou `PLUGGY_CLIENT_ID` / `PLUGGY_CLIENT_SECRET`).
 
 ---
 
@@ -164,7 +190,7 @@ flowchart LR
 ## 🛠️ Desenvolvimento
 
 ```bash
-npm test             # 143 testes (node:test + tsx)
+npm test             # 146 testes (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # produção local em http://localhost:3001
 ```
@@ -173,7 +199,7 @@ npm run build && npm start   # produção local em http://localhost:3001
 shared/   regras e tipos (Arca, projeção, importação, duplicados, PF/PJ, IA) — testados
 server/   Express, tarefas de IA (tasks.ts), motores em server/ai/, cotações, anexos
 src/      React: Carteira, Rebalancear, Projeção, Instituições, Bens, Importar, Scan…
-scripts/  demo com carteira fictícia
+scripts/  demo com carteira fictícia, local.mjs (rodar sempre) e serviços por sistema (windows/, unix/)
 ```
 
 `ARCA_DATA_DIR` aponta para outra pasta de dados (é assim que a demo roda sem tocar nos seus dados).

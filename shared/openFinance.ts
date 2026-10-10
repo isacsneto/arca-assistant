@@ -1,5 +1,5 @@
-import type { AssetClass, ExtractedItem, ExtractionResult, FileReading, Owner, Position } from "./types";
-import { norm } from "./importMerge";
+import type { AssetClass, ExtractedItem, ExtractionResult, FileReading, Owner, Position, RefreshLine } from "./types";
+import { norm, posKey } from "./importMerge";
 import { parseFileName } from "./fileHints";
 
 /*
@@ -20,10 +20,15 @@ export interface OpenFinanceSettings {
   connections: OpenFinanceConnection[];
   /** Inclui saldo de conta corrente/poupança como Caixa. */
   includeAccounts: boolean;
+  /**
+   * Open Finance é a fonte da verdade das instituições conectadas: importar substitui
+   * tudo o que havia nelas (por titular) e o "Atualizar valores" usa os dados de lá.
+   */
+  sourceOfTruth: boolean;
   lastSyncAt: string | null;
 }
 
-export const DEFAULT_OPEN_FINANCE: OpenFinanceSettings = { connections: [], includeAccounts: true, lastSyncAt: null };
+export const DEFAULT_OPEN_FINANCE: OpenFinanceSettings = { connections: [], includeAccounts: true, sourceOfTruth: true, lastSyncAt: null };
 
 export function openFinanceSettings(raw: Partial<OpenFinanceSettings> | undefined): OpenFinanceSettings {
   const connections = (Array.isArray(raw?.connections) ? raw.connections : [])
@@ -36,6 +41,7 @@ export function openFinanceSettings(raw: Partial<OpenFinanceSettings> | undefine
   return {
     connections,
     includeAccounts: raw?.includeAccounts ?? true,
+    sourceOfTruth: raw?.sourceOfTruth ?? true,
     lastSyncAt: typeof raw?.lastSyncAt === "string" ? raw.lastSyncAt : null,
   };
 }
@@ -217,83 +223,173 @@ export function institutionName(conn: OpenFinanceConnection, item: PluggyItem | 
 
 const money = (x: number) => x.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+
+/** Itens (posições) de uma conexão: investimentos com saldo e, se pedido, contas. */
+function connectionItems(d: ConnectionData, institution: string, source: string, includeAccounts: boolean): ExtractedItem[] {
+  const items: ExtractedItem[] = [];
+  const base = { kind: "position" as const, sourceFile: source, institution, owner: d.connection.owner, txType: null };
+  for (const inv of d.investments) {
+    const value = inv.balance ?? inv.amount ?? 0;
+    if (inv.status === "TOTAL_WITHDRAWAL" || !(value > 0)) continue;
+    const c = classifyInvestment(inv);
+    const ticker = tickerOf(inv.code);
+    items.push({
+      ...base,
+      name: inv.name.trim() || ticker || "Investimento",
+      ticker,
+      assetClass: c.assetClass,
+      subtype: c.subtype,
+      currency: inv.currencyCode === "USD" ? "USD" : "BRL",
+      value: Math.round(value * 100) / 100,
+      quantity: inv.quantity ?? null,
+      date: inv.date?.slice(0, 10) ?? null,
+      confidence: c.confidence,
+      notes: [c.note, inv.dueDate ? `vence em ${inv.dueDate.slice(0, 10)}` : null, inv.issuer ? `emissor: ${inv.issuer}` : null].filter(Boolean).join(" · ") || null,
+    });
+  }
+  if (includeAccounts) {
+    for (const a of d.accounts) {
+      if ((a.type ?? "").toUpperCase() !== "BANK" || !((a.balance ?? 0) > 0)) continue;
+      const savings = /SAVINGS/i.test(a.subtype ?? "");
+      items.push({
+        ...base,
+        name: savings ? "Poupança" : "Conta corrente",
+        ticker: null,
+        assetClass: "caixa",
+        subtype: savings ? "Poupança" : "Conta corrente",
+        currency: a.currencyCode === "USD" ? "USD" : "BRL",
+        value: Math.round(a.balance! * 100) / 100,
+        quantity: null,
+        date: null,
+        confidence: "alta",
+        notes: a.marketingName || a.name || null,
+      });
+    }
+  }
+  return items;
+}
+
+/** Resultado da busca no Open Finance: itens para revisão + qual conexão gerou cada bloco. */
+export interface OpenFinanceImport extends ExtractionResult {
+  connections: { itemId: string; file: string; institution: string; owner: Owner }[];
+}
+
 /** Converte os dados das conexões em um resultado de importação para a tela de revisão. */
-export function toImport(data: ConnectionData[], positions: Pick<Position, "institution">[], opts: { includeAccounts: boolean }): ExtractionResult {
+export function toImport(data: ConnectionData[], positions: Pick<Position, "institution">[], opts: { includeAccounts: boolean }): OpenFinanceImport {
   const known = [...new Set(positions.map((p) => p.institution))];
   const items: ExtractedItem[] = [];
   const files: FileReading[] = [];
   const warnings: string[] = [];
+  const connections: OpenFinanceImport["connections"] = [];
 
   for (const d of data) {
     const institution = institutionName(d.connection, d.item, known);
-    const source = `Open Finance · ${institution} ${d.connection.owner}`;
+    const owner = d.connection.owner;
+    const source = `Open Finance · ${institution} ${owner}`;
     if (d.error) {
-      warnings.push(`${institution} (${d.connection.owner}): ${d.error}`);
+      warnings.push(`${institution} (${owner}): ${d.error}`);
       continue;
     }
-    let count = 0;
-    let total = 0;
-    for (const inv of d.investments) {
-      const value = inv.balance ?? inv.amount ?? 0;
-      if (inv.status === "TOTAL_WITHDRAWAL" || !(value > 0)) continue;
-      const c = classifyInvestment(inv);
-      const ticker = tickerOf(inv.code);
-      items.push({
-        kind: "position",
-        sourceFile: source,
-        institution,
-        name: inv.name.trim() || ticker || "Investimento",
-        ticker,
-        assetClass: c.assetClass,
-        subtype: c.subtype,
-        currency: inv.currencyCode === "USD" ? "USD" : "BRL",
-        value: Math.round(value * 100) / 100,
-        quantity: inv.quantity ?? null,
-        date: inv.date?.slice(0, 10) ?? null,
-        txType: null,
-        owner: d.connection.owner,
-        confidence: c.confidence,
-        notes: [c.note, inv.dueDate ? `vence em ${inv.dueDate.slice(0, 10)}` : null, inv.issuer ? `emissor: ${inv.issuer}` : null].filter(Boolean).join(" · ") || null,
-      });
-      count += 1;
-      total += value;
-    }
-    if (opts.includeAccounts) {
-      for (const a of d.accounts) {
-        if ((a.type ?? "").toUpperCase() !== "BANK" || !((a.balance ?? 0) > 0)) continue;
-        const savings = /SAVINGS/i.test(a.subtype ?? "");
-        items.push({
-          kind: "position",
-          sourceFile: source,
-          institution,
-          name: savings ? "Poupança" : "Conta corrente",
-          ticker: null,
-          assetClass: "caixa",
-          subtype: savings ? "Poupança" : "Conta corrente",
-          currency: a.currencyCode === "USD" ? "USD" : "BRL",
-          value: Math.round(a.balance! * 100) / 100,
-          quantity: null,
-          date: null,
-          txType: null,
-          owner: d.connection.owner,
-          confidence: "alta",
-          notes: a.marketingName || a.name || null,
-        });
-        count += 1;
-        total += a.balance!;
-      }
-    }
+    const mine = connectionItems(d, institution, source, opts.includeAccounts);
+    items.push(...mine);
+    connections.push({ itemId: d.connection.itemId, file: source, institution, owner });
+    const total = mine.reduce((s, i) => s + i.value, 0);
     const updated = d.item?.lastUpdatedAt ? ` Dados de ${new Date(d.item.lastUpdatedAt).toLocaleDateString("pt-BR")}.` : "";
     files.push({
       file: source,
       institution,
-      owner: d.connection.owner,
+      owner,
       productHint: d.item?.connector?.name ?? null,
-      summary: count ? `${count} ${count === 1 ? "item" : "itens"} · R$ ${money(total)} (valores líquidos).${updated}` : `Nenhum investimento com saldo.${updated}`,
+      summary: mine.length ? `${mine.length} ${mine.length === 1 ? "item" : "itens"} · R$ ${money(total)} (valores líquidos).${updated}` : `Nenhum investimento com saldo.${updated}`,
       duplicateOf: null,
     });
     if (d.item?.status && !/UPDATED/i.test(d.item.status))
-      warnings.push(`${institution} (${d.connection.owner}): a conexão está com status "${d.item.status}" na Pluggy — os dados podem estar desatualizados. Reconecte no Meu Pluggy se precisar.`);
+      warnings.push(`${institution} (${owner}): a conexão está com status "${d.item.status}" na Pluggy — os dados podem estar desatualizados. Reconecte no Meu Pluggy se precisar.`);
   }
-  return { items, files, questions: [], warnings };
+  return { items, files, questions: [], warnings, connections };
+}
+
+/* ---------------- "Atualizar valores" com o Open Finance como fonte da verdade ---------------- */
+
+export interface OpenFinanceRefresh {
+  /** Linhas para a revisão: atualizações, saídas (newValue 0) e entradas (com `add`). */
+  lines: RefreshLine[];
+  /** Posições já cobertas pelo Open Finance (ficam fora da cotação/IA). */
+  covered: Set<string>;
+  warnings: string[];
+}
+
+const label = (p: { ticker?: string | null; name: string }) => (p.ticker ? `${p.ticker} · ${p.name}` : p.name);
+
+/**
+ * Compara a carteira com o Open Finance, instituição por instituição (por titular).
+ * Conexão com erro não mexe em nada: as posições dela seguem pela atualização normal.
+ */
+export function openFinanceRefresh(positions: Position[], data: ConnectionData[], opts: { includeAccounts: boolean }): OpenFinanceRefresh {
+  const known = [...new Set(positions.map((p) => p.institution))];
+  const lines: RefreshLine[] = [];
+  const covered = new Set<string>();
+  const warnings: string[] = [];
+
+  for (const d of data) {
+    const institution = institutionName(d.connection, d.item, known);
+    const owner = d.connection.owner;
+    if (d.error) {
+      warnings.push(`Open Finance · ${institution} (${owner}): ${d.error} — usei cotação/IA para esta instituição.`);
+      continue;
+    }
+    const source = `Open Finance · ${institution} ${owner}`;
+    const fresh = connectionItems(d, institution, source, opts.includeAccounts);
+    const scope = positions.filter((p) => p.owner === owner && norm(p.institution) === norm(institution));
+    const used = new Set<number>();
+    const updated = d.item?.lastUpdatedAt ? `dados de ${new Date(d.item.lastUpdatedAt).toLocaleDateString("pt-BR")}` : "Open Finance";
+
+    for (const p of scope) {
+      covered.add(p.id);
+      const key = posKey(p.owner, p.institution, p.ticker, p.name);
+      const i = fresh.findIndex((it, k) => !used.has(k) && posKey(owner, institution, it.ticker, it.name) === key);
+      if (i < 0) {
+        lines.push({ id: p.id, name: label(p), currency: p.currency, oldValue: p.value, newValue: 0, method: "removido", note: `Não veio do Open Finance (${updated}): sai da carteira.`, source: "Pluggy" });
+        continue;
+      }
+      used.add(i);
+      const it = fresh[i];
+      lines.push({
+        id: p.id, name: label(p), currency: it.currency, oldValue: p.value, newValue: it.value, method: "openfinance",
+        quantity: it.quantity ?? undefined, note: `Valor líquido informado pelo banco (${updated}).`, source: "Pluggy",
+      });
+    }
+    fresh.forEach((it, k) => {
+      if (used.has(k)) return;
+      lines.push({
+        id: `of-new:${d.connection.itemId}:${k}`, name: `${label(it)} (${institution} ${owner})`, currency: it.currency, oldValue: 0, newValue: it.value,
+        method: "openfinance", quantity: it.quantity ?? undefined, note: `Novo no Open Finance (${updated}): entra na carteira.`, source: "Pluggy", add: it,
+      });
+    });
+  }
+  return { lines, covered, warnings };
+}
+
+/**
+ * Depois de salvar uma importação do Open Finance: grava em cada conexão a instituição e o
+ * titular finais (o usuário pode ter corrigido na revisão), para o "Atualizar valores"
+ * achar as mesmas posições depois.
+ */
+export function withSyncedConnections(
+  raw: Partial<OpenFinanceSettings> | undefined,
+  files: Pick<FileReading, "file" | "institution" | "owner">[],
+  synced: OpenFinanceImport["connections"],
+  now: string,
+): OpenFinanceSettings {
+  const of = openFinanceSettings(raw);
+  return {
+    ...of,
+    lastSyncAt: now,
+    connections: of.connections.map((c) => {
+      const s = synced.find((x) => x.itemId === c.itemId);
+      if (!s) return c;
+      const f = files.find((x) => x.file === s.file);
+      return { ...c, institution: f?.institution?.trim() || s.institution, owner: f?.owner ?? s.owner };
+    }),
+  };
 }

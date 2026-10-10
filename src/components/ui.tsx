@@ -32,7 +32,7 @@ export function PageHead({ title, subtitle, actions }: { title: string; subtitle
         <h1>{title}</h1>
         {subtitle && <p>{subtitle}</p>}
       </div>
-      {actions && <div className="row wrap">{actions}</div>}
+      {actions && <div className="row wrap page-actions">{actions}</div>}
     </div>
   );
 }
