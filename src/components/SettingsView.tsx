@@ -179,7 +179,7 @@ export function SettingsView() {
 
         <section className="card">
           <h2 style={{ marginBottom: 12 }}>Dados</h2>
-          <p className="muted small" style={{ marginBottom: 12 }}>Tudo fica salvo no arquivo <code>data/state.json</code> do projeto. Prints e arquivos não são armazenados — só vão para a API da Anthropic na hora da leitura.</p>
+          <p className="muted small" style={{ marginBottom: 12 }}>Tudo fica salvo no arquivo <code>data/state.json</code> do projeto. Prints e arquivos não são armazenados — só vão para a IA escolhida na hora da leitura.</p>
           <div className="row wrap">
             <button className="btn" onClick={exportData}><Download size={15} /> Exportar backup</button>
             <button className="btn" onClick={() => file.current?.click()}><Upload size={15} /> Restaurar backup</button>
