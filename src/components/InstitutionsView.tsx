@@ -5,7 +5,7 @@ import { ALL_CLASSES, CLASS_META, type AssetClass, type Owner, type Position } f
 import { toBRL } from "../../shared/arca";
 import { VIEW_LABEL } from "../../shared/owner";
 import { useStore } from "../store";
-import { brl, pct } from "../lib/format";
+import { amt, pct } from "../lib/format";
 import { ClassDot, Empty, PageHead } from "./ui";
 import { L } from "../../shared/i18n";
 
@@ -31,7 +31,7 @@ export function InstitutionsView() {
     for (const o of g.owners) list = stale ? unmarkStale(list, g.institution, o) : markStale(list, g.institution, o, now);
     update((st) => ({ ...st, settings: { ...st.settings, staleInstitutions: list } }));
   };
-  const usd = state!.settings.usdBrl;
+  const usd = state!.settings.fx;
   const [open, setOpen] = useState<string | null>(null);
   const [splitOwner, setSplitOwner] = useState(false);
 
@@ -77,7 +77,7 @@ export function InstitutionsView() {
       ) : (
         <>
           <div className="card" style={{ marginBottom: 16 }}>
-            <div className="card-head"><h2>{L("Distribuição por instituição", "Breakdown by institution")}</h2><span className="muted small">{L(`${groups.length} instituições`, `${groups.length} institution${groups.length === 1 ? "" : "s"}`)} · {brl(grand)}</span></div>
+            <div className="card-head"><h2>{L("Distribuição por instituição", "Breakdown by institution")}</h2><span className="muted small">{L(`${groups.length} instituições`, `${groups.length} institution${groups.length === 1 ? "" : "s"}`)} · {amt(grand)}</span></div>
             <div className="inst-bar" role="img" aria-label={L("Participação de cada instituição no total", "Share of each institution in the total")}>
               {groups.map((g, i) => (
                 <div key={g.key} style={{ width: `${(g.total / grand) * 100}%`, background: `var(--inst-${i % 6})` }} title={`${g.institution}: ${pct((g.total / grand) * 100)}`} />
@@ -107,7 +107,7 @@ export function InstitutionsView() {
                       </div>
                     </div>
                     <div className="right inst-total">
-                      <div className="num"><b>{brl(g.total)}</b></div>
+                      <div className="num"><b>{amt(g.total)}</b></div>
                       <div className="muted small num">{pct((g.total / grand) * 100)} {L("do total", "of total")} · {L(`${g.items.length} ativo${g.items.length === 1 ? "" : "s"}`, `${g.items.length} asset${g.items.length === 1 ? "" : "s"}`)}</div>
                     </div>
                   </button>
@@ -131,7 +131,7 @@ export function InstitutionsView() {
                               <td className="ga-main"><b>{p.ticker ? `${p.ticker} · ` : ""}{p.name}</b><div className="muted small">{p.subtype}</div></td>
                               <td className="ga-sub"><span className="row" style={{ gap: 6 }}><ClassDot c={p.assetClass} />{CLASS_META[p.assetClass].label}{view === "all" && <span className={`chip owner-${p.owner} m-only`}>{p.owner}</span>}</span></td>
                               {view === "all" && <td className="mc-hide"><span className={`chip owner-${p.owner}`}>{p.owner}</span></td>}
-                              <td className="right num ga-val">{brl(v)}</td>
+                              <td className="right num ga-val">{amt(v)}</td>
                               <td className="right num muted ga-side">{pct((v / g.total) * 100)}</td>
                             </tr>
                           ))}

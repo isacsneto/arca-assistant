@@ -1,4 +1,5 @@
 import type { AiStatus, ProviderId } from "../shared/ai";
+import type { FxRates } from "../shared/currency";
 import type { OpenFinanceImport } from "../shared/openFinance";
 import type { AppState, ExtractionResult, PromptImportRequest, PromptPlan, RefineRequest, ScanEvent, UploadFile } from "../shared/types";
 import { L } from "../shared/i18n";
@@ -50,7 +51,7 @@ export const api = {
   /** Salva (ou remove, com null) a chave de API de um provedor — fica só no servidor. */
   setAiKey: (provider: ProviderId, key: string | null) =>
     fetch("/api/ai/key", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, key }) }).then((r) => json<{ ok: true }>(r)),
-  getFx: () => fetch("/api/fx").then((r) => json<{ usdBrl: number }>(r)),
+  getFx: () => fetch("/api/fx").then((r) => json<{ fx: FxRates }>(r)),
   importFiles: (files: UploadFile[], signal?: AbortSignal) =>
     fetch("/api/import", {
       method: "POST",

@@ -31,8 +31,8 @@ test("closeAt pega o fechamento do dia (ou o anterior mais próximo)", () => {
 });
 
 test("convert entre BRL e USD", () => {
-  assert.equal(convert(10, "USD", "BRL", 5), 50);
-  assert.equal(convert(50, "BRL", "USD", 5), 10);
-  assert.equal(convert(7, "BRL", "BRL", 5), 7);
-  assert.equal(convert(7, "EUR", "BRL", 5), null);
+  assert.equal(convert(10, "USD", "BRL", { USD: 5 }), 50);
+  assert.equal(convert(50, "BRL", "USD", { USD: 5 }), 10);
+  assert.equal(convert(7, "BRL", "BRL", { USD: 5 }), 7);
+  assert.equal(convert(7, "XYZ", "BRL", { USD: 5 }), null, "moeda fora do registro");
 });

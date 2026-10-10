@@ -1,4 +1,5 @@
 import express from "express";
+import { BASE_CURRENCY, FX_CODES, type FxRates } from "../shared/currency";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -43,7 +44,8 @@ export interface Deps {
   attachmentsDir?: string;
   refreshValues: (state: AppState, emit: (e: JobEvent<RefreshResult>) => void, signal: AbortSignal) => Promise<RefreshResult>;
   projectPortfolio: (state: AppState, emit: (e: JobEvent<ProjectionResult>) => void, signal: AbortSignal) => Promise<ProjectionResult>;
-  fetchFx?: () => Promise<number>;
+  /** Cotações atuais das moedas do registro na moeda base. */
+  fetchFx?: () => Promise<FxRates>;
   /** Open Finance (Meu Pluggy): credenciais no servidor + cliente da API. */
   pluggy?: { credentials: PluggyCredentialStore; client: PluggyClient };
   /** Amostras de um vídeo via ffmpeg (quando o navegador não decodifica o formato). */
@@ -52,12 +54,17 @@ export interface Deps {
   scanConcurrency?: number;
 }
 
-async function awesomeApiFx(): Promise<number> {
-  const r = await fetch("https://economia.awesomeapi.com.br/last/USD-BRL", { signal: AbortSignal.timeout(6000) });
-  const j = (await r.json()) as { USDBRL?: { bid?: string } };
-  const bid = Number(j.USDBRL?.bid);
-  if (!Number.isFinite(bid) || bid <= 0) throw new Error(L("resposta inesperada", "unexpected response"));
-  return bid;
+async function awesomeApiFx(): Promise<FxRates> {
+  const pairs = FX_CODES.map((c) => `${c}-${BASE_CURRENCY}`).join(",");
+  const r = await fetch(`https://economia.awesomeapi.com.br/last/${pairs}`, { signal: AbortSignal.timeout(6000) });
+  const j = (await r.json()) as Record<string, { bid?: string }>;
+  const out: FxRates = {};
+  for (const c of FX_CODES) {
+    const bid = Number(j[`${c}${BASE_CURRENCY}`]?.bid);
+    if (Number.isFinite(bid) && bid > 0) out[c] = bid;
+  }
+  if (!Object.keys(out).length) throw new Error(L("resposta inesperada", "unexpected response"));
+  return out;
 }
 
 /** Abre um stream Server-Sent Events; aborta `signal` se o cliente desconectar. */
@@ -155,7 +162,7 @@ export function createApp(deps: Deps) {
   // Cotação do dólar (opcional; o usuário também pode digitar manualmente).
   app.get("/api/fx", async (_req, res) => {
     try {
-      res.json({ usdBrl: await (deps.fetchFx ?? awesomeApiFx)() });
+      res.json({ fx: await (deps.fetchFx ?? awesomeApiFx)() });
     } catch {
       res.status(502).json({ error: L("Não foi possível obter a cotação agora.", "Couldn't fetch the exchange rate right now.") });
     }

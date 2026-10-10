@@ -1,7 +1,8 @@
 import { X } from "lucide-react";
+import type { FxRates } from "../../shared/currency";
 import { CLASS_META, type AssetClass, type Position } from "../../shared/types";
 import { toBRL } from "../../shared/arca";
-import { brl, pct } from "../lib/format";
+import { amt, pct } from "../lib/format";
 import { ClassLabel } from "./ui";
 import { L } from "../../shared/i18n";
 
@@ -9,19 +10,19 @@ import { L } from "../../shared/i18n";
 export function ClassAssets({
   assetClass,
   positions,
-  usdBrl,
+  fx,
   showOwner,
   onClose,
 }: {
   assetClass: AssetClass;
   positions: Position[];
-  usdBrl: number;
+  fx: FxRates;
   showOwner: boolean;
   onClose: () => void;
 }) {
   const items = positions
     .filter((p) => p.assetClass === assetClass)
-    .map((p) => ({ p, v: toBRL(p, usdBrl) }))
+    .map((p) => ({ p, v: toBRL(p, fx) }))
     .sort((a, b) => b.v - a.v);
   const total = items.reduce((s, x) => s + x.v, 0);
   const color = CLASS_META[assetClass].color;
@@ -31,7 +32,7 @@ export function ClassAssets({
       <div className="row spread" style={{ marginBottom: 8 }}>
         <div className="row">
           <ClassLabel c={assetClass} />
-          <span className="muted small">· {L(`${items.length} ativo${items.length === 1 ? "" : "s"}`, `${items.length} asset${items.length === 1 ? "" : "s"}`)} · {brl(total)}</span>
+          <span className="muted small">· {L(`${items.length} ativo${items.length === 1 ? "" : "s"}`, `${items.length} asset${items.length === 1 ? "" : "s"}`)} · {amt(total)}</span>
         </div>
         <button className="btn ghost icon sm" onClick={onClose} title={L("Fechar", "Close")} aria-label={L("Fechar lista", "Close list")}>
           <X size={14} />
@@ -61,7 +62,7 @@ export function ClassAssets({
                       </div>
                     </td>
                     <td className="right num muted ga-side" style={{ width: 70 }}>{pct(share)}</td>
-                    <td className="right num ga-val" style={{ width: 130 }}><b>{brl(v)}</b></td>
+                    <td className="right num ga-val" style={{ width: 130 }}><b>{amt(v)}</b></td>
                   </tr>
                 );
               })}

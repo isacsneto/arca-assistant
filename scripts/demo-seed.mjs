@@ -55,7 +55,8 @@ export function buildDemoState(now = new Date()) {
     assets,
     scans: {},
     settings: {
-      usdBrl: 5.0,
+      fx: { USD: 5.0 },
+      displayCurrency: "BRL",
       methodology: "arca",
       targets: { acoes: 25, fiis: 25, caixa: 25, internacional: 25 },
       investorProfile: "Investidor fictício de 35 anos, horizonte de 20+ anos, tolerância moderada a volatilidade, foco em renda passiva.",

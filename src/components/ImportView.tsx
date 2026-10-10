@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CURRENCY_CODES, type CurrencyCode } from "../../shared/currency";
 import {
   Copy, FileSpreadsheet, FileText, HelpCircle, Image as ImageIcon, Loader2, MessageSquare, Send, Sparkles, Upload, Video, X,
 } from "lucide-react";
@@ -324,7 +325,7 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
                         <td className="ga-c" style={{ minWidth: 150 }}><ClassSelect value={d.assetClass} onChange={(assetClass) => patch(d._id, { assetClass, confidence: "alta" })} /></td>
                         <td className="ga-val" style={{ minWidth: 130 }}><input className="cell num right" type="number" step="0.01" value={d.value} onChange={(e) => patch(d._id, { value: Number(e.target.value) })} /></td>
                         <td className="ga-d">
-                          <select className="cell" value={d.currency} onChange={(e) => patch(d._id, { currency: e.target.value as "BRL" | "USD" })}><option>BRL</option><option>USD</option></select>
+                          <select className="cell" value={d.currency} onChange={(e) => patch(d._id, { currency: e.target.value as CurrencyCode })}>{CURRENCY_CODES.map((c) => <option key={c}>{c}</option>)}</select>
                         </td>
                         <td className="small ga-e">
                           {pendingQ && <span className="chip warn" title={L("Há uma pergunta da IA sobre este item", "The AI has a question about this item")}>{L("pergunta", "question")}</span>}{" "}

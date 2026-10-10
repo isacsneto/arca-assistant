@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { CURRENCIES, CURRENCY_CODES, fxSummary } from "../../shared/currency";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { ChevronRight, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { ALL_CLASSES, ARCA_CLASSES, CLASS_META, OWNERS, type AssetClass, type Currency, type Owner, type Position, type RefreshResult } from "../../shared/types";
@@ -10,7 +11,7 @@ import { summarizeAssets } from "../../shared/assets";
 import { classRows, computeAllocation, toBRL } from "../../shared/arca";
 import { useStore } from "../store";
 import { L, locale } from "../../shared/i18n";
-import { brl, brl0, pct, signedPp, uid } from "../lib/format";
+import { amt, amt0, pct, signedPp, uid, displayCurrency } from "../lib/format";
 import { ClassDot, ClassLabel, ClassSelect, Empty, PageHead } from "./ui";
 
 const statusLabel = () => ({ ok: L("Em equilíbrio", "Balanced"), warn: L("Atenção", "Watch"), bad: L("Fora da meta", "Off target") }) as const;
@@ -41,7 +42,7 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
   const assetSummary = useMemo(() => summarizeAssets(state!.assets, view), [state, view]);
   const showOwner = view === "all";
 
-  const alloc = useMemo(() => computeAllocation(positions, settings.usdBrl), [positions, settings.usdBrl]);
+  const alloc = useMemo(() => computeAllocation(positions, settings.fx), [positions, settings.fx]);
   const rows = useMemo(() => classRows(alloc, settings.targets), [alloc, settings.targets]);
   const worst = rows.reduce((a, b) => (Math.abs(b.driftPp) > Math.abs(a.driftPp) ? b : a), rows[0]);
   const oldestTs = Math.min(...positions.map((p) => Date.parse(p.updatedAt)).filter(Number.isFinite));
@@ -104,14 +105,14 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
       <div className="grid kpis" style={{ marginBottom: 16 }}>
         <div className="card kpi">
           <div className="label">{L("Patrimônio total", "Net worth")}</div>
-          <div className="value num">{brl0(alloc.grandTotal)}</div>
+          <div className="value num">{amt0(alloc.grandTotal)}</div>
           <div className="sub">{L(`${positions.length} posições`, `${positions.length} position${positions.length === 1 ? "" : "s"}`)}{oldest ? L(` · valor mais antigo: ${oldest}`, ` · oldest value: ${oldest}`) : ""}</div>
         </div>
-        <div className="card kpi"><div className="label">{L("Base Arca", "Arca base")}</div><div className="value num">{brl0(alloc.arcaTotal)}</div><div className="sub">{L("4 classes rebalanceáveis", "4 rebalanceable classes")}</div></div>
-        <div className="card kpi"><div className="label">{L("Fora da Arca", "Outside the Arca")}</div><div className="value num">{brl0(alloc.outrosTotal)}</div><div className="sub">{L("cripto, ouro, etc.", "crypto, gold, etc.")}</div></div>
+        <div className="card kpi"><div className="label">{L("Base Arca", "Arca base")}</div><div className="value num">{amt0(alloc.arcaTotal)}</div><div className="sub">{L("4 classes rebalanceáveis", "4 rebalanceable classes")}</div></div>
+        <div className="card kpi"><div className="label">{L("Fora da Arca", "Outside the Arca")}</div><div className="value num">{amt0(alloc.outrosTotal)}</div><div className="sub">{L("cripto, ouro, etc.", "crypto, gold, etc.")}</div></div>
         <button type="button" className="card kpi kpi-link assets-kpi" onClick={goAssets} title={L("Patrimônio físico — não somado aos investimentos", "Physical assets — not added to investments")}>
           <div className="label">{L("Bens físicos", "Physical assets")}</div>
-          <div className="value num">{brl0(assetSummary.total)}</div>
+          <div className="value num">{amt0(assetSummary.total)}</div>
           <div className="sub">{assetSummary.count ? L(`${assetSummary.count} ite${assetSummary.count === 1 ? "m" : "ns"} · fora dos investimentos`, `${assetSummary.count} item${assetSummary.count === 1 ? "" : "s"} · outside investments`) : L("cadastre carros, imóveis, joias…", "add cars, real estate, jewelry…")}</div>
         </button>
         <div className="card kpi">
@@ -134,7 +135,7 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
                   onClick={(_d, i) => toggleClass(rows[i].assetClass)} style={{ cursor: "pointer" }}>
                   {pieCurrent.map((d, i) => <Cell key={i} fill={d.color} fillOpacity={openClass && openClass !== rows[i].assetClass ? 0.35 : 1} />)}
                 </Pie>
-                <Tooltip formatter={(v, _n, item) => (item?.payload?.kind === "meta" ? pct(Number(v), 0) : brl(Number(v)))} />
+                <Tooltip formatter={(v, _n, item) => (item?.payload?.kind === "meta" ? pct(Number(v), 0) : amt(Number(v)))} />
               </PieChart>
             </ResponsiveContainer>
             <div className="muted small right" style={{ marginTop: -4 }}>{L("anel externo = atual · interno = meta", "outer ring = current · inner = target")}</div>
@@ -151,7 +152,7 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
               >
                 <div className="row" style={{ gap: 6 }}>
                   <ChevronRight size={14} className="chev" />
-                  <div><ClassLabel c={r.assetClass} /><div className="muted small num">{brl(r.current)}</div></div>
+                  <div><ClassLabel c={r.assetClass} /><div className="muted small num">{amt(r.current)}</div></div>
                 </div>
                 <div className="bar" title={L(`Atual ${pct(r.currentPct)} · Meta ${pct(r.targetPct, 0)}`, `Current ${pct(r.currentPct)} · Target ${pct(r.targetPct, 0)}`)}>
                   <div className="fill" style={{ width: `${Math.min(r.currentPct, 100)}%`, background: CLASS_META[r.assetClass].color }} />
@@ -168,7 +169,7 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
                 <button type="button" className={"alloc-row clickable" + (openClass === "outros" ? " open" : "")} onClick={() => toggleClass("outros")} aria-expanded={openClass === "outros"}>
                   <div className="row" style={{ gap: 6 }}>
                     <ChevronRight size={14} className="chev" />
-                    <div><ClassLabel c="outros" /><div className="muted small num">{brl(alloc.outrosTotal)}</div></div>
+                    <div><ClassLabel c="outros" /><div className="muted small num">{amt(alloc.outrosTotal)}</div></div>
                   </div>
                   <div className="muted small">{L("não entra no rebalanceamento", "not included in rebalancing")}</div>
                   <div />
@@ -178,7 +179,7 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
           </div>
         </div>
         {openClass && (
-          <ClassAssets assetClass={openClass} positions={positions} usdBrl={settings.usdBrl} showOwner={showOwner} onClose={() => setOpenClass(null)} />
+          <ClassAssets assetClass={openClass} positions={positions} fx={settings.fx} showOwner={showOwner} onClose={() => setOpenClass(null)} />
         )}
       </div>
 
@@ -204,7 +205,7 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
               {ALL_CLASSES.map((c) => {
                 const items = filtered.filter((p) => p.assetClass === c);
                 if (!items.length) return null;
-                const sum = items.reduce((s, p) => s + toBRL(p, settings.usdBrl), 0);
+                const sum = items.reduce((s, p) => s + toBRL(p, settings.fx), 0);
                 // Ao filtrar, mostra os resultados mesmo em grupos recolhidos.
                 const isCollapsed = collapsed.has(c) && !query;
                 return [
@@ -218,10 +219,10 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
                         <span className="muted small" style={{ fontWeight: 400 }}>· {L(`${items.length} ativo${items.length === 1 ? "" : "s"}`, `${items.length} asset${items.length === 1 ? "" : "s"}`)}</span>
                       </span>
                     </td>
-                    <td className="right num">{brl(sum)}</td><td />
+                    <td className="right num">{amt(sum)}</td><td />
                   </tr>,
                   ...(isCollapsed ? [] : items)
-                    .sort((a, b) => toBRL(b, settings.usdBrl) - toBRL(a, settings.usdBrl))
+                    .sort((a, b) => toBRL(b, settings.fx) - toBRL(a, settings.fx))
                     .map((p) => (
                       <tr key={p.id}>
                         <td className="ga-main" style={{ minWidth: 200 }}>
@@ -247,7 +248,7 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
                             onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v !== p.value) patch(p.id, { value: v }); }}
                             aria-label={L(`Valor de ${p.name} (${p.currency})`, `Value of ${p.name} (${p.currency})`)}
                           />
-                          {p.currency === "USD" && <div className="muted small num">US$ · ≈ {brl(toBRL(p, settings.usdBrl))}</div>}
+                          {p.currency !== displayCurrency() && <div className="muted small num">{CURRENCIES[p.currency].symbol} · ≈ {amt(toBRL(p, settings.fx))}</div>}
                         </td>
                         <td className="right ga-act"><button className="btn ghost icon danger" title={L("Remover", "Remove")} onClick={() => remove(p.id)}><Trash2 size={16} /></button></td>
                       </tr>
@@ -260,8 +261,8 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
         </div>
         <p className="muted small" style={{ marginTop: 10 }}>
           {L(
-            `Classes da Arca: ${ARCA_CLASSES.map((c) => CLASS_META[c].label).join(" · ")}. Posições em dólar usam a cotação de R$ ${settings.usdBrl.toLocaleString(locale())} (altere em Ajustes).`,
-            `Arca classes: ${ARCA_CLASSES.map((c) => CLASS_META[c].label).join(" · ")}. Dollar positions use the R$ ${settings.usdBrl.toLocaleString(locale())} quote (change it in Settings).`,
+            `Classes da Arca: ${ARCA_CLASSES.map((c) => CLASS_META[c].label).join(" · ")}. Posições em outras moedas usam as cotações de Ajustes (${fxSummary(settings.fx)}) (altere em Ajustes).`,
+            `Arca classes: ${ARCA_CLASSES.map((c) => CLASS_META[c].label).join(" · ")}. Positions in other currencies use the rates in Settings (${fxSummary(settings.fx)}).`,
           )}
         </p>
       </div>
@@ -301,7 +302,7 @@ function AddPosition({ onAdd, onCancel, defaultOwner }: { onAdd: (p: Position) =
       </label>
       <label className="field" style={{ width: 160 }}>{L("Classe", "Class")}<ClassSelect className="" value={assetClass} onChange={setAssetClass} /></label>
       <label className="field" style={{ width: 80 }}>{L("Moeda", "Currency")}
-        <select value={currency} onChange={(e) => setCurrency(e.target.value as Currency)}><option>BRL</option><option>USD</option></select>
+        <select value={currency} onChange={(e) => setCurrency(e.target.value as Currency)}>{CURRENCY_CODES.map((c) => <option key={c}>{c}</option>)}</select>
       </label>
       <label className="field" style={{ width: 130 }}>{L("Valor", "Value")}<input type="number" step="0.01" value={value} onChange={(e) => setValue(e.target.value)} /></label>
       <button className="btn primary" disabled={!valid}>{L("Adicionar", "Add")}</button>

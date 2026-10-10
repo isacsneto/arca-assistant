@@ -1,3 +1,4 @@
+import { toCurrency } from "./currency";
 import type { AssetClass, ExtractedItem, ExtractionResult, FileReading, Owner, Position, RefreshLine } from "./types";
 import { norm, posKey } from "./importMerge";
 import { parseFileName } from "./fileHints";
@@ -243,7 +244,7 @@ function connectionItems(d: ConnectionData, institution: string, source: string,
       ticker,
       assetClass: c.assetClass,
       subtype: c.subtype,
-      currency: inv.currencyCode === "USD" ? "USD" : "BRL",
+      currency: toCurrency(inv.currencyCode),
       value: Math.round(value * 100) / 100,
       quantity: inv.quantity ?? null,
       date: inv.date?.slice(0, 10) ?? null,
@@ -261,7 +262,7 @@ function connectionItems(d: ConnectionData, institution: string, source: string,
         ticker: null,
         assetClass: "caixa",
         subtype: savings ? L("Poupança", "Savings account") : L("Conta corrente", "Checking account"),
-        currency: a.currencyCode === "USD" ? "USD" : "BRL",
+        currency: toCurrency(a.currencyCode),
         value: Math.round(a.balance! * 100) / 100,
         quantity: null,
         date: null,

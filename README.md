@@ -19,7 +19,7 @@ Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
 ![Open Finance](https://img.shields.io/badge/Open%20Finance-Pluggy-6c47ff)
 ![PWA](https://img.shields.io/badge/PWA-iOS%20%26%20Android-5a0fc8)
-![Tests](https://img.shields.io/badge/tests-147%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-153%20passing-2ea44f)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 <br/>
@@ -44,6 +44,7 @@ Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes
 | 🎬 **Screen recordings** | Record your screen scrolling the bank app instead of taking ten screenshots. The app picks **one frame per screen** (skipping scroll blur and repeats) and the AI reads them like screenshots. MP4, MOV, WEBM… |
 | 🏦 **Open Finance** | Connect your banks through [Meu Pluggy](https://meu.pluggy.ai) (free for personal use) and pull investments straight from the source — fixed income, stocks, FIIs, ETFs, funds, pension plans — already classified into the Arca. It can be the **source of truth**: it replaces what you had at that institution and feeds *Update values*. |
 | 🌐 **English and Portuguese** | The whole UI in both languages (switch in Settings or in the menu footer). The AI writes scans, projections and questions in the chosen language. |
+| 💱 **Real & US dollar** | Each position keeps its own currency (BRL or USD); totals, charts, rebalancing and projection can be shown in **reais or dollars** (Settings → Currency). Exchange rates refresh automatically, and the currency registry is ready for more (EUR, GBP…). |
 | 📱 **Mobile-first PWA** | Designed for iPhone and Android (tab bar, bottom sheets, no zoom on inputs) and **installable on the home screen**. Reach it away from home through Tailscale, without exposing anything to the internet. |
 | 🧠 **Understands file names** | `itau-pf-cdb100cdi.png` → Itaú · individual (PF) · CDB at 100% of CDI. The AI double-checks it. |
 | 🔁 **Duplicate detection** | Identical files (SHA-256), near-identical screenshots (perceptual hash) and the same screen in different screenshots (the AI compares the content). |
@@ -221,18 +222,20 @@ flowchart LR
 ## 🛠️ Development
 
 ```bash
-npm test             # 147 tests (node:test + tsx)
+npm test             # 153 tests (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # local production at http://localhost:3001
 API_PORT=3101 npx vite       # front-end against another instance (e.g. the demo)
 ```
 
 ```
-shared/   rules and types (Arca, projection, import, duplicates, PF/PJ, AI, Open Finance, i18n) — tested
+shared/   rules and types (Arca, projection, import, duplicates, PF/PJ, AI, Open Finance, i18n, currencies) — tested
 server/   Express, AI tasks (tasks.ts), engines in server/ai/, quotes, Pluggy, video, attachments
 src/      React: Portfolio, Rebalance, Projection, Institutions, Assets, Import, Scan…
 scripts/  demo with a fictional portfolio, local.mjs (always on) and per-OS services (windows/, unix/)
 ```
+
+**Adding a currency:** add one entry to `CURRENCIES` in `shared/currency.ts` (symbol, name, fallback rate). Its exchange rate is fetched automatically (Yahoo `EURBRL=X`, AwesomeAPI `EUR-BRL`), and it shows up in the selectors, in the AI import schema and in Open Finance. Totals are computed in the base currency (BRL) and converted for display.
 
 `ARCA_DATA_DIR` points to another data folder (that's how the demo runs without touching your data). UI strings are written in both languages in place: `L("Carteira", "Portfolio")` (see `shared/i18n.ts`).
 

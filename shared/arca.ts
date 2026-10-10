@@ -5,9 +5,11 @@ import {
   type Position,
   type Settings,
 } from "./types";
+import { rate, type FxRates } from "./currency";
 
-export function toBRL(p: Pick<Position, "value" | "currency">, usdBrl: number): number {
-  return p.currency === "USD" ? p.value * usdBrl : p.value;
+/** Valor da posição na moeda base (BRL), pelas cotações dos ajustes. */
+export function toBRL(p: Pick<Position, "value" | "currency">, fx: FxRates): number {
+  return p.value * rate(fx, p.currency);
 }
 
 export interface Allocation {
@@ -17,7 +19,7 @@ export interface Allocation {
   grandTotal: number;
 }
 
-export function computeAllocation(positions: Position[], usdBrl: number): Allocation {
+export function computeAllocation(positions: Position[], fx: FxRates): Allocation {
   const byClass: Record<AssetClass, number> = {
     acoes: 0,
     fiis: 0,
@@ -25,7 +27,7 @@ export function computeAllocation(positions: Position[], usdBrl: number): Alloca
     internacional: 0,
     outros: 0,
   };
-  for (const p of positions) byClass[p.assetClass] += toBRL(p, usdBrl);
+  for (const p of positions) byClass[p.assetClass] += toBRL(p, fx);
   const arcaTotal = ARCA_CLASSES.reduce((s, c) => s + byClass[c], 0);
   return { byClass, arcaTotal, outrosTotal: byClass.outros, grandTotal: arcaTotal + byClass.outros };
 }

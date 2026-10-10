@@ -17,7 +17,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 ![Claude](https://img.shields.io/badge/Claude-Agent%20SDK-d97757)
 ![Codex](https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white)
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
-![Testes](https://img.shields.io/badge/testes-147%20passando-2ea44f)
+![Testes](https://img.shields.io/badge/testes-153%20passando-2ea44f)
 ![Licença: MIT](https://img.shields.io/badge/licença-MIT-blue)
 
 <br/>
@@ -38,6 +38,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 | 🎬 **Vídeo de tela** | Grave a tela rolando o app do banco em vez de tirar dez prints. O app escolhe **um quadro por tela** (descarta o borrão da rolagem e as repetições) e a IA lê como prints. MP4, MOV, WEBM… |
 | 🏦 **Open Finance** | Conecte seus bancos pelo [Meu Pluggy](https://meu.pluggy.ai) (grátis para uso pessoal) e puxe os investimentos direto da fonte — renda fixa, ações, FIIs, ETFs, fundos, previdência — já classificados na Arca. Pode ser a **fonte da verdade**: substitui o que havia na instituição e alimenta o *Atualizar valores*. |
 | 🌐 **Inglês e português** | Interface nos dois idiomas (troque em Ajustes ou no rodapé do menu). A IA escreve scans, projeções e perguntas no idioma escolhido. |
+| 💱 **Real e dólar** | Cada posição fica na própria moeda (BRL ou USD); totais, gráficos, rebalanceamento e projeção podem ser mostrados em **reais ou dólares** (Ajustes → Moeda). As cotações se atualizam sozinhas, e o registro de moedas está pronto para outras (EUR, GBP…). |
 | 📱 **No celular** | Interface feita para iPhone e Android (barra de abas, folhas que sobem de baixo, campos sem zoom) e **instalável na tela inicial**. Acesso de fora de casa pelo Tailscale, sem expor nada na internet. |
 | 🧠 **Entende o nome do arquivo** | `itau-pf-cdb100cdi.png` → Itaú · pessoa física · CDB 100% do CDI. A IA confere a leitura. |
 | 🔁 **Detecta duplicados** | Arquivo idêntico (SHA-256), print quase igual (hash visual) e mesma tela em prints diferentes (a IA compara o conteúdo). |
@@ -212,7 +213,7 @@ flowchart LR
 ## 🛠️ Desenvolvimento
 
 ```bash
-npm test             # 147 testes (node:test + tsx)
+npm test             # 153 testes (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # produção local em http://localhost:3001
 ```
@@ -223,6 +224,8 @@ server/   Express, tarefas de IA (tasks.ts), motores em server/ai/, cotações, 
 src/      React: Carteira, Rebalancear, Projeção, Instituições, Bens, Importar, Scan…
 scripts/  demo com carteira fictícia, local.mjs (rodar sempre) e serviços por sistema (windows/, unix/)
 ```
+
+**Adicionar uma moeda:** acrescente uma entrada em `CURRENCIES` no `shared/currency.ts` (símbolo, nome, cotação padrão). A cotação é buscada sozinha (Yahoo `EURBRL=X`, AwesomeAPI `EUR-BRL`) e ela aparece nos seletores, no schema de importação da IA e no Open Finance. Os totais são calculados na moeda base (BRL) e convertidos para exibição.
 
 `ARCA_DATA_DIR` aponta para outra pasta de dados (é assim que a demo roda sem tocar nos seus dados).
 

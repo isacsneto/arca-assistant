@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { fxSummary } from "../../shared/currency";
 import { Check, X } from "lucide-react";
 import type { RefreshLine, RefreshResult } from "../../shared/types";
 import { applyRefresh, isChange } from "../../shared/refreshApply";
 import { toBRL } from "../../shared/arca";
 import { useStore } from "../store";
 import type { Job } from "../lib/useJob";
-import { brl, dateTime, money, safeUrl } from "../lib/format";
+import { amt, dateTime, money, safeUrl } from "../lib/format";
 import { Banner } from "./ui";
 import { JobProgress } from "./JobProgress";
 import { L, locale } from "../../shared/i18n";
@@ -28,19 +29,19 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
     if (result) setApproved(new Set(result.lines.filter(isChange).map((l) => l.id)));
   }, [result]);
 
-  const usdNew = result?.usdBrl ?? state!.settings.usdBrl;
+  const fxNew = { ...state!.settings.fx, ...result?.fx };
   const totals = useMemo(() => {
     if (!result) return null;
-    const usdOld = state!.settings.usdBrl;
+    const fxOld = state!.settings.fx;
     let before = 0;
     let after = 0;
     for (const l of result.lines) {
-      before += toBRL({ value: l.oldValue, currency: l.currency }, usdOld);
+      before += toBRL({ value: l.oldValue, currency: l.currency }, fxOld);
       const v = approved.has(l.id) ? l.newValue : l.oldValue;
-      after += toBRL({ value: v, currency: l.currency }, usdNew);
+      after += toBRL({ value: v, currency: l.currency }, fxNew);
     }
     return { before, after };
-  }, [result, approved, state, usdNew]);
+  }, [result, approved, state]);
 
   if (job.running) return <JobProgress job={job} onCancel={job.cancel} />;
   if (job.error && !result) return <Banner kind="bad">{L("Falha ao atualizar valores:", "Failed to update values:")} {job.error}</Banner>;
@@ -52,7 +53,7 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
     update((s) => ({
       ...s,
       positions: applyRefresh(s.positions, result.lines, approved, now),
-      settings: result.usdBrl ? { ...s.settings, usdBrl: Math.round(result.usdBrl * 10000) / 10000 } : s.settings,
+      settings: result.fx ? { ...s.settings, fx: { ...s.settings.fx, ...result.fx } } : s.settings,
     }));
     job.clear();
   };
@@ -72,7 +73,7 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
           <h2>{L("Valores atualizados", "Updated values")}</h2>
           <p className="muted small">
             {dateTime(result.runAt)} · {L(`${changed.length} de ${result.lines.length} posições mudaram`, `${changed.length} of ${result.lines.length} positions changed`)}
-            {result.usdBrl ? ` · ${L("dólar", "dollar")} R$ ${result.usdBrl.toLocaleString(locale(), { maximumFractionDigits: 4 })}` : ""}
+            {result.fx ? ` · ${fxSummary(result.fx)}` : ""}
           </p>
         </div>
         <div className="row">
@@ -82,12 +83,12 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
       </div>
 
       <div className="grid kpis" style={{ marginBottom: 14 }}>
-        <div className="kpi"><div className="label">{L("Antes", "Before")}</div><div className="value num" style={{ fontSize: 20 }}>{brl(totals.before)}</div></div>
-        <div className="kpi"><div className="label">{L("Depois", "After")}</div><div className="value num" style={{ fontSize: 20 }}>{brl(totals.after)}</div></div>
+        <div className="kpi"><div className="label">{L("Antes", "Before")}</div><div className="value num" style={{ fontSize: 20 }}>{amt(totals.before)}</div></div>
+        <div className="kpi"><div className="label">{L("Depois", "After")}</div><div className="value num" style={{ fontSize: 20 }}>{amt(totals.after)}</div></div>
         <div className="kpi">
           <div className="label">{L("Variação", "Change")}</div>
           <div className="value num" style={{ fontSize: 20, color: diff >= 0 ? "var(--ok)" : "var(--bad)" }}>
-            {diff >= 0 ? "+" : "−"}{brl(Math.abs(diff))}
+            {diff >= 0 ? "+" : "−"}{amt(Math.abs(diff))}
           </div>
           <div className="sub">{totals.before > 0 ? `${((diff / totals.before) * 100).toLocaleString(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : ""}</div>
         </div>

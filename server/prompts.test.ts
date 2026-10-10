@@ -16,11 +16,11 @@ test("scanPrompt inclui data, meta, % atual e as posições da classe (maiores p
     p({ name: "Tesouro Selic", assetClass: "caixa", value: 4000 }),
     p({ name: "VOO", assetClass: "internacional", currency: "USD", value: 1000 }),
   ];
-  const settings = { ...DEFAULT_SETTINGS, usdBrl: 2 };
+  const settings = { ...DEFAULT_SETTINGS, fx: { USD: 2 } };
   const out = scanPrompt({
     assetClass: "fiis",
     today: "9 de outubro de 2026",
-    allocation: computeAllocation(positions, settings.usdBrl),
+    allocation: computeAllocation(positions, settings.fx),
     settings,
     positions,
   });
@@ -34,7 +34,7 @@ test("scanPrompt inclui data, meta, % atual e as posições da classe (maiores p
 
 test("scanPrompt com classe vazia avisa que não há posições", () => {
   const out = scanPrompt({
-    assetClass: "internacional", today: "hoje", allocation: computeAllocation([], 5),
+    assetClass: "internacional", today: "hoje", allocation: computeAllocation([], { USD: 5 }),
     settings: DEFAULT_SETTINGS, positions: [],
   });
   assert.match(out, /\(nenhuma ainda\)/);

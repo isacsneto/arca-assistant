@@ -52,7 +52,7 @@ async function withServer(
     estimateAsset: async () => {
       throw new Error("não usado");
     },
-    refreshValues: async () => ({ runAt: "", usdBrl: null, lines: [] }),
+    refreshValues: async () => ({ runAt: "", fx: null, lines: [] }),
     projectPortfolio: async () => {
       throw new Error("não usado");
     },
@@ -167,8 +167,8 @@ test("POST /api/scan: transmite eventos, salva resultados e isola falhas por cla
 });
 
 test("GET /api/fx devolve a cotação ou 502", async () => {
-  await withServer({ fetchFx: async () => 5.43 }, async (base) => {
-    assert.deepEqual(await (await fetch(`${base}/api/fx`)).json(), { usdBrl: 5.43 });
+  await withServer({ fetchFx: async () => ({ USD: 5.43 }) }, async (base) => {
+    assert.deepEqual(await (await fetch(`${base}/api/fx`)).json(), { fx: { USD: 5.43 } });
   });
   await withServer({ fetchFx: async () => { throw new Error("offline"); } }, async (base) => {
     assert.equal((await fetch(`${base}/api/fx`)).status, 502);
@@ -199,7 +199,7 @@ test("POST /api/refresh exige carteira, transmite progresso e NÃO altera o esta
     assert.equal((await fetch(`${base}/api/refresh`, json({}))).status, 400);
   });
 
-  const result: RefreshResult = { runAt: "agora", usdBrl: 5.1, lines: [] };
+  const result: RefreshResult = { runAt: "agora", fx: { USD: 5.1 }, lines: [] };
   await withServer(
     {
       refreshValues: async (state, emit) => {

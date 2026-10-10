@@ -1,3 +1,4 @@
+import type { FxRates } from "../shared/currency";
 import {
   ClaudeRefreshSchema,
   ExtractionResultSchema,
@@ -98,7 +99,7 @@ export async function scanClass(assetClass: ArcaClass, state: AppState, emit: (e
   emit({ type: "status", assetClass, text: L("Iniciando pesquisa…", "Starting research…") });
   const { data, searches } = await runAi(ai, {
     system: scanSystem(),
-    prompt: scanPrompt({ assetClass, today: todayBR(), allocation: computeAllocation(positions, settings.usdBrl), settings, positions }),
+    prompt: scanPrompt({ assetClass, today: todayBR(), allocation: computeAllocation(positions, settings.fx), settings, positions }),
     schema: ScanReportSchema,
     web: true,
     maxTurns: 80,
@@ -110,13 +111,13 @@ export async function scanClass(assetClass: ArcaClass, state: AppState, emit: (e
 
 export async function refreshWithAi(
   positions: Position[],
-  ctx: { usdBrl: number; state: AppState },
+  ctx: { fx: FxRates; state: AppState },
   emit: (e: Progress) => void,
   signal: AbortSignal,
 ): Promise<ClaudeRefresh> {
   const { data } = await runAi(aiFor(ctx.state.settings, "refresh"), {
     system: REFRESH_SYSTEM,
-    prompt: refreshPrompt({ positions, today: todayBR(), usdBrl: ctx.usdBrl }),
+    prompt: refreshPrompt({ positions, today: todayBR(), fx: ctx.fx }),
     schema: ClaudeRefreshSchema,
     web: true,
     maxTurns: 40,
@@ -129,7 +130,7 @@ export async function refreshWithAi(
 export async function projectWithAi(state: AppState, emit: (e: JobEvent<ProjectionResult>) => void, signal: AbortSignal): Promise<ProjectionResult> {
   const { settings, positions } = state;
   const ai = aiFor(settings, "projection");
-  const baseTotal = positions.reduce((s, p) => s + toBRL(p, settings.usdBrl), 0);
+  const baseTotal = positions.reduce((s, p) => s + toBRL(p, settings.fx), 0);
   emit({ type: "status", text: L("Iniciando pesquisa de cenários…", "Starting scenario research…") });
   const { data, searches } = await runAi(ai, {
     system: PROJECTION_SYSTEM,

@@ -1,4 +1,5 @@
 import type { Position } from "../shared/types";
+import { BASE_CURRENCY, convert as convertCurrency, isCurrency, type CurrencyCode, type FxRates } from "../shared/currency";
 
 /*
  * Cotações via endpoint público do Yahoo Finance (sem chave).
@@ -50,13 +51,15 @@ export function closeAt(history: Quote["history"], isoDate: string): number | nu
   return best ?? history[0].close;
 }
 
-/** Converte um valor entre BRL e USD. Outras moedas não são suportadas (retorna null). */
-export function convert(value: number, from: string, to: string, usdBrl: number): number | null {
+/** Converte entre moedas do registro (cotação do Yahoo pode vir em qualquer código); desconhecida = null. */
+export function convert(value: number, from: string, to: string, fx: FxRates): number | null {
   if (from === to) return value;
-  if (from === "USD" && to === "BRL") return value * usdBrl;
-  if (from === "BRL" && to === "USD") return value / usdBrl;
-  return null;
+  if (!isCurrency(from) || !isCurrency(to)) return null;
+  return convertCurrency(value, from, to, fx);
 }
+
+/** Símbolo do Yahoo para a cotação de uma moeda na moeda base (ex.: USD → "USDBRL=X"). */
+export const fxSymbol = (code: CurrencyCode) => `${code}${BASE_CURRENCY}=X`;
 
 export const yahooQuote: FetchQuote = async (symbol) => {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=2y&interval=1d`;

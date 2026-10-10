@@ -1,4 +1,5 @@
 import { toBRL } from "./arca";
+import type { FxRates } from "./currency";
 import {
   ALL_CLASSES,
   type AssetClass,
@@ -49,19 +50,19 @@ export interface Projection {
 
 export function project(
   positions: Position[],
-  usdBrl: number,
+  fx: FxRates,
   a: ProjectionAssumptions,
   years: readonly number[],
 ): Projection {
   const missing = new Set<string>();
-  const start = positions.reduce((s, p) => s + toBRL(p, usdBrl), 0);
+  const start = positions.reduce((s, p) => s + toBRL(p, fx), 0);
 
   const points = years.map((y) => {
     const byClass = Object.fromEntries(ALL_CLASSES.map((c) => [c, { base: 0, worst: 0 }])) as HorizonPoint["byClass"];
     let base = 0;
     let worst = 0;
     for (const p of positions) {
-      const v = toBRL(p, usdBrl);
+      const v = toBRL(p, fx);
       const rb = rateFor(p, a, "base");
       const rw = rateFor(p, a, "worst");
       if (!rb || !rw) missing.add(p.id);

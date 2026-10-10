@@ -14,7 +14,7 @@ const p = (o: Partial<Position>): Position => ({
 });
 
 const quotes: Record<string, Quote> = {
-  "BRL=X": { symbol: "BRL=X", price: 5, currency: "BRL", history: [] },
+  "USDBRL=X": { symbol: "USDBRL=X", price: 5, currency: "BRL", history: [] },
   "PETR4.SA": { symbol: "PETR4.SA", price: 56, currency: "BRL", history: [{ t: ts("2026-09-01T13:00:00Z"), close: 40 }] },
   VOO: { symbol: "VOO", price: 700, currency: "USD", history: [{ t: ts("2026-09-01T13:00:00Z"), close: 600 }] },
 };
@@ -40,7 +40,7 @@ async function run(
 
 test("ativo com quantidade: quantidade × cotação; câmbio atualizado", async () => {
   const { r, line } = await run([p({ id: "petr", ticker: "PETR4", quantity: 500, value: 20000 })]);
-  assert.equal(r.usdBrl, 5);
+  assert.deepEqual(r.fx, { USD: 5 });
   assert.equal(line("petr").method, "cotacao");
   assert.equal(line("petr").newValue, 28000);
   assert.match(line("petr").source!, /PETR4\.SA/);
@@ -108,7 +108,7 @@ test("sem internet para cotações: usa o dólar dos ajustes e manda tudo ao Cla
   const { r, claudeCalledWith } = await run([p({ id: "petr", ticker: "PETR4" })], undefined, async () => {
     throw new Error("offline");
   });
-  assert.equal(r.usdBrl, null);
+  assert.equal(r.fx, null);
   assert.deepEqual(claudeCalledWith, ["petr"]);
 });
 

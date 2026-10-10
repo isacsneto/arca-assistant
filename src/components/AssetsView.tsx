@@ -8,7 +8,7 @@ import { EstimateCell, EstimateDetails, type EstimateRun } from "./AssetEstimate
 import { inView, VIEW_LABEL } from "../../shared/owner";
 import { OWNERS, type Owner } from "../../shared/types";
 import { useStore } from "../store";
-import { brl, pct, uid } from "../lib/format";
+import { amt, pct, uid } from "../lib/format";
 import { Empty, PageHead } from "./ui";
 import { L, getLang } from "../../shared/i18n";
 
@@ -112,13 +112,13 @@ export function AssetsView() {
       <div className="grid kpis" style={{ marginBottom: 16 }}>
         <div className="card kpi">
           <div className="label">{L("Total em bens", "Total in assets")}</div>
-          <div className="value num">{brl(summary.total)}</div>
+          <div className="value num">{amt(summary.total)}</div>
           <div className="sub">{itemsLabel(summary.count)}{view !== "all" ? ` · ${VIEW_LABEL[view].toLowerCase()}` : ""}</div>
         </div>
         {summary.byType.map((t) => (
           <div className="card kpi" key={t.type}>
             <div className="label row" style={{ gap: 6 }}><span className="dot" style={{ background: ASSET_TYPES[t.type].color }} />{ASSET_TYPES[t.type].label}</div>
-            <div className="value num" style={{ fontSize: 20 }}>{brl(t.total)}</div>
+            <div className="value num" style={{ fontSize: 20 }}>{amt(t.total)}</div>
             <div className="sub">{itemsLabel(t.count)} · {pct(summary.total ? (t.total / summary.total) * 100 : 0, 0)}</div>
           </div>
         ))}
@@ -209,7 +209,7 @@ export function AssetsView() {
               <tfoot>
                 <tr>
                   <td colSpan={3}><b>Total</b></td>
-                  <td className="right num"><b>{brl(summary.total)}</b></td>
+                  <td className="right num"><b>{amt(summary.total)}</b></td>
                   <td className="num muted small">{estimatedTotal(visible)}</td>
                   <td colSpan={2} />
                 </tr>
@@ -274,5 +274,5 @@ function estimatedTotal(list: PhysicalAsset[]): string {
   const withEst = list.filter((a) => a.estimate).length;
   if (!withEst) return "";
   const total = list.reduce((s, a) => s + (a.estimate ? Math.round(a.estimate.estimate) : a.value), 0);
-  return `${L("IA", "AI")}: ${brl(total)}${withEst < list.length ? ` (${withEst}/${list.length} ${L("estimados", "estimated")})` : ""}`;
+  return `${L("IA", "AI")}: ${amt(total)}${withEst < list.length ? ` (${withEst}/${list.length} ${L("estimados", "estimated")})` : ""}`;
 }

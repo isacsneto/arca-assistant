@@ -1,5 +1,6 @@
 import type { AppState, ClaudeRefresh, JobEvent, Position, RefreshLine, RefreshResult } from "../shared/types";
-import { closeAt, convert, yahooSymbols, type FetchQuote } from "./quotes";
+import { closeAt, convert, fxSymbol, yahooSymbols, type FetchQuote } from "./quotes";
+import { FX_CODES, fxRates, type FxRates } from "../shared/currency";
 import { mapPool } from "./pool";
 import { L, locale } from "../shared/i18n";
 import { openFinanceRefresh, openFinanceSettings, type ConnectionData } from "../shared/openFinance";
@@ -9,7 +10,7 @@ export interface RefreshDeps {
   /** Estima valores de posições sem cotação (renda fixa, saldos, cripto sem ticker…). */
   claudeRefresh: (
     positions: Position[],
-    ctx: { usdBrl: number; state: AppState },
+    ctx: { fx: FxRates; state: AppState },
     emit: (e: JobEvent<never>) => void,
     signal: AbortSignal,
   ) => Promise<ClaudeRefresh>;
@@ -29,7 +30,7 @@ function fmt(n: number, digits = 2) {
 async function priceFromQuote(
   p: Position,
   fetchQuote: FetchQuote,
-  usdBrl: number,
+  fx: FxRates,
 ): Promise<RefreshLine | null> {
   for (const symbol of yahooSymbols(p)) {
     const q = await fetchQuote(symbol).catch(() => null);
@@ -38,14 +39,14 @@ async function priceFromQuote(
     let quantity = p.quantity;
     let inferredFrom: string | null = null;
     if (!(quantity && quantity > 0)) {
-      const oldInQuoteCcy = convert(p.value, p.currency, q.currency, usdBrl);
+      const oldInQuoteCcy = convert(p.value, p.currency, q.currency, fx);
       const close = closeAt(q.history, p.updatedAt);
       if (oldInQuoteCcy == null || !close) continue;
       quantity = oldInQuoteCcy / close;
       const date = new Date(p.updatedAt).toLocaleDateString(locale());
       inferredFrom = L(`${date} a ${fmt(close)} ${q.currency}`, `${date} at ${fmt(close)} ${q.currency}`);
     }
-    const newValue = convert(quantity * q.price, q.currency, p.currency, usdBrl);
+    const newValue = convert(quantity * q.price, q.currency, p.currency, fx);
     if (newValue == null) continue;
 
     return {
@@ -82,9 +83,16 @@ export async function refreshValues(
   const now = (deps.now ?? (() => new Date()))();
   const lines = new Map<string, RefreshLine>();
 
-  emit({ type: "status", text: L("Buscando cotação do dólar…", "Fetching the dollar exchange rate…") });
-  const fx = await deps.fetchQuote("BRL=X").catch(() => null);
-  const usdBrl = fx?.price ?? state.settings.usdBrl;
+  // Cotação de cada moeda do registro (hoje: dólar) na moeda base.
+  emit({ type: "status", text: L("Buscando cotações das moedas…", "Fetching exchange rates…") });
+  const fetched: FxRates = {};
+  await Promise.all(
+    FX_CODES.map(async (c) => {
+      const q = await deps.fetchQuote(fxSymbol(c)).catch(() => null);
+      if (q && q.price > 0) fetched[c] = q.price;
+    }),
+  );
+  const fx: FxRates = { ...fxRates(state.settings.fx), ...fetched };
 
   // Open Finance primeiro: as instituições conectadas ficam fora da cotação/IA.
   const extra: RefreshLine[] = [];
@@ -117,7 +125,7 @@ export async function refreshValues(
   const pending: Position[] = [];
   await mapPool(state.positions.filter((p) => !covered.has(p.id)), 4, async (p) => {
     if (signal.aborted) return;
-    const line = await priceFromQuote(p, deps.fetchQuote, usdBrl);
+    const line = await priceFromQuote(p, deps.fetchQuote, fx);
     if (line) lines.set(p.id, line);
     else pending.push(p);
   });
@@ -138,7 +146,7 @@ export async function refreshValues(
         `Researching ${forClaude.length} positions without a market quote (fixed income, balances…)…`,
       ) });
     try {
-      const res = await deps.claudeRefresh(forClaude, { usdBrl, state }, emit as (e: JobEvent<never>) => void, signal);
+      const res = await deps.claudeRefresh(forClaude, { fx, state }, emit as (e: JobEvent<never>) => void, signal);
       ratesUsed = res.ratesUsed;
       const byId = new Map(res.updates.map((u) => [u.id, u]));
       for (const p of forClaude) {
@@ -166,7 +174,7 @@ export async function refreshValues(
 
   return {
     runAt: now.toISOString(),
-    usdBrl: fx?.price ?? null,
+    fx: Object.keys(fetched).length ? fetched : null,
     lines: [...state.positions.map((p) => lines.get(p.id) ?? kept(p, L("Não processado.", "Not processed."))), ...extra],
     ratesUsed,
     ...(warnings.length && { warnings }),

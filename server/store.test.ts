@@ -18,9 +18,9 @@ test("salva e recarrega (criando a pasta)", () => {
   const file = tmpFile();
   const store = fileStore(file);
   const s = store.load();
-  s.settings.usdBrl = 5.12;
+  s.settings.fx = { USD: 5.12 };
   store.save(s);
-  assert.equal(fileStore(file).load().settings.usdBrl, 5.12);
+  assert.equal(fileStore(file).load().settings.fx.USD, 5.12);
   assert.ok(!fs.existsSync(file + ".tmp"), "escrita atômica não deixa .tmp");
 });
 
@@ -36,7 +36,9 @@ test("estado antigo/parcial ganha os campos novos sem perder os existentes", () 
     positions: [],
     settings: { usdBrl: 6, targets: { acoes: 40 } } as never,
   });
-  assert.equal(s.settings.usdBrl, 6);
+  assert.deepEqual(s.settings.fx, { USD: 6 }, "usdBrl antigo vira fx.USD");
+  assert.ok(!("usdBrl" in s.settings), "campo antigo some");
+  assert.equal(s.settings.displayCurrency, "BRL");
   assert.equal(s.settings.targets.acoes, 40);
   assert.equal(s.settings.targets.fiis, 25);
   assert.deepEqual(s.settings.scan, DEFAULT_SETTINGS.scan);

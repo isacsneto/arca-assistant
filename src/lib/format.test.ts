@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { brl, pct, safeUrl, signedPp } from "./format";
+import { amt, amt0, fromDisplay, money, pct, safeUrl, setDisplayCurrency, signedPp } from "./format";
+import { setLang } from "../../shared/i18n";
+
+const sp = (s: string) => s.replace(/\s/g, " ");
 
 test("safeUrl só aceita http(s)", () => {
   assert.equal(safeUrl("https://www.b3.com.br/x?y=1"), "https://www.b3.com.br/x?y=1");
@@ -11,9 +14,24 @@ test("safeUrl só aceita http(s)", () => {
 });
 
 test("formatação em pt-BR", () => {
-  assert.equal(brl(1234.5).replace(/\s/g, " "), "R$ 1.234,50");
+  setLang("pt");
+  setDisplayCurrency("BRL", { USD: 5 });
+  assert.equal(sp(amt(1234.5)), "R$ 1.234,50");
   assert.equal(pct(12.345), "12,3%");
   assert.equal(pct(25, 0), "25%");
   assert.equal(signedPp(3.21), "+3,2 pp");
   assert.equal(signedPp(-7), "-7,0 pp");
+});
+
+test("moeda de exibição: totais em BRL aparecem convertidos; posições ficam na própria moeda", () => {
+  setLang("en");
+  setDisplayCurrency("USD", { USD: 5 });
+  assert.equal(amt(1000), "$200.00", "R$ 1.000 a R$ 5/US$ = US$ 200");
+  assert.equal(amt0(12_345), "$2,469");
+  assert.equal(fromDisplay(100), 500, "aporte digitado em US$ vira R$ para o cálculo");
+  assert.match(sp(money(1234.5, "BRL")), /^R\$ ?1,234\.50$/);
+  assert.equal(money(10, "USD"), "$10.00");
+  setDisplayCurrency("BRL", { USD: 5 });
+  assert.match(sp(amt(1000)), /^R\$ ?1,000\.00$/);
+  setLang("pt");
 });

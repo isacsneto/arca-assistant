@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { BASE_CURRENCY, CURRENCIES, CURRENCY_CODES, FX_CODES } from "../../shared/currency";
 import { Download, RefreshCw, Trash2, Upload } from "lucide-react";
 import {
   ARCA_CLASSES, CLASS_META, EFFORTS, EFFORT_LABEL, METHODOLOGIES, methodologyOf,
@@ -26,9 +27,10 @@ export function SettingsView() {
 
   const fetchFx = async () => {
     try {
-      const { usdBrl } = await api.getFx();
-      set({ usdBrl: Math.round(usdBrl * 100) / 100 });
-      setFxMsg(L("Cotação atualizada.", "Exchange rate updated."));
+      const { fx } = await api.getFx();
+      const rounded = Object.fromEntries(Object.entries(fx).map(([c, v]) => [c, Math.round(Number(v) * 10000) / 10000]));
+      set({ fx: { ...settings.fx, ...rounded } });
+      setFxMsg(L("Cotações atualizadas.", "Exchange rates updated."));
     } catch (e) {
       setFxMsg(e instanceof Error ? e.message : L("Falhou.", "Failed."));
     }
@@ -187,12 +189,33 @@ export function SettingsView() {
         </section>
 
         <section className="card">
-          <h2 style={{ marginBottom: 12 }}>{L("Câmbio", "Exchange rate")}</h2>
+          <h2 style={{ marginBottom: 6 }}>{L("Moeda e câmbio", "Currency & exchange rates")}</h2>
+          <p className="muted small" style={{ marginBottom: 12 }}>
+            {L(
+              "Cada posição continua na própria moeda; totais, gráficos, rebalanceamento e projeção são mostrados na moeda escolhida aqui, convertidos pelas cotações abaixo (atualizadas também no Atualizar valores).",
+              "Each position keeps its own currency; totals, charts, rebalancing and projection are shown in the currency chosen here, converted with the rates below (also refreshed by Update values).",
+            )}
+          </p>
+          <div className="field" style={{ marginBottom: 14 }}>
+            {L("Mostrar valores em", "Show amounts in")}
+            <div className="seg" role="radiogroup" aria-label={L("Moeda de exibição", "Display currency")}>
+              {CURRENCY_CODES.map((c) => (
+                <button key={c} type="button" role="radio" aria-checked={settings.displayCurrency === c}
+                  className={settings.displayCurrency === c ? "active" : ""} onClick={() => set({ displayCurrency: c })}>
+                  {CURRENCIES[c].symbol} · {CURRENCIES[c].name}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="row wrap" style={{ alignItems: "flex-end" }}>
-            <label className="field" style={{ width: 200 }}>{L("Dólar (R$)", "US dollar (R$)")}
-              <input type="number" step="0.01" min="0" value={settings.usdBrl} onChange={(e) => set({ usdBrl: Number(e.target.value) })} />
-            </label>
-            <button className="btn" onClick={fetchFx}><RefreshCw size={15} /> {L("Buscar cotação atual", "Fetch current rate")}</button>
+            {FX_CODES.map((c) => (
+              <label className="field" style={{ width: 200 }} key={c}>
+                {CURRENCIES[c].name} ({CURRENCIES[c].symbol} 1 = {CURRENCIES[BASE_CURRENCY].symbol})
+                <input type="number" step="0.0001" min="0" value={settings.fx[c] ?? ""}
+                  onChange={(e) => set({ fx: { ...settings.fx, [c]: Number(e.target.value) } })} />
+              </label>
+            ))}
+            <button className="btn" onClick={fetchFx}><RefreshCw size={15} /> {L("Buscar cotações atuais", "Fetch current rates")}</button>
             {fxMsg && <span className="muted small">{fxMsg}</span>}
           </div>
         </section>

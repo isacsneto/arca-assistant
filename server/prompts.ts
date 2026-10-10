@@ -1,4 +1,5 @@
 import { CLASS_META, type ArcaClass, type Position, type Settings } from "../shared/types";
+import { CURRENCIES, CURRENCY_CODES, FX_CODES, rate, type FxRates } from "../shared/currency";
 import { toBRL, type Allocation } from "../shared/arca";
 
 export const EXTRACTION_SYSTEM = `Você é um assistente que lê prints de apps de bancos/corretoras, extratos, notas e exports (CSV/XLSX/PDF — BTG Pactual, XP, Nubank, Inter, Itaú, Rico, Avenue, Binance etc.) e extrai dados financeiros estruturados em português do Brasil.
@@ -12,7 +13,7 @@ Um mesmo arquivo pode ter os dois tipos. Um extrato de conta com saldo final ger
 - Números brasileiros: "R$ 1.234,56" = 1234.56. "1.234" em quantidade de cotas = 1234. Retorne números JS puros, sem moeda/pontuação.
 - Em posições, "value" = valor ATUAL de mercado/saldo bruto total da linha (não o custo, não o preço unitário). Se só houver quantidade × preço, calcule.
 - Em transações, "value" = valor absoluto da operação (sempre positivo); o sentido vai em txType.
-- currency = "USD" apenas se o valor estiver explicitamente em dólar (US$, USD). Caso contrário "BRL".
+- currency = código da moeda em que o valor está (${CURRENCY_CODES.map((c) => `"${c}" (${CURRENCIES[c].symbol})`).join(", ")}). Use outra que não "BRL" só se o valor estiver explicitamente nela (ex.: US$, USD). Caso contrário "BRL".
 - IGNORE linhas de totais/subtotais/"patrimônio total" para não duplicar valores. Ignore dívidas/faturas de cartão, a menos que sejam claramente um saldo a investir.
 - Se o mesmo ativo aparecer repetido (print duplicado ou sobreposto), inclua-o UMA vez (veja "Duplicados entre arquivos").
 
@@ -108,9 +109,9 @@ export function scanPrompt(args: {
   const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
   const mine = positions
     .filter((p) => p.assetClass === assetClass)
-    .sort((a, b) => toBRL(b, settings.usdBrl) - toBRL(a, settings.usdBrl))
+    .sort((a, b) => toBRL(b, settings.fx) - toBRL(a, settings.fx))
     .slice(0, 25)
-    .map((p) => `- ${p.ticker ? p.ticker + " · " : ""}${p.name} (${p.subtype}) — ${fmt(toBRL(p, settings.usdBrl))}`)
+    .map((p) => `- ${p.ticker ? p.ticker + " · " : ""}${p.name} (${p.subtype}) — ${fmt(toBRL(p, settings.fx))}`)
     .join("\n");
   const pct = allocation.arcaTotal > 0 ? (allocation.byClass[assetClass] / allocation.arcaTotal) * 100 : 0;
 
@@ -146,7 +147,12 @@ Regras por tipo:
 
 Nunca invente números. Na "note" explique o cálculo em uma linha (taxa usada, período, fórmula). Em "source" coloque a URL principal usada (ou null). Em "ratesUsed" resuma as taxas de referência usadas (ex.: "CDI acumulado set/26: 1,05%; Selic 13,75%; IPCA 12m 4,9%"). Retorne um item por id recebido, com newValue na MESMA moeda da posição.`;
 
-export function refreshPrompt(args: { positions: Position[]; today: string; usdBrl: number }): string {
+/** "Dólar americano (USD): R$ 5,4200" — uma linha por moeda do registro. */
+export function fxLine(fx: FxRates): string {
+  return FX_CODES.map((c) => `${c}: R$ ${rate(fx, c).toFixed(4)}`).join(" · ");
+}
+
+export function refreshPrompt(args: { positions: Position[]; today: string; fx: FxRates }): string {
   const rows = args.positions.map((p) =>
     JSON.stringify({
       id: p.id,
@@ -161,7 +167,7 @@ export function refreshPrompt(args: { positions: Position[]; today: string; usdB
       atualizadoEm: p.updatedAt.slice(0, 10),
     }),
   );
-  return `Hoje: ${args.today}. Dólar: R$ ${args.usdBrl.toFixed(4)}.
+  return `Hoje: ${args.today}. Câmbio: ${fxLine(args.fx)}.
 
 Atualize o valor destas posições para hoje:
 ${rows.join("\n")}
@@ -190,13 +196,13 @@ export function projectionPrompt(args: { positions: Position[]; settings: Settin
   const { positions, settings, today, total } = args;
   const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
   const rows = [...positions]
-    .sort((a, b) => toBRL(b, settings.usdBrl) - toBRL(a, settings.usdBrl))
+    .sort((a, b) => toBRL(b, settings.fx) - toBRL(a, settings.fx))
     .map((p) => {
-      const v = toBRL(p, settings.usdBrl);
+      const v = toBRL(p, settings.fx);
       const w = total > 0 ? ((v / total) * 100).toFixed(1) : "0";
       return `- positionId=${p.id} · ${p.ticker ? p.ticker + " · " : ""}${p.name} (${p.subtype}, classe ${p.assetClass}, ${p.currency}) — ${fmt(v)} (${w}%)`;
     });
-  return `Data de hoje: ${today}. Dólar: R$ ${settings.usdBrl}.
+  return `Data de hoje: ${today}. Câmbio: ${fxLine(settings.fx)}.
 Perfil do investidor: ${settings.investorProfile}
 
 Carteira atual (total ${fmt(total)}):

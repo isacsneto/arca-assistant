@@ -1,18 +1,18 @@
 import { useMemo, useState } from "react";
+import { toBRL } from "../../shared/arca";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ExternalLink, Globe, RefreshCw, TrendingUp } from "lucide-react";
 import { ALL_CLASSES, CLASS_META, PROJECTION_HORIZONS, type ProjectionResult, type ScenarioRateT } from "../../shared/types";
 import { impliedCagr, project } from "../../shared/projection";
 import { useStore } from "../store";
 import type { Job } from "../lib/useJob";
-import { brl0, dateTime, safeUrl } from "../lib/format";
+import { amt0, dateTime, safeUrl, amtCompact } from "../lib/format";
 import { Banner, ClassLabel, Empty, PageHead } from "./ui";
 import { VIEW_LABEL } from "../../shared/owner";
 import { JobProgress } from "./JobProgress";
 import { useAi } from "../lib/useAi";
 import { L, locale } from "../../shared/i18n";
 
-const compactFmt = () => new Intl.NumberFormat(locale(), { style: "currency", currency: "BRL", notation: "compact", maximumFractionDigits: 1 });
 const pctTxt = (n: number, d = 1) => `${n > 0 ? "+" : ""}${n.toLocaleString(locale(), { minimumFractionDigits: d, maximumFractionDigits: d })}%`;
 const pa = () => L("a.a.", "p.a.");
 const rateTxt = (r: ScenarioRateT) => `${pctTxt(r.annualReturnPct)} ${pa()}${r.initialShockPct ? ` · ${L("choque", "shock")} ${pctTxt(r.initialShockPct, 0)}` : ""}`;
@@ -26,16 +26,16 @@ const seriesMeta = () =>
 export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
   const { state, config, visible: positions, view } = useStore();
   const { settings, projection } = state!;
-  const allTotal = state!.positions.reduce((s, p) => s + (p.currency === "USD" ? p.value * settings.usdBrl : p.value), 0);
+  const allTotal = state!.positions.reduce((s, p) => s + toBRL(p, settings.fx), 0);
   const [real, setReal] = useState(false);
   const SERIES = seriesMeta();
-  const compact = useMemo(compactFmt, []);
+  const compact = { format: amtCompact };
 
   const modelLabel = useAi().modelLabel("projection");
   const years = useMemo(() => Array.from({ length: 31 }, (_, i) => i), []);
   const yearly = useMemo(
-    () => (projection ? project(positions, settings.usdBrl, projection, years) : null),
-    [projection, positions, settings.usdBrl, years],
+    () => (projection ? project(positions, settings.fx, projection, years) : null),
+    [projection, positions, settings.fx, years],
   );
 
   const runButton = (
@@ -115,7 +115,7 @@ export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
       </div>
 
       <div className="row spread wrap" style={{ marginBottom: 12 }}>
-        <div className="muted small">{L("Hoje:", "Today:")} <b className="num" style={{ color: "var(--text)" }}>{brl0(start)}</b> · {L("sem novos aportes", "no new contributions")}</div>
+        <div className="muted small">{L("Hoje:", "Today:")} <b className="num" style={{ color: "var(--text)" }}>{amt0(start)}</b> · {L("sem novos aportes", "no new contributions")}</div>
         <div className="seg" role="group" aria-label={L("Unidade", "Unit")}>
           <button className={!real ? "active" : ""} onClick={() => setReal(false)}>{L("Valores nominais", "Nominal values")}</button>
           <button className={real ? "active" : ""} onClick={() => setReal(true)}>{L("Em reais de hoje", "In today's money")}</button>
@@ -153,7 +153,7 @@ export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
                 contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)" }}
                 labelStyle={{ color: "var(--muted)" }}
                 labelFormatter={(y) => (Number(y) ? L(`Em ${y} anos`, `In ${y} years`) : L("Hoje", "Today"))}
-                formatter={(v, name) => [brl0(Number(v)), SERIES[name as "base" | "worst"].label]}
+                formatter={(v, name) => [amt0(Number(v)), SERIES[name as "base" | "worst"].label]}
               />
               {(["base", "worst"] as const).map((s) => (
                 <Line key={s} dataKey={s} name={s} type="monotone" stroke={SERIES[s].color} strokeWidth={2} dot={false}
@@ -183,13 +183,13 @@ export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
               </tr>
             </thead>
             <tbody>
-              <tr><td className="ga-main">{L("Hoje", "Today")}</td><td className="right num ga-a">{brl0(start)}</td><td /><td className="right num ga-b">{brl0(start)}</td><td /></tr>
+              <tr><td className="ga-main">{L("Hoje", "Today")}</td><td className="right num ga-a">{amt0(start)}</td><td /><td className="right num ga-b">{amt0(start)}</td><td /></tr>
               {PROJECTION_HORIZONS.map((y) => (
                 <tr key={y}>
                   <td className="ga-main">{L(`${y} anos`, `${y} years`)}</td>
-                  <td className="right num ga-a"><b>{brl0(val(y, "base"))}</b><div className="muted small m-only">{pctTxt(impliedCagr(start, val(y, "base"), y))} {pa()}</div></td>
+                  <td className="right num ga-a"><b>{amt0(val(y, "base"))}</b><div className="muted small m-only">{pctTxt(impliedCagr(start, val(y, "base"), y))} {pa()}</div></td>
                   <td className="right num muted mc-hide">{pctTxt(impliedCagr(start, val(y, "base"), y))}</td>
-                  <td className="right num ga-b"><b>{brl0(val(y, "worst"))}</b><div className="muted small m-only">{pctTxt(impliedCagr(start, val(y, "worst"), y))} {pa()}</div></td>
+                  <td className="right num ga-b"><b>{amt0(val(y, "worst"))}</b><div className="muted small m-only">{pctTxt(impliedCagr(start, val(y, "worst"), y))} {pa()}</div></td>
                   <td className="right num muted mc-hide">{pctTxt(impliedCagr(start, val(y, "worst"), y))}</td>
                 </tr>
               ))}

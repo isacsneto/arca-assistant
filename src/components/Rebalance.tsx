@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
+import { CURRENCIES } from "../../shared/currency";
 import { ArrowDownRight, ArrowUpRight, Radar } from "lucide-react";
 import { CLASS_META, METHODOLOGIES } from "../../shared/types";
 import { VIEW_LABEL } from "../../shared/owner";
 import { computeAllocation, rebalance, targetsSum } from "../../shared/arca";
 import { useStore } from "../store";
-import { brl, pct } from "../lib/format";
+import { amt, pct, displayCurrency, fromDisplay } from "../lib/format";
 import { Banner, ClassLabel, Empty, PageHead } from "./ui";
 import { L, locale } from "../../shared/i18n";
 
@@ -14,8 +15,9 @@ export function Rebalance({ goScan }: { goScan: () => void }) {
   const [contribution, setContribution] = useState("5000");
   const [allowSell, setAllowSell] = useState(false);
 
-  const alloc = useMemo(() => computeAllocation(positions, settings.usdBrl), [positions, settings.usdBrl]);
-  const amount = Math.max(Number(contribution) || 0, 0);
+  const alloc = useMemo(() => computeAllocation(positions, settings.fx), [positions, settings.fx]);
+  // O aporte é digitado na moeda de exibição; o cálculo é na moeda base.
+  const amount = fromDisplay(Math.max(Number(contribution) || 0, 0));
   const lines = useMemo(() => rebalance(alloc, settings.targets, amount, allowSell), [alloc, settings.targets, amount, allowSell]);
   const sum = targetsSum(settings.targets);
 
@@ -41,7 +43,7 @@ export function Rebalance({ goScan }: { goScan: () => void }) {
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="row wrap" style={{ alignItems: "flex-end", gap: 20 }}>
           <label className="field" style={{ width: 220 }}>
-            {L("Novo aporte (R$)", "New contribution (R$)")}
+            {L("Novo aporte", "New contribution")} ({CURRENCIES[displayCurrency()].symbol})
             <input type="number" min="0" step="100" value={contribution} onChange={(e) => setContribution(e.target.value)} />
           </label>
           <label className="check" style={{ paddingBottom: 8 }}>
@@ -66,15 +68,15 @@ export function Rebalance({ goScan }: { goScan: () => void }) {
               <div className="row spread wrap">
                 <h2><ClassLabel c={l.assetClass} /></h2>
                 <div className="row">
-                  {buy && <span className="chip ok"><ArrowUpRight size={14} /> {L("Comprar", "Buy")} {brl(l.trade)}</span>}
-                  {sell && <span className="chip bad"><ArrowDownRight size={14} /> {L("Vender", "Sell")} {brl(-l.trade)}</span>}
+                  {buy && <span className="chip ok"><ArrowUpRight size={14} /> {L("Comprar", "Buy")} {amt(l.trade)}</span>}
+                  {sell && <span className="chip bad"><ArrowDownRight size={14} /> {L("Vender", "Sell")} {amt(-l.trade)}</span>}
                   {!buy && !sell && <span className="chip">{L("Sem movimento", "No change")}</span>}
                 </div>
               </div>
               <div className="grid kpis" style={{ marginTop: 12, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
-                <div className="kpi"><div className="label">{L("Hoje", "Today")}</div><div className="num"><b>{brl(l.current)}</b></div></div>
-                <div className="kpi"><div className="label">{L("Meta", "Target")} ({pct(settings.targets[l.assetClass], 0)})</div><div className="num"><b>{brl(l.ideal)}</b></div></div>
-                <div className="kpi"><div className="label">{L("Depois", "After")}</div><div className="num"><b>{brl(l.after)}</b> <span className="muted">· {pct(l.afterPct)}</span></div></div>
+                <div className="kpi"><div className="label">{L("Hoje", "Today")}</div><div className="num"><b>{amt(l.current)}</b></div></div>
+                <div className="kpi"><div className="label">{L("Meta", "Target")} ({pct(settings.targets[l.assetClass], 0)})</div><div className="num"><b>{amt(l.ideal)}</b></div></div>
+                <div className="kpi"><div className="label">{L("Depois", "After")}</div><div className="num"><b>{amt(l.after)}</b> <span className="muted">· {pct(l.afterPct)}</span></div></div>
               </div>
               {buy && (
                 <div style={{ marginTop: 14 }}>
@@ -95,7 +97,7 @@ export function Rebalance({ goScan }: { goScan: () => void }) {
                                 <tr key={p.ticker + p.rank}>
                                   <td><b>{p.ticker}</b> <span className="muted">{p.name}</span></td>
                                   <td className="right num muted">{pct((p.suggestedWeightInClass / totalW) * 100, 0)}</td>
-                                  <td className="right num"><b>{brl((p.suggestedWeightInClass / totalW) * l.trade)}</b></td>
+                                  <td className="right num"><b>{amt((p.suggestedWeightInClass / totalW) * l.trade)}</b></td>
                                 </tr>
                               );
                             })}

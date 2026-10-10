@@ -43,7 +43,7 @@ test("premissa por ativo tem prioridade sobre a da classe", () => {
 
 test("project soma posições, converte dólar e separa por classe", () => {
   const positions = [pos("a", "acoes", 1000), pos("c", "caixa", 100, "USD")];
-  const out = project(positions, 5, assumptions(), [0, 10]);
+  const out = project(positions, { USD: 5 }, assumptions(), [0, 10]);
   close(out.start, 1500);
   const [p0, p10] = out.points;
   close(p0.base, 1500);
@@ -59,7 +59,7 @@ test("project soma posições, converte dólar e separa por classe", () => {
 });
 
 test("posições sem premissa ficam constantes e são reportadas", () => {
-  const out = project([pos("f", "fiis", 200)], 5, assumptions(), [5]);
+  const out = project([pos("f", "fiis", 200)], { USD: 5 }, assumptions(), [5]);
   close(out.points[0].base, 200);
   assert.deepEqual(out.missing, ["f"]);
 });

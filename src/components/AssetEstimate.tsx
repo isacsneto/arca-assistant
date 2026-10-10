@@ -1,6 +1,6 @@
 import { ChevronDown, ExternalLink, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { ASSET_DETAIL_HINTS, type AssetEstimate, type PhysicalAsset } from "../../shared/assets";
-import { brl, dateTime, safeUrl } from "../lib/format";
+import { amt, dateTime, safeUrl, amtCompact } from "../lib/format";
 import { L, locale } from "../../shared/i18n";
 
 export interface EstimateRun {
@@ -8,7 +8,6 @@ export interface EstimateRun {
   last?: string;
 }
 
-const compactFmt = () => new Intl.NumberFormat(locale(), { style: "currency", currency: "BRL", notation: "compact", maximumFractionDigits: 1 });
 const CONF = { alta: "ok", media: "warn", baixa: "bad" } as const;
 /** Rótulo exibido da confiança (o valor salvo continua alta/media/baixa). */
 const confLabel = (c: keyof typeof CONF) =>
@@ -53,7 +52,7 @@ export function EstimateCell({
   return (
     <div>
       <div className="row" style={{ gap: 6 }}>
-        <b className="num">{brl(Math.round(e.estimate))}</b>
+        <b className="num">{amt(Math.round(e.estimate))}</b>
         {!same && asset.value > 0 && (
           <span className={"chip " + (Math.abs(diff) < 5 ? "" : diff < 0 ? "bad" : "ok")} title={L("Diferença para o valor registrado", "Difference from the recorded value")}>
             {diff > 0 ? "+" : ""}{diff.toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false })}%
@@ -61,7 +60,7 @@ export function EstimateCell({
         )}
       </div>
       <div className="muted small num">
-        {compactFmt().format(e.low)}–{compactFmt().format(e.high)} · <span className={"chip " + CONF[e.confidence]}>{confLabel(e.confidence)}</span>
+        {amtCompact(e.low)}–{amtCompact(e.high)} · <span className={"chip " + CONF[e.confidence]}>{confLabel(e.confidence)}</span>
       </div>
       <div className="row" style={{ gap: 4, marginTop: 4 }}>
         <button className="btn sm" disabled={same} onClick={() => onUse(Math.round(e.estimate))} title={L("Usar a estimativa como valor do bem", "Use the estimate as the asset value")}>{L("Usar", "Use")}</button>
@@ -87,9 +86,9 @@ export function EstimateDetails({ e }: { e: AssetEstimate }) {
   return (
     <div className="est-details">
       <div className="row wrap" style={{ gap: 16, marginBottom: 8 }}>
-        <span><span className="muted small">{L("Novo hoje", "New today")}</span><br /><b className="num">{e.newPrice != null ? brl(Math.round(e.newPrice)) : "—"}</b></span>
-        <span><span className="muted small">{L("Usados (mediana)", "Used (median)")}</span><br /><b className="num">{e.usedPrice != null ? brl(Math.round(e.usedPrice)) : "—"}</b></span>
-        <span><span className="muted small">{L("Sugerido", "Suggested")}</span><br /><b className="num">{brl(Math.round(e.estimate))}</b></span>
+        <span><span className="muted small">{L("Novo hoje", "New today")}</span><br /><b className="num">{e.newPrice != null ? amt(Math.round(e.newPrice)) : "—"}</b></span>
+        <span><span className="muted small">{L("Usados (mediana)", "Used (median)")}</span><br /><b className="num">{e.usedPrice != null ? amt(Math.round(e.usedPrice)) : "—"}</b></span>
+        <span><span className="muted small">{L("Sugerido", "Suggested")}</span><br /><b className="num">{amt(Math.round(e.estimate))}</b></span>
         <span className="muted small" style={{ alignSelf: "flex-end" }}>{dateTime(e.at)} · {e.searches} {L("buscas", "searches")} · {e.model}</span>
       </div>
       <p className="small prose">{e.summary}</p>
@@ -101,7 +100,7 @@ export function EstimateDetails({ e }: { e: AssetEstimate }) {
             return (
               <li key={i}>
                 <span className={"chip " + (c.condition === "novo" ? "ok" : c.condition === "usado" ? "" : "warn")}>{conditionLabel(c.condition)}</span>{" "}
-                <b className="num">{brl(Math.round(c.price))}</b>{" "}
+                <b className="num">{amt(Math.round(c.price))}</b>{" "}
                 {href ? <a href={href} target="_blank" rel="noreferrer noopener">{c.title} <ExternalLink size={11} /></a> : <span>{c.title}</span>}
               </li>
             );

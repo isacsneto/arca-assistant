@@ -3,6 +3,7 @@ import type { PhysicalAsset } from "./assets";
 import { DEFAULT_AI, type AiSettings } from "./ai";
 import { DEFAULT_OPEN_FINANCE, type OpenFinanceSettings } from "./openFinance";
 import { DEFAULT_LANG, L, type Lang } from "./i18n";
+import { BASE_CURRENCY, CURRENCY_CODES, fxRates, type CurrencyCode, type FxRates } from "./currency";
 
 /* ------------------------------------------------------------------ */
 /* Classes da Arca (Primo Rico / Thiago Nigro)                         */
@@ -107,7 +108,7 @@ export const ExtractedItemSchema = z.object({
   ticker: z.string().nullable(),
   assetClass: z.enum(["acoes", "fiis", "caixa", "internacional", "outros"]),
   subtype: z.string(),
-  currency: z.enum(["BRL", "USD"]),
+  currency: z.enum(CURRENCY_CODES),
   value: z.number(),
   quantity: z.number().nullable(),
   date: z.string().nullable(),
@@ -193,7 +194,7 @@ export const PromptOpSchema = z.object({
       owner: z.enum(["PF", "PJ"]),
       assetClass: z.enum(["acoes", "fiis", "caixa", "internacional", "outros"]),
       subtype: z.string(),
-      currency: z.enum(["BRL", "USD"]),
+      currency: z.enum(CURRENCY_CODES),
       quantity: z.number().nullable(),
     })
     .nullable(),
@@ -234,7 +235,7 @@ export interface UploadFile {
 /* Estado persistido                                                   */
 /* ------------------------------------------------------------------ */
 
-export type Currency = "BRL" | "USD";
+export type Currency = CurrencyCode;
 
 /** Titular do investimento: pessoa física ou jurídica. */
 export const OWNERS = ["PF", "PJ"] as const;
@@ -279,7 +280,10 @@ export interface ModelSetting {
 }
 
 export interface Settings {
-  usdBrl: number;
+  /** Cotações: quanto vale 1 unidade de cada moeda na moeda base (BRL). Ex.: { USD: 5.42 }. */
+  fx: FxRates;
+  /** Moeda em que totais, gráficos e rebalanceamento são mostrados. */
+  displayCurrency: CurrencyCode;
   methodology: Methodology;
   targets: Record<ArcaClass, number>;
   extraction: ModelSetting;
@@ -310,7 +314,8 @@ export interface StaleMark {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  usdBrl: 5.5,
+  fx: fxRates({}),
+  displayCurrency: BASE_CURRENCY,
   methodology: "arca",
   targets: DEFAULT_TARGETS,
   extraction: { model: "claude-sonnet-5-5", effort: "medium" },
@@ -431,7 +436,8 @@ export interface RefreshLine {
 
 export interface RefreshResult {
   runAt: string;
-  usdBrl: number | null;
+  /** Cotações obtidas agora (null se nenhuma). */
+  fx: FxRates | null;
   lines: RefreshLine[];
   ratesUsed?: string;
   /** Avisos (ex.: conexão do Open Finance com erro). */

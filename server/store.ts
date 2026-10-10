@@ -6,6 +6,7 @@ import { sanitizeAssets } from "../shared/assets";
 import { aiSettings } from "../shared/ai";
 import { openFinanceSettings } from "../shared/openFinance";
 import { toLang } from "../shared/i18n";
+import { fxRates, toCurrency } from "../shared/currency";
 import { stateFile } from "./paths";
 
 export interface Store {
@@ -28,7 +29,7 @@ export function withDefaults(raw: Partial<AppState>): AppState {
     projection: raw.projection,
     settings: {
       ...base.settings,
-      ...raw.settings,
+      ...withoutLegacy(raw.settings),
       targets: { ...base.settings.targets, ...raw.settings?.targets },
       methodology: raw.settings?.methodology ?? methodologyOf({ ...base.settings.targets, ...raw.settings?.targets }),
       extraction: { ...base.settings.extraction, ...raw.settings?.extraction },
@@ -39,8 +40,18 @@ export function withDefaults(raw: Partial<AppState>): AppState {
       ai: aiSettings({ ai: raw.settings?.ai ?? base.settings.ai }),
       openFinance: openFinanceSettings(raw.settings?.openFinance),
       language: raw.settings?.language ? toLang(raw.settings.language) : base.settings.language,
+      // Estados antigos guardavam só o dólar em "usdBrl".
+      fx: fxRates(raw.settings?.fx, (raw.settings as { usdBrl?: number } | undefined)?.usdBrl),
+      displayCurrency: toCurrency(raw.settings?.displayCurrency),
     },
   };
+}
+
+/** Tira campos que não existem mais (ex.: usdBrl, trocado por fx). */
+function withoutLegacy(s: Partial<AppState["settings"]> | undefined) {
+  if (!s) return s;
+  const { usdBrl: _legacy, ...rest } = s as Partial<AppState["settings"]> & { usdBrl?: number };
+  return rest;
 }
 
 export function fileStore(file = stateFile()): Store {
