@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyRefresh, isChange } from "./refreshApply";
+import { applyRefresh, fxImpact, isChange, refreshTotals } from "./refreshApply";
 import type { Position, RefreshLine } from "./types";
 
 const NOW = "2026-10-09T15:00:00.000Z";
@@ -52,4 +52,20 @@ test("Open Finance: atualiza, remove o que saiu e cria o que entrou (só o aprov
   assert.deepEqual(out.map((x) => [x.id, x.value]), [["a", 110], ["c", 300], ["novo-id", 50]]);
   assert.equal(out[0].quantity, 7);
   assert.equal(out[2].institution, "BTG Pactual");
+});
+
+test("totais separam ativos e câmbio: fim de semana com dólar em queda e Bitcoin em alta", () => {
+  // Caso real: só o Bitcoin (BRL) subiu 0,25%; US$ 55.410,55 em dólar ficaram "mantidos", mas o dólar caiu.
+  const btc = line("btc", 13_771.32, 13_806.25, "cotacao");
+  const usd: RefreshLine = { ...line("voo", 55_410.55, 55_410.55, "mantido"), currency: "USD" };
+  const t = refreshTotals([btc, usd], new Set(["btc"]), { USD: 4.9918 }, { USD: 4.9772 });
+  assert.ok(Math.abs(t.assets - 34.93) < 0.01, `ativos ${t.assets}`);
+  assert.ok(Math.abs(t.fx - -808.99) < 0.01, `câmbio ${t.fx}`);
+  assert.ok(Math.abs(t.after - t.before - (t.assets + t.fx)) < 1e-6, "variação = ativos + câmbio");
+  assert.ok(Math.abs(t.after - t.before - -774.06) < 0.01);
+  assert.ok(Math.abs(fxImpact(usd, { USD: 4.9918 }, { USD: 4.9772 }) - -808.99) < 0.01);
+  assert.equal(fxImpact(btc, { USD: 4.9918 }, { USD: 4.9772 }), 0, "real não tem efeito de câmbio");
+  // Não aprovada: o valor não muda, só o câmbio conta.
+  const t2 = refreshTotals([btc, usd], new Set(), { USD: 4.9918 }, { USD: 4.9772 });
+  assert.equal(t2.assets, 0);
 });

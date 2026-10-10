@@ -6,6 +6,10 @@ $port = if ($env:PORT) { $env:PORT } else { "3001" }
 $taskName = "Arca Assistant"
 
 Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+# O laço do run-hidden.ps1 religaria o app: encerra o que tenha sobrado da tarefa (conhost/powershell).
+Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe' OR Name = 'conhost.exe'" -ErrorAction SilentlyContinue |
+  Where-Object { $_.CommandLine -like "*run-hidden.ps1*" } |
+  ForEach-Object { & taskkill /PID $_.ProcessId /T /F *> $null }
 $pidFile = Join-Path $root "data\local.pid"
 if (Test-Path $pidFile) {
   $procId = Get-Content $pidFile

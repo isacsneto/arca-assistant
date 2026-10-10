@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { fxSummary } from "../../shared/currency";
+import { BASE_CURRENCY, CURRENCIES, FX_CODES, fxSummary, rate } from "../../shared/currency";
 import { Check, X } from "lucide-react";
 import type { RefreshLine, RefreshResult } from "../../shared/types";
-import { applyRefresh, isChange } from "../../shared/refreshApply";
-import { toBRL } from "../../shared/arca";
+import { applyRefresh, fxImpact, isChange, refreshTotals } from "../../shared/refreshApply";
 import { useStore } from "../store";
 import type { Job } from "../lib/useJob";
 import { amt, dateTime, money, safeUrl } from "../lib/format";
@@ -19,6 +18,9 @@ const METHOD = (): Record<RefreshLine["method"], { label: string; cls: string }>
   removido: { label: L("saiu", "removed"), cls: "bad" },
 });
 
+const signedAmt = (n: number) => `${n >= 0 ? "+" : "−"}${amt(Math.abs(n))}`;
+const rateTxt = (n: number) => `${CURRENCIES[BASE_CURRENCY].symbol} ${n.toLocaleString(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+
 /** Revisão do "Atualizar valores": mostra antes/depois e aplica só o que o usuário aprovar. */
 export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
   const { state, update } = useStore();
@@ -29,19 +31,14 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
     if (result) setApproved(new Set(result.lines.filter(isChange).map((l) => l.id)));
   }, [result]);
 
-  const fxNew = { ...state!.settings.fx, ...result?.fx };
-  const totals = useMemo(() => {
-    if (!result) return null;
-    const fxOld = state!.settings.fx;
-    let before = 0;
-    let after = 0;
-    for (const l of result.lines) {
-      before += toBRL({ value: l.oldValue, currency: l.currency }, fxOld);
-      const v = approved.has(l.id) ? l.newValue : l.oldValue;
-      after += toBRL({ value: v, currency: l.currency }, fxNew);
-    }
-    return { before, after };
-  }, [result, approved, state]);
+  const fxOld = state!.settings.fx;
+  const fxNew = { ...fxOld, ...result?.fx };
+  const totals = useMemo(
+    () => (result ? refreshTotals(result.lines, approved, state!.settings.fx, { ...state!.settings.fx, ...result.fx }) : null),
+    [result, approved, state],
+  );
+  // Moedas cuja cotação mudou: o total em reais muda mesmo com as posições "mantidas".
+  const fxMoves = FX_CODES.filter((c) => result?.fx?.[c] != null && Math.abs(rate(fxNew, c) - rate(fxOld, c)) > 1e-9);
 
   if (job.running) return <JobProgress job={job} onCancel={job.cancel} />;
   if (job.error && !result) return <Banner kind="bad">{L("Falha ao atualizar valores:", "Failed to update values:")} {job.error}</Banner>;
@@ -73,7 +70,9 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
           <h2>{L("Valores atualizados", "Updated values")}</h2>
           <p className="muted small">
             {dateTime(result.runAt)} · {L(`${changed.length} de ${result.lines.length} posições mudaram`, `${changed.length} of ${result.lines.length} positions changed`)}
-            {result.fx ? ` · ${fxSummary(result.fx)}` : ""}
+            {fxMoves.length > 0
+              ? fxMoves.map((c) => ` · ${CURRENCIES[c].symbol} 1: ${rateTxt(rate(fxOld, c))} → ${rateTxt(rate(fxNew, c))}`).join("")
+              : result.fx ? ` · ${fxSummary(result.fx)}` : ""}
           </p>
         </div>
         <div className="row">
@@ -91,6 +90,12 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
             {diff >= 0 ? "+" : "−"}{amt(Math.abs(diff))}
           </div>
           <div className="sub">{totals.before > 0 ? `${((diff / totals.before) * 100).toLocaleString(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : ""}</div>
+          {fxMoves.length > 0 && Math.abs(totals.fx) >= 0.005 && (
+            <div className="sub" title={L("Posições em outra moeda não mudam de valor nela, mas valem mais ou menos em reais com o câmbio novo.", "Positions in another currency keep their value in that currency, but are worth more or less in reais at the new rate.")}>
+              {L("ativos", "assets")} <span className={totals.assets >= 0 ? "ok-text" : "bad-text"}>{signedAmt(totals.assets)}</span>
+              {" · "}{L("câmbio", "FX")} <span className={totals.fx >= 0 ? "ok-text" : "bad-text"}>{signedAmt(totals.fx)}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -125,6 +130,11 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
                     {change && !l.add && l.method !== "removido" && (
                       <div className="small" style={{ color: pct >= 0 ? "var(--ok)" : "var(--bad)" }}>
                         {pct >= 0 ? "+" : ""}{pct.toLocaleString(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
+                      </div>
+                    )}
+                    {l.currency !== BASE_CURRENCY && Math.abs(fxImpact(l, fxOld, fxNew)) >= 0.005 && (
+                      <div className="small muted" title={L("Efeito só do câmbio, em reais", "FX-only effect, in reais")}>
+                        {L("câmbio", "FX")} <span className={fxImpact(l, fxOld, fxNew) >= 0 ? "ok-text" : "bad-text"}>{signedAmt(fxImpact(l, fxOld, fxNew))}</span>
                       </div>
                     )}
                   </td>

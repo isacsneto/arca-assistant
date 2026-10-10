@@ -53,11 +53,13 @@ install() {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>$LABEL</string>
-  <key>ProgramArguments</key><array><string>$NODE</string><string>$ROOT/scripts/local.mjs</string></array>
+  <key>ProgramArguments</key><array><string>$NODE</string><string>$ROOT/scripts/local.mjs</string><string>--service</string></array>
   <key>WorkingDirectory</key><string>$ROOT</string>
   <key>EnvironmentVariables</key><dict><key>PATH</key><string>$(dirname "$NODE"):/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string><key>PORT</key><string>$PORT</string></dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>ProcessType</key><string>Interactive</string>
   <key>StandardOutPath</key><string>/dev/null</string>
   <key>StandardErrorPath</key><string>/dev/null</string>
 </dict></plist>
@@ -70,13 +72,14 @@ PLIST
     cat > "$linux_unit" <<UNIT
 [Unit]
 Description=Arca Assistant
-After=network-online.target
+# Sem limite de tentativas: se cair, volta sempre.
+StartLimitIntervalSec=0
 
 [Service]
 WorkingDirectory=$ROOT
 Environment=PORT=$PORT
 Environment=PATH=$(dirname "$NODE"):/usr/local/bin:/usr/bin:/bin
-ExecStart=$NODE $ROOT/scripts/local.mjs
+ExecStart=$NODE $ROOT/scripts/local.mjs --service
 Restart=always
 RestartSec=5
 
@@ -86,7 +89,14 @@ UNIT
     systemctl --user daemon-reload
     systemctl --user enable --now arca-assistant.service
     echo "Serviço 'arca-assistant' (systemd do usuário) criado e iniciado."
-    echo "Para rodar mesmo sem você logado: sudo loginctl enable-linger $USER"
+    # Sem "linger", o systemd do usuário para tudo quando você sai da sessão (inclusive SSH).
+    if [ "$(loginctl show-user "$USER" -p Linger --value 2>/dev/null)" != "yes" ]; then
+      if loginctl enable-linger "$USER" 2>/dev/null; then
+        echo "Linger ligado: o app continua rodando mesmo depois que você sai da sessão."
+      else
+        echo "Atenção: o app para quando você sai da sessão. Para manter rodando: sudo loginctl enable-linger $USER" >&2
+      fi
+    fi
   else
     echo "Sistema não suportado: $OS" >&2; exit 1
   fi

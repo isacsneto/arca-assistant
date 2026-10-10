@@ -19,7 +19,7 @@ Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
 ![Open Finance](https://img.shields.io/badge/Open%20Finance-Pluggy-6c47ff)
 ![PWA](https://img.shields.io/badge/PWA-iOS%20%26%20Android-5a0fc8)
-![Tests](https://img.shields.io/badge/tests-169%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-170%20passing-2ea44f)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 <br/>
@@ -131,13 +131,13 @@ npm run local:uninstall  # removes auto-start and tailscale serve
 npm run local            # foreground, restarting if it crashes (installs nothing)
 ```
 
-`local:install` builds the app, starts the server at `http://localhost:3001` and restarts it if it crashes. Only one instance runs at a time, since two writing the same `data/` would overwrite each other. Logs live in `data/logs/server.log`.
+`local:install` builds the app and starts the server at `http://localhost:3001`, with no window at all. If the server crashes it is back in seconds; if it hangs (alive but not answering for ~2 min) it is restarted; and if the supervisor itself exits, the OS service brings it back. Only one instance runs at a time, since two writing the same `data/` would overwrite each other. Logs live in `data/logs/server.log`.
 
 | OS | What `local:install` creates | Notes |
 |---|---|---|
-| **Windows** | Task Scheduler task **"Arca Assistant"** at logon (hidden window) | Run it in PowerShell. No admin needed. |
-| **macOS** | LaunchAgent `~/Library/LaunchAgents/com.arca-assistant.plist` (`RunAtLoad` + `KeepAlive`) | Works with the Tailscale Mac app or CLI. |
-| **Linux** | systemd user service `~/.config/systemd/user/arca-assistant.service` | To run even when you're logged out: `sudo loginctl enable-linger $USER`. If `tailscale serve` refuses: `sudo tailscale set --operator=$USER`. |
+| **Windows** | Task Scheduler task **"Arca Assistant"** at logon (`conhost --headless`: no window to close by accident) | Run it in PowerShell. No admin needed. |
+| **macOS** | LaunchAgent `~/Library/LaunchAgents/com.arca-assistant.plist` (`RunAtLoad` + `KeepAlive`, always restarts) | Works with the Tailscale Mac app or CLI. |
+| **Linux** | systemd user service `~/.config/systemd/user/arca-assistant.service` (`Restart=always`) | The installer turns on *linger* so the app keeps running after you log out; without permission, run `sudo loginctl enable-linger $USER`. If `tailscale serve` refuses: `sudo tailscale set --operator=$USER`. |
 
 Services run as **your user**, so the AI uses the Claude or Codex login you already did in the terminal.
 
@@ -224,7 +224,7 @@ flowchart LR
 ## 🛠️ Development
 
 ```bash
-npm test             # 169 tests (node:test + tsx)
+npm test             # 170 tests (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # local production at http://localhost:3001
 API_PORT=3101 npx vite       # front-end against another instance (e.g. the demo)

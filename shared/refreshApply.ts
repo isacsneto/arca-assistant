@@ -1,8 +1,41 @@
 import type { Position, RefreshLine } from "./types";
+import { rate, type FxRates } from "./currency";
 
 /** Linhas que realmente mudam algo (as "mantidas" não contam). */
 export const isChange = (l: RefreshLine) =>
   l.method !== "mantido" && (l.method === "removido" || !!l.add || Math.abs(l.newValue - l.oldValue) > 0.005);
+
+export interface RefreshTotals {
+  /** Total antes, na moeda base, com o câmbio salvo. */
+  before: number;
+  /** Total depois, na moeda base, com o câmbio novo (só linhas aprovadas mudam de valor). */
+  after: number;
+  /** Parte da variação que vem dos próprios ativos (valor novo − antigo, no câmbio novo). */
+  assets: number;
+  /** Parte que vem só do câmbio: posições em outra moeda valem mais/menos em reais. */
+  fx: number;
+}
+
+/**
+ * Totais do "Atualizar valores". after − before = assets + fx exatamente:
+ * Σ novo·taxaNova − Σ antigo·taxaVelha = Σ (novo − antigo)·taxaNova + Σ antigo·(taxaNova − taxaVelha).
+ */
+export function refreshTotals(lines: RefreshLine[], approved: Set<string>, fxOld: FxRates, fxNew: FxRates): RefreshTotals {
+  const t: RefreshTotals = { before: 0, after: 0, assets: 0, fx: 0 };
+  for (const l of lines) {
+    const rOld = rate(fxOld, l.currency);
+    const rNew = rate(fxNew, l.currency);
+    const v = approved.has(l.id) ? l.newValue : l.oldValue;
+    t.before += l.oldValue * rOld;
+    t.after += v * rNew;
+    t.assets += (v - l.oldValue) * rNew;
+    t.fx += l.oldValue * (rNew - rOld);
+  }
+  return t;
+}
+
+/** Quanto a linha ganha/perde em moeda base só pelo câmbio (0 se a moeda é a base ou a taxa não mudou). */
+export const fxImpact = (l: RefreshLine, fxOld: FxRates, fxNew: FxRates) => l.oldValue * (rate(fxNew, l.currency) - rate(fxOld, l.currency));
 
 /**
  * Aplica as linhas aprovadas de um "atualizar valores".

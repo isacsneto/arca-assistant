@@ -17,7 +17,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 ![Claude](https://img.shields.io/badge/Claude-Agent%20SDK-d97757)
 ![Codex](https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white)
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
-![Testes](https://img.shields.io/badge/testes-169%20passando-2ea44f)
+![Testes](https://img.shields.io/badge/testes-170%20passando-2ea44f)
 ![Licença: MIT](https://img.shields.io/badge/licença-MIT-blue)
 
 <br/>
@@ -122,13 +122,13 @@ npm run local:uninstall  # remove a inicialização automática e o tailscale se
 npm run local            # roda em primeiro plano, reiniciando se cair (sem instalar nada)
 ```
 
-O `local:install` compila o app, sobe o servidor em `http://localhost:3001` e reinicia se ele cair. Só uma instância roda por vez, porque duas gravando o mesmo `data/` se sobrescreveriam. Os logs ficam em `data/logs/server.log`.
+O `local:install` compila o app e sobe o servidor em `http://localhost:3001`, sem janela nenhuma. Se o servidor cair, volta em segundos; se travar (vivo mas sem responder por ~2 min), é reiniciado; e se o próprio supervisor sair, o serviço do sistema o religa. Só uma instância roda por vez, porque duas gravando o mesmo `data/` se sobrescreveriam. Os logs ficam em `data/logs/server.log`.
 
 | Sistema | O que o `local:install` cria | Observações |
 |---|---|---|
-| **Windows** | Tarefa **"Arca Assistant"** no Agendador, ao fazer login (janela oculta) | Rode no PowerShell, sem `!` na frente. Não precisa ser administrador. |
-| **macOS** | LaunchAgent `~/Library/LaunchAgents/com.arca-assistant.plist` (`RunAtLoad` + `KeepAlive`) | Usa o Tailscale do app da Mac App Store ou o CLI. |
-| **Linux** | Serviço systemd do usuário `~/.config/systemd/user/arca-assistant.service` | Para rodar mesmo sem você logado: `sudo loginctl enable-linger $USER`. Se o `tailscale serve` recusar: `sudo tailscale set --operator=$USER`. |
+| **Windows** | Tarefa **"Arca Assistant"** no Agendador, ao fazer login (`conhost --headless`: sem janela para fechar sem querer) | Rode no PowerShell, sem `!` na frente. Não precisa ser administrador. |
+| **macOS** | LaunchAgent `~/Library/LaunchAgents/com.arca-assistant.plist` (`RunAtLoad` + `KeepAlive`, religa sempre) | Usa o Tailscale do app da Mac App Store ou o CLI. |
+| **Linux** | Serviço systemd do usuário `~/.config/systemd/user/arca-assistant.service` (`Restart=always`) | O instalador liga o *linger* para o app seguir rodando depois que você sai da sessão; se não tiver permissão, rode `sudo loginctl enable-linger $USER`. Se o `tailscale serve` recusar: `sudo tailscale set --operator=$USER`. |
 
 Os serviços rodam com o **seu usuário**, para a IA usar o login local do Claude ou do Codex que você já fez no terminal.
 
@@ -215,7 +215,7 @@ flowchart LR
 ## 🛠️ Desenvolvimento
 
 ```bash
-npm test             # 169 testes (node:test + tsx)
+npm test             # 170 testes (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # produção local em http://localhost:3001
 ```

@@ -1,5 +1,6 @@
-// npm run local — deixa o app rodando (compila o front-end, sobe o servidor e reinicia se ele cair).
-// É o que a tarefa do Windows ("npm run local:install") executa ao fazer login.
+// npm run local — deixa o app rodando (compila o front-end, sobe o servidor e reinicia se ele cair
+// ou travar). Com --service é o que o serviço do sistema roda ("npm run local:install"): tarefa do
+// Windows, LaunchAgent do macOS ou systemd do Linux, que por sua vez religam este script se ele sair.
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -22,15 +23,30 @@ const log = (msg) => {
   process.stdout.write(line);
 };
 
+// --service: chamado pelo serviço do sistema (tarefa do Windows, LaunchAgent, systemd).
+const service = process.argv.includes("--service");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const alive = async (timeout = 2000) => {
+  try {
+    return (await fetch(`http://127.0.0.1:${port}/api/state`, { signal: AbortSignal.timeout(timeout) })).ok;
+  } catch {
+    return false;
+  }
+};
+
 // Já tem um app respondendo nesta porta? Não sobe outro (dois servidores no mesmo data/ se sobrescreveriam).
-try {
-  const r = await fetch(`http://127.0.0.1:${port}/api/state`, { signal: AbortSignal.timeout(2000) });
-  if (r.ok) {
+// Como serviço, fica de reserva: se aquele parar de responder, assume (sem reiniciar sem parar).
+if (await alive()) {
+  if (!service) {
     log(`Já existe um Arca Assistant na porta ${port}; nada a fazer.`);
     process.exit(0);
   }
-} catch {
-  /* porta livre */
+  log(`Já existe um Arca Assistant na porta ${port}; fico de reserva e assumo se ele parar.`);
+  for (let down = 0; down < 2; ) {
+    await sleep(15_000);
+    down = (await alive(5000)) ? 0 : down + 1;
+  }
+  log("O outro servidor parou de responder; assumindo.");
 }
 
 fs.writeFileSync(pidFile, String(process.pid));
@@ -56,11 +72,12 @@ if (build.status !== 0) {
 
 const tsx = path.join(path.dirname(require.resolve("tsx/package.json")), "dist", "cli.mjs");
 let child = null;
+let startedAt = 0;
 let stopping = false;
 let failures = 0;
 
 function start() {
-  const startedAt = Date.now();
+  startedAt = Date.now();
   child = spawn(process.execPath, [tsx, "--env-file-if-exists=.env", "server/index.ts"], {
     cwd: root,
     env: { ...process.env, PORT: port },
@@ -69,6 +86,7 @@ function start() {
   });
   log(`Servidor iniciado (pid ${child.pid}) em http://127.0.0.1:${port}`);
   child.on("exit", (code, signal) => {
+    child = null;
     if (stopping) return;
     // Caiu: reinicia com espera crescente (zera se tinha ficado de pé por 1 min).
     failures = Date.now() - startedAt > 60_000 ? 1 : failures + 1;
@@ -78,11 +96,39 @@ function start() {
   });
 }
 
-for (const sig of ["SIGINT", "SIGTERM", "SIGBREAK"]) {
+// Vivo mas travado (não responde): mata, e o "exit" acima reinicia. Dá 90 s para subir.
+let misses = 0;
+setInterval(async () => {
+  if (!child || stopping || Date.now() - startedAt < 90_000) return;
+  misses = (await alive(10_000)) ? 0 : misses + 1;
+  if (misses >= 4 && child) {
+    log(`Servidor sem responder há ~2 min; reiniciando (pid ${child.pid}).`);
+    misses = 0;
+    treeKill(child.pid);
+  }
+}, 30_000).unref();
+
+/** Mata o processo e os filhos: o tsx roda o servidor num processo filho, que ficaria segurando a porta. */
+function treeKill(pid, signal = "SIGKILL") {
+  if (process.platform === "win32") {
+    spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+    return;
+  }
+  const kids = spawnSync("pgrep", ["-P", String(pid)], { encoding: "utf8" }).stdout?.split(/\s+/).filter(Boolean) ?? [];
+  for (const k of kids) treeKill(Number(k), signal);
+  try {
+    process.kill(pid, signal);
+  } catch {
+    /* já saiu */
+  }
+}
+
+// SIGHUP: terminal/console fechado (no Windows, fechar a janela).
+for (const sig of ["SIGINT", "SIGTERM", "SIGBREAK", "SIGHUP"]) {
   process.on(sig, () => {
     stopping = true;
-    log("Encerrando.");
-    child?.kill();
+    log(`Encerrando (${sig}).`);
+    if (child) treeKill(child.pid, "SIGTERM");
     process.exit(0);
   });
 }
