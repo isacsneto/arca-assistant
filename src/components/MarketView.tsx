@@ -686,7 +686,7 @@ function ResearchReportView({ r, busy, canAi, onRerun, onDelete }: { r: Research
             {[...positives, ...negatives].map((s, i) => (
               <div key={i} className={`scenario ${s.kind === "positivo" ? "pos" : "neg"}`}>
                 <div className="row spread" style={{ gap: 8, alignItems: "flex-start" }}>
-                  <b className="row" style={{ gap: 6 }}>{s.kind === "positivo" ? <TrendingUp size={16} className="ok-text" /> : <TrendingDown size={16} className="bad-text" />}{s.title}</b>
+                  <b className="row" style={{ gap: 6, alignItems: "flex-start" }}>{s.kind === "positivo" ? <TrendingUp size={16} className="ok-text" /> : <TrendingDown size={16} className="bad-text" />}{s.title}</b>
                   <span className="chip">{L("prob.", "prob.")} {LIKELY(s.probability)}</span>
                 </div>
                 <p className="prose small" style={{ marginTop: 6 }}>{s.description}</p>

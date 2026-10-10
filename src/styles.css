@@ -367,6 +367,7 @@ label.btn.disabled { opacity: 0.6; pointer-events: none; }
 .action-box { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); }
 .scenarios { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .scenario { padding: 12px 14px; border: 1px solid var(--border); border-left-width: 4px; border-radius: 10px; }
+.scenario b > svg { flex-shrink: 0; margin-top: 2px; }
 .scenario.pos { border-left-color: var(--ok); }
 .scenario.neg { border-left-color: var(--bad); }
 

@@ -11,8 +11,10 @@ $taskName = "Arca Assistant"
 Write-Host "Pasta do app: $root"
 
 # --- tarefa no login (roda como você, para usar o login local do Claude/Codex) ---
-$action = New-ScheduledTaskAction -Execute "powershell.exe" `
-  -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$root\scripts\windows\run-hidden.ps1`"" `
+# conhost --headless: sem janela nenhuma. Com o Windows Terminal como terminal padrão (Windows 11),
+# "-WindowStyle Hidden" é ignorado, abre uma janela "powershell.exe" e fechá-la derruba o app.
+$action = New-ScheduledTaskAction -Execute "conhost.exe" `
+  -Argument "--headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$root\scripts\windows\run-hidden.ps1`"" `
   -WorkingDirectory $root
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
