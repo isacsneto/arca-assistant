@@ -1,40 +1,145 @@
-# Arca Assistant
+<div align="center">
 
-Consolida seus investimentos (conta corrente, renda fixa, ações, FIIs, exterior) a partir de **prints, PDFs, CSV e XLSX** lidos pelo Claude, mostra a carteira nas classes da **Arca** (Primo Rico / Thiago Nigro), sugere como rebalancear e faz um **scan** na web das melhores opções de cada classe.
+# 🏛️ Arca Assistant
 
-## Rodando
+### Seu patrimônio inteiro num lugar só — organizado pela filosofia **Arca**, com IA que lê seus prints, pesquisa o mercado e projeta o futuro.
+
+**Claude · Codex (ChatGPT) · Cursor** — com o login que você já tem ou com chave de API.
+Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que você escolher, na hora de cada análise).
+
+<br/>
+
+![React](https://img.shields.io/badge/React-19-149eca?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
+![Node](https://img.shields.io/badge/Node-20%2B-5fa04e?logo=nodedotjs&logoColor=white)
+![Claude](https://img.shields.io/badge/Claude-Agent%20SDK-d97757)
+![Codex](https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white)
+![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
+![Testes](https://img.shields.io/badge/testes-120%20passando-2ea44f)
+
+<br/>
+
+<img src="docs/demo.gif" alt="Demonstração do Arca Assistant com uma carteira fictícia" width="900"/>
+
+<sub>Demonstração com dados 100% fictícios (<code>npm run demo</code>). <a href="docs/demo.mp4">Versão em vídeo (MP4)</a></sub>
+
+</div>
+
+---
+
+## ✨ O que ele faz
+
+| | |
+|---|---|
+| 📸 **Importa qualquer coisa** | Prints do app do banco, PDFs, CSV/XLSX (BTG, XP, Nubank, Itaú, Inter…) ou uma frase: *"17000.30 adicionados à caixinha cdb do inter pj"*. A IA extrai, classifica e **pergunta quando não tem certeza**. |
+| 🧠 **Entende o nome do arquivo** | `itau-pf-cdb100cdi.png` → Itaú · pessoa física · CDB 100% do CDI. A IA confere a leitura. |
+| 🔁 **Detecta duplicados** | Arquivo idêntico (SHA-256), print quase igual (hash visual) e mesma tela em prints diferentes (a IA compara o conteúdo). |
+| 🏛️ **Carteira pela Arca** | Ações · Imóveis (FIIs) · Caixa/Renda Fixa · Internacional — Arca do Primo Rico (25/25/25/25), Arca Grão (30/10/40/20) ou sua própria divisão. Clique numa classe e veja os ativos. |
+| 👥 **PF e PJ** | Visão consolidada ou separada por titular em todas as telas, inclusive na projeção. |
+| ⚖️ **Rebalanceamento** | Diz quanto aportar em cada classe (ou quanto vender) para voltar às metas, e onde colocar o dinheiro. |
+| 🔎 **Scan de ativos** | A IA pesquisa balanços, relatórios de FIIs, a situação fiscal do governo e ETFs, e devolve um ranking com tese, métricas, riscos e fontes. |
+| 🔄 **Atualizar valores** | Ações, FIIs, ETFs, dólar e cripto pela cotação de mercado; renda fixa estimada pela IA acumulando CDI/Selic/IPCA. Você revisa antes de aplicar. |
+| 📈 **Projeção 5–30 anos** | Cenário mais provável e pior caso plausível, com premissas pesquisadas (Focus, juros, fiscal, valuation) e a conta feita pelo app — nominal e em reais de hoje. |
+| 🏦 **Por instituição** | Quanto você tem em cada banco/corretora. Marque uma como desatualizada e o app lembra você de atualizar. |
+| 🚗 **Bens físicos** | Carros, imóveis, joias e eletrônicos fora dos investimentos, com **estimativa de valor por IA** (FIPE, anúncios de novos e usados, cotação do ouro) e anexos (fotos, nota fiscal). |
+| ⏰ **Lembretes** | Instituições desatualizadas ao abrir o app e revisão periódica ("está tudo atualizado?") a cada 1 ou 2 semanas. |
+
+<div align="center">
+<img src="docs/screenshots/carteira.jpg" alt="Carteira consolidada pela Arca" width="49%"/>
+<img src="docs/screenshots/projecao.jpg" alt="Projeção de 5 a 30 anos" width="49%"/>
+<img src="docs/screenshots/scan.jpg" alt="Scan de ativos com IA" width="49%"/>
+<img src="docs/screenshots/bens.jpg" alt="Bens com estimativa por IA" width="49%"/>
+</div>
+
+---
+
+## 🚀 Começando
+
+**Requisitos:** Node.js 20+ e **uma** das IAs abaixo.
 
 ```bash
+git clone https://github.com/<seu-usuario>/arca-assistant.git
+cd arca-assistant
 npm install
-claude auth login          # só se ainda não estiver logado no Claude Code
-npm run dev               # front em http://localhost:5173, API em :3001
+npm run dev          # abre em http://localhost:5173
 ```
 
-Produção local: `npm run build && npm start` (tudo em http://localhost:3001).
-Testes do cálculo de rebalanceamento: `npm test`.
+Quer ver antes de colocar seus dados? Rode a demonstração com uma carteira fictícia (porta 3101, dados separados):
 
-## Como funciona
+```bash
+npm run demo         # npm run demo:reset recria os dados fictícios
+```
 
-| Tela | O que faz |
-|---|---|
-| **Importar** | Arraste/cole prints (Ctrl+V), PDFs, CSV ou XLSX. O Claude extrai posições e transações; você revisa/edita e só então salva. Reimportar atualiza posições existentes (mesma instituição + ticker/nome). |
-| **Carteira** | Total, alocação atual × meta, posições editáveis por classe. Dólar convertido pela cotação em Ajustes. |
-| **Atualizar valores** (botão na Carteira) | Ações, FIIs, ETFs, BDRs, dólar e cripto (Bitcoin/Ethereum) pela cotação de mercado do Yahoo Finance (`quantidade × preço`; sem quantidade, ela é inferida pela cotação da data da última atualização). Renda fixa e o que não tem cotação: o Claude pesquisa CDI/Selic/IPCA e acumula desde a última atualização. Saldos em conta são mantidos. Você revisa antes/depois e aplica. |
-| **Projeção** | O Claude pesquisa inflação, juros, fiscal, valuation e histórico de longo prazo e define premissas de retorno por classe (e por ativo, quando foge da média) para dois cenários: **mais provável** e **pior caso plausível** (com choque no 1º ano). O app calcula 5/10/15/20/30 anos sobre a carteira atual, nominal e em reais de hoje. |
-| **Rebalancear** | Informe o aporte: divide entre as classes abaixo da meta (ou, opcionalmente, com vendas até a meta exata). Usa o último scan para sugerir a divisão por ativo. |
-| **Scan de ativos** | Por classe, o Claude pesquisa na web (balanços/resultados, relatórios de FIIs, finanças e juros do governo, ETFs) e devolve ranking com tese, métricas, riscos, o que evitar e fontes. |
-| **Ajustes** | Metas (padrão 25/25/25/25), modelo e esforço de cada tarefa, perfil do investidor, câmbio, backup. |
+### 🤖 Escolha sua IA
 
-**Classes da Arca:** Ações · Imóveis (FIIs) · Caixa/Renda Fixa · Internacional. Cripto, ouro, multimercado etc. ficam em "Fora da Arca" e não entram no rebalanceamento.
+Em **Ajustes → Provedor de IA** você escolhe o provedor e o modo de acesso. O app mostra se cada um está instalado, logado e com chave.
 
-## Modelos
+| Provedor | 🔐 Login local (usa sua assinatura) | 🔑 Chave de API |
+|---|---|---|
+| **Claude** (Anthropic) | `claude auth login` — o motor do Claude Code já vem no app | `ANTHROPIC_API_KEY` |
+| **Codex** (OpenAI / ChatGPT) | `npx codex login` — o Codex CLI já vem no app | `CODEX_API_KEY` ou `OPENAI_API_KEY` |
+| **Cursor** | instale o [Cursor CLI](https://cursor.com/docs/cli/installation) e rode `agent login` | `CURSOR_API_KEY` (precisa do CLI) |
 
-A IA roda pelo **Claude Code instalado na sua máquina** (Claude Agent SDK), usando o login da sua assinatura — **sem API key**. Cada chamada é isolada: sem seu CLAUDE.md/hooks/MCP e só com as ferramentas mínimas (`Read` para os arquivos; `WebSearch`/`WebFetch` no scan).
+- Chaves podem ser cadastradas pela tela (ficam só em `data/secrets.json`, fora do git, e **nunca vão para o navegador**) ou por variável de ambiente.
+- No Claude você escolhe o modelo de cada tarefa (Opus para pesquisas longas, Sonnet para leitura…). No Codex e no Cursor, um modelo **forte** (scan e projeção) e um **rápido** (o resto) — em branco usa o padrão do CLI.
+- O esforço de raciocínio é ajustável por tarefa em todos.
 
-Padrões (mudam em Ajustes): leitura de arquivos e atualizar valores com **Sonnet 5.5 / esforço médio**; scan e projeção com **Opus 5.5 / esforço alto**. O scan faz dezenas de buscas por categoria e consome o limite da assinatura; rode quando houver balanço novo.
+---
 
-## Notas
+## 🧩 Como funciona
 
-- Dados ficam em `data/state.json` (fora do git). Arquivos enviados não são armazenados.
-- O scan é análise gerada por IA com dados públicos; não é recomendação de investimento.
-- Estrutura: `shared/` (tipos, schemas, cálculo), `server/` (Express + Claude Agent SDK), `src/` (React + Vite).
+```mermaid
+flowchart LR
+  UI["React + Vite<br/>(navegador)"] -- "/api" --> API["Express<br/>(127.0.0.1)"]
+  API --> Tasks["Tarefas<br/>ler prints · texto · scan<br/>valores · projeção · bens"]
+  Tasks --> runAi{{"runAi()"}}
+  runAi --> C["Claude<br/>Agent SDK"]
+  runAi --> X["Codex<br/>codex exec --output-schema"]
+  runAi --> K["Cursor<br/>agent -p --output-format json"]
+  API --> Q["Yahoo Finance<br/>(cotações)"]
+  API --> D[("data/<br/>state.json · anexos · chaves")]
+```
+
+- **Uma interface de IA, três motores.** Cada tarefa pede *instruções + tarefa + schema JSON + anexos + busca na web*; o motor do provedor traduz isso (saída estruturada nativa no Claude e no Codex; JSON validado com nova tentativa no Cursor).
+- **A conta é do app, não do modelo.** A IA define premissas e lê documentos; rebalanceamento, projeção, acúmulo de valores e validações (saldo negativo, duplicados, itens perdidos) são calculados em código testado.
+- **Você revisa antes de salvar.** Importações, atualizações de valor e operações por texto sempre mostram antes → depois.
+
+### 📁 Dica: nomeie seus arquivos
+
+`<instituição>-<pf|pj>[-<produto>]` — por exemplo `vest-pf.png`, `btg-pj.pdf`, `itau-pf-cdb100cdi.jpg`, `xp_pj_lci95.png`. Versões e cópias (`v2`, `copia`, `(2)`, datas) são ignoradas.
+
+---
+
+## 🔒 Privacidade e segurança
+
+- O servidor escuta **só em `127.0.0.1`**: ninguém na sua rede acessa sua carteira.
+- Tudo fica em `data/` (fora do git): carteira, anexos dos bens e chaves de API.
+- Arquivos enviados vão para a IA escolhida na hora da análise; prints de importação não são guardados.
+- Cada chamada de IA é isolada: sem acesso aos seus outros projetos, em modo somente leitura e só com as ferramentas necessárias (ler os anexos, buscar na web).
+- Links vindos da web são filtrados (só `http/https`); anexos têm nomes gerados pelo servidor (sem path traversal).
+
+---
+
+## 🛠️ Desenvolvimento
+
+```bash
+npm test             # 120 testes (node:test + tsx)
+npm run typecheck
+npm run build && npm start   # produção local em http://localhost:3001
+```
+
+```
+shared/   regras e tipos (Arca, projeção, importação, duplicados, PF/PJ, IA) — testados
+server/   Express, tarefas de IA (tasks.ts), motores em server/ai/, cotações, anexos
+src/      React: Carteira, Rebalancear, Projeção, Instituições, Bens, Importar, Scan…
+scripts/  demo com carteira fictícia
+```
+
+`ARCA_DATA_DIR` aponta para outra pasta de dados (é assim que a demo roda sem tocar nos seus dados).
+
+---
+
+<sub>
+⚠️ <b>Aviso:</b> o Arca Assistant é uma ferramenta pessoal de organização. Análises, scans, estimativas e projeções são gerados por IA a partir de dados públicos e podem conter erros — <b>não são recomendação de investimento</b>. Confira as fontes antes de decidir.
+A "Arca" é a metodologia divulgada por Thiago Nigro (Primo Rico); este projeto não tem relação com ele, com o Grupo Primo nem com as instituições citadas.
+</sub>
