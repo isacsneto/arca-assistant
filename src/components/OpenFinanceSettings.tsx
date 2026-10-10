@@ -137,8 +137,10 @@ export function OpenFinanceSettings() {
       <label className="check small" style={{ marginTop: 14, alignItems: "flex-start" }}>
         <input type="checkbox" checked={of.sourceOfTruth} onChange={(e) => set({ sourceOfTruth: e.target.checked })} style={{ marginTop: 2 }} />
         <span>
-          <b>Usar o Open Finance como fonte da verdade</b> das instituições conectadas: ao importar, substitui tudo o que você tem nelas
-          (por titular), e o <b>Atualizar valores</b> da Carteira traz os valores de lá — inclusive ativos novos e os que saíram. Você revisa antes de aplicar.
+          <b>Usar o Open Finance como fonte da verdade</b> das conexões acima: ao importar, substitui o que você tem naquela instituição
+          <b> e titular</b>, e o <b>Atualizar valores</b> da Carteira traz os valores de lá — inclusive ativos novos e os que saíram. Você revisa antes de aplicar.
+          Cada conexão só mexe no próprio escopo: uma conexão <b>BTG PF</b> atualiza só o BTG PF; o BTG PJ fica intacto, a não ser que exista
+          também uma conexão BTG PJ trazendo dados.
         </span>
       </label>
       <label className="check small" style={{ marginTop: 10 }}>

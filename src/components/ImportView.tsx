@@ -295,7 +295,8 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
             </div>
             {forceReplace && (
               <p className="muted small" style={{ marginTop: -6, marginBottom: 10 }}>
-                O Open Finance é a fonte da verdade (Ajustes → Open Finance): tudo o que você tinha nessas instituições, por titular, é substituído pelo que veio daqui.
+                O Open Finance é a fonte da verdade (Ajustes → Open Finance): só é substituído o que você tinha em cada instituição <b>e titular</b> que veio daqui
+                ({[...new Set(positions.filter((d) => d.include).map((d) => `${d.institution} ${d.owner ?? fallbackOwner}`))].join(", ") || "nenhum"}). O resto da carteira fica intacto.
               </p>
             )}
             <div className="table-wrap">
