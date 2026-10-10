@@ -18,6 +18,7 @@ import { clearStaleFor } from "../../shared/reminders";
 import { clock } from "../../shared/videoFrames";
 import { OpenFinanceImport } from "./OpenFinanceImport";
 import { openFinanceSettings, withSyncedConnections, type OpenFinanceImport as OfResult } from "../../shared/openFinance";
+import { getLang, L } from "../../shared/i18n";
 
 interface Draft extends ExtractedItem {
   _id: string;
@@ -99,7 +100,7 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
   };
 
   const processFiles = () =>
-    run(`Lendo arquivos com ${aiName}…`, async (signal) => {
+    run(L(`Lendo arquivos com ${aiName}…`, `Reading files with ${aiName}…`), async (signal) => {
       const res = await api.importFiles(toUpload(), signal);
       setReview(toReview(res));
       setAnswers({});
@@ -107,7 +108,7 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
     });
 
   const sendAnswers = () =>
-    run(`${aiName} revisando com as suas respostas…`, async (signal) => {
+    run(L(`${aiName} revisando com as suas respostas…`, `${aiName} reviewing with your answers…`), async (signal) => {
       if (!review) return;
       const payload: ImportAnswer[] = review.questions
         .filter((q) => answers[q.id]?.trim())
@@ -169,23 +170,23 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
     const blocked = pending > 0 && !skipQuestions;
     const duplicates = review.files.filter((f) => f.duplicateOf);
     // O aviso de prints repetidos já tem banner próprio; não repetir nos avisos da IA.
-    const otherWarnings = duplicates.length ? review.warnings.filter((w) => !/duplicad|repetid|idêntic/i.test(w)) : review.warnings;
+    const otherWarnings = duplicates.length ? review.warnings.filter((w) => !/duplicad|repetid|idêntic|duplicat|repeat|identical/i.test(w)) : review.warnings;
     const indexOf = new Map(drafts.map((d, i) => [d._id, i]));
     const asked = new Set(review.questions.flatMap((q) => q.itemIndexes));
 
     return (
       <>
         <PageHead
-          title="Revisar importação"
+          title={L("Revisar importação", "Review import")}
           subtitle={review.source === "openfinance"
-            ? "Dados do Open Finance (valores líquidos). Confira a classe de cada investimento e ajuste o que precisar antes de salvar."
-            : "Confira como a IA entendeu cada arquivo, responda às perguntas dela e ajuste o que precisar antes de salvar."}
+            ? L("Dados do Open Finance (valores líquidos). Confira a classe de cada investimento e ajuste o que precisar antes de salvar.", "Open Finance data (net values). Check each investment's class and adjust what you need before saving.")
+            : L("Confira como a IA entendeu cada arquivo, responda às perguntas dela e ajuste o que precisar antes de salvar.", "Check how the AI understood each file, answer its questions and adjust what you need before saving.")}
           actions={
             <>
-              <button className="btn" onClick={() => setReview(null)} disabled={!!busy}>Voltar</button>
+              <button className="btn" onClick={() => setReview(null)} disabled={!!busy}>{L("Voltar", "Back")}</button>
               <button className="btn primary" disabled={!included || blocked || !!busy} onClick={commit}
-                title={blocked ? "Responda às perguntas da IA (ou marque para salvar sem responder)" : undefined}>
-                Salvar {included} itens
+                title={blocked ? L("Responda às perguntas da IA (ou marque para salvar sem responder)", "Answer the AI's questions (or check the box to save without answering)") : undefined}>
+                {L(`Salvar ${included} itens`, `Save ${included} item${included === 1 ? "" : "s"}`)}
               </button>
             </>
           }
@@ -198,8 +199,8 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
           <div className="card question-card" style={{ marginBottom: 16 }}>
             <div className="card-head">
               <div>
-                <h2 className="row"><HelpCircle size={18} /> {aiName} precisa de {pending === 1 ? "uma resposta" : `${pending} respostas`}</h2>
-                <p className="muted small">Para classificar estes ativos com segurança. Escolha uma opção ou escreva a sua.</p>
+                <h2 className="row"><HelpCircle size={18} /> {L(`${aiName} precisa de ${pending === 1 ? "uma resposta" : `${pending} respostas`}`, `${aiName} needs ${pending === 1 ? "an answer" : `${pending} answers`}`)}</h2>
+                <p className="muted small">{L("Para classificar estes ativos com segurança. Escolha uma opção ou escreva a sua.", "To classify these assets reliably. Pick an option or write your own.")}</p>
               </div>
             </div>
             <div className="stack">
@@ -208,7 +209,7 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
                   <div><b>{qi + 1}. {q.question}</b></div>
                   {q.itemIndexes.length > 0 && (
                     <div className="muted small" style={{ marginTop: 2 }}>
-                      Afeta: {q.itemIndexes.map((i) => drafts[i]).filter(Boolean).map((d) => (d.ticker ? `${d.ticker} · ` : "") + d.name).join(", ")}
+                      {L("Afeta:", "Affects:")} {q.itemIndexes.map((i) => drafts[i]).filter(Boolean).map((d) => (d.ticker ? `${d.ticker} · ` : "") + d.name).join(", ")}
                     </div>
                   )}
                   <div className="row wrap" style={{ marginTop: 8, gap: 6 }}>
@@ -216,7 +217,7 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
                       <button key={o} type="button" className={"btn sm" + (answers[q.id] === o ? " primary" : "")}
                         onClick={() => setAnswers((a) => ({ ...a, [q.id]: o }))}>{o}</button>
                     ))}
-                    <input type="text" placeholder="Outra resposta…" style={{ maxWidth: 280 }}
+                    <input type="text" placeholder={L("Outra resposta…", "Other answer…")} style={{ maxWidth: 280 }}
                       value={q.options.includes(answers[q.id] ?? "") ? "" : (answers[q.id] ?? "")}
                       onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))} />
                   </div>
@@ -226,10 +227,10 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
             <div className="row wrap spread" style={{ marginTop: 14 }}>
               <label className="check small">
                 <input type="checkbox" checked={skipQuestions} onChange={(e) => setSkipQuestions(e.target.checked)} />
-                Salvar sem responder (usar os palpites da IA)
+                {L("Salvar sem responder (usar os palpites da IA)", "Save without answering (use the AI's guesses)")}
               </label>
               <button className="btn primary" disabled={!answered || !!busy} onClick={sendAnswers}>
-                <Send size={15} /> Enviar {answered || ""} resposta{answered === 1 ? "" : "s"} para {aiName}
+                <Send size={15} /> {L(`Enviar ${answered || ""} resposta${answered === 1 ? "" : "s"} para ${aiName}`, `Send ${answered || ""} answer${answered === 1 ? "" : "s"} to ${aiName}`)}
               </button>
             </div>
           </div>
@@ -237,38 +238,40 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
 
         {otherWarnings.length > 0 && (
           <Banner kind="warn">
-            <b>Avisos da IA:</b>
+            <b>{L("Avisos da IA:", "AI warnings:")}</b>
             <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>{otherWarnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
           </Banner>
         )}
         {duplicates.length > 0 && (
           <Banner kind="warn">
-            <b>Prints repetidos:</b> {duplicates.map((f) => `"${f.file}" repete "${f.duplicateOf}"`).join("; ")}. Os ativos foram contados uma vez só.
+            <b>{L("Prints repetidos:", "Repeated screenshots:")}</b> {duplicates.map((f) => L(`"${f.file}" repete "${f.duplicateOf}"`, `"${f.file}" repeats "${f.duplicateOf}"`)).join("; ")}.{" "}{L("Os ativos foram contados uma vez só.", "The assets were counted only once.")}
           </Banner>
         )}
 
         {/* -------- leitura dos arquivos -------- */}
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-head">
-            <h2 className="row"><MessageSquare size={17} /> {review.source === "openfinance" ? "O que veio de cada conexão" : "Como a IA entendeu cada arquivo"}</h2>
-            <span className="muted small">mudar instituição/titular aqui vale para todos os itens {review.source === "openfinance" ? "da conexão" : "do arquivo"}</span>
+            <h2 className="row"><MessageSquare size={17} /> {review.source === "openfinance" ? L("O que veio de cada conexão", "What came from each connection") : L("Como a IA entendeu cada arquivo", "How the AI understood each file")}</h2>
+            <span className="muted small">{review.source === "openfinance"
+              ? L("mudar instituição/titular aqui vale para todos os itens da conexão", "changing institution/owner here applies to all items in the connection")
+              : L("mudar instituição/titular aqui vale para todos os itens do arquivo", "changing institution/owner here applies to all items in the file")}</span>
           </div>
           <div className="table-wrap">
             <table className="mc t-files">
-              <thead><tr><th>{review.source === "openfinance" ? "Conexão" : "Arquivo"}</th><th>Instituição</th><th>Titular</th><th>{review.source === "openfinance" ? "Conector" : "Produto (nome do arquivo)"}</th><th>O que mostra</th></tr></thead>
+              <thead><tr><th>{review.source === "openfinance" ? L("Conexão", "Connection") : L("Arquivo", "File")}</th><th>{L("Instituição", "Institution")}</th><th>{L("Titular", "Owner")}</th><th>{review.source === "openfinance" ? L("Conector", "Connector") : L("Produto (nome do arquivo)", "Product (file name)")}</th><th>{L("O que mostra", "What it shows")}</th></tr></thead>
               <tbody>
                 {review.files.map((f) => (
                   <tr key={f.file}>
                     <td className="ga-main" style={{ minWidth: 160 }}>
                       <b className="small">{f.file}</b>
-                      {f.duplicateOf && <div><span className="chip warn"><Copy size={11} /> repete {f.duplicateOf}</span></div>}
+                      {f.duplicateOf && <div><span className="chip warn"><Copy size={11} /> {L("repete", "repeats")} {f.duplicateOf}</span></div>}
                     </td>
-                    <td className="ga-a" data-l="Instituição" style={{ minWidth: 150 }}>
-                      <input className="cell" type="text" value={f.institution ?? ""} placeholder="não identificada"
+                    <td className="ga-a" data-l={L("Instituição", "Institution")} style={{ minWidth: 150 }}>
+                      <input className="cell" type="text" value={f.institution ?? ""} placeholder={L("não identificada", "not identified")}
                         onChange={(e) => patchFile(f.file, { institution: e.target.value || null })} />
                     </td>
-                    <td className="ga-b" data-l="Titular" style={{ minWidth: 80 }}>
-                      <select className="cell" value={f.owner ?? ""} onChange={(e) => patchFile(f.file, { owner: (e.target.value || null) as Owner | null })} aria-label="Titular do arquivo">
+                    <td className="ga-b" data-l={L("Titular", "Owner")} style={{ minWidth: 80 }}>
+                      <select className="cell" value={f.owner ?? ""} onChange={(e) => patchFile(f.file, { owner: (e.target.value || null) as Owner | null })} aria-label={L("Titular do arquivo", "File owner")}>
                         <option value="">?</option>
                         {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
                       </select>
@@ -282,39 +285,39 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
           </div>
         </div>
 
-        {drafts.length === 0 && <Banner kind="warn">{review.source === "openfinance" ? "Nenhum investimento com saldo veio do Open Finance." : "Nenhum dado financeiro foi encontrado nos arquivos."}</Banner>}
+        {drafts.length === 0 && <Banner kind="warn">{review.source === "openfinance" ? L("Nenhum investimento com saldo veio do Open Finance.", "No investment with a balance came from Open Finance.") : L("Nenhum dado financeiro foi encontrado nos arquivos.", "No financial data was found in the files.")}</Banner>}
 
         {positions.length > 0 && (
           <div className="card" style={{ marginBottom: 16 }}>
             <div className="card-head">
-              <h2>Posições ({positions.length})</h2>
-              <label className="check small" title={review.source === "openfinance" ? "O Open Finance traz a carteira inteira de cada instituição; itens antigos com nome diferente seriam duplicados" : "Útil quando o print mostra a carteira inteira daquela instituição"}>
+              <h2>{L("Posições", "Positions")} ({positions.length})</h2>
+              <label className="check small" title={review.source === "openfinance" ? L("O Open Finance traz a carteira inteira de cada instituição; itens antigos com nome diferente seriam duplicados", "Open Finance brings each institution's whole portfolio; old items with a different name would be duplicated") : L("Útil quando o print mostra a carteira inteira daquela instituição", "Useful when the screenshot shows that institution's whole portfolio")}>
                 <input type="checkbox" checked={removeStale || forceReplace} disabled={forceReplace} onChange={(e) => setRemoveStale(e.target.checked)} />
-                Remover posições antigas dessas instituições que não vieram aqui
+                {L("Remover posições antigas dessas instituições que não vieram aqui", "Remove old positions from these institutions that didn't come in here")}
               </label>
             </div>
             {forceReplace && (
               <p className="muted small" style={{ marginTop: -6, marginBottom: 10 }}>
-                O Open Finance é a fonte da verdade (Ajustes → Open Finance): só é substituído o que você tinha em cada instituição <b>e titular</b> que veio daqui
-                ({[...new Set(positions.filter((d) => d.include).map((d) => `${d.institution} ${d.owner ?? fallbackOwner}`))].join(", ") || "nenhum"}). O resto da carteira fica intacto.
+                {L("O Open Finance é a fonte da verdade (Ajustes → Open Finance): só é substituído o que você tinha em cada instituição ", "Open Finance is the source of truth (Settings → Open Finance): only what you had at each institution ")}<b>{L("e titular", "and owner")}</b>{L(" que veio daqui", " that came in here is replaced")}{" "}
+                ({[...new Set(positions.filter((d) => d.include).map((d) => `${d.institution} ${d.owner ?? fallbackOwner}`))].join(", ") || L("nenhum", "none")}).{" "}{L("O resto da carteira fica intacto.", "The rest of the portfolio stays intact.")}
               </p>
             )}
             <div className="table-wrap">
               <table className="mc t-review">
-                <thead><tr><th /><th>Ativo</th><th>Instituição</th><th>Titular</th><th>Classe</th><th className="right">Valor</th><th>Moeda</th><th /></tr></thead>
+                <thead><tr><th /><th>{L("Ativo", "Asset")}</th><th>{L("Instituição", "Institution")}</th><th>{L("Titular", "Owner")}</th><th>{L("Classe", "Class")}</th><th className="right">{L("Valor", "Value")}</th><th>{L("Moeda", "Currency")}</th><th /></tr></thead>
                 <tbody>
                   {positions.map((d) => {
                     const pendingQ = asked.has(indexOf.get(d._id)!);
                     return (
                       <tr key={d._id} style={{ opacity: d.include ? 1 : 0.5 }}>
-                        <td className="ga-chk"><input type="checkbox" checked={d.include} onChange={(e) => patch(d._id, { include: e.target.checked })} aria-label="Incluir" /></td>
+                        <td className="ga-chk"><input type="checkbox" checked={d.include} onChange={(e) => patch(d._id, { include: e.target.checked })} aria-label={L("Incluir", "Include")} /></td>
                         <td className="ga-main" style={{ minWidth: 200 }}>
                           <input className="cell" type="text" value={d.name} onChange={(e) => patch(d._id, { name: e.target.value })} />
                           <div className="muted small" style={{ paddingLeft: 6 }}>{[d.ticker, d.subtype, d.sourceFile].filter(Boolean).join(" · ")}</div>
                         </td>
                         <td className="ga-a" style={{ minWidth: 150 }}><input className="cell" type="text" value={d.institution} onChange={(e) => patch(d._id, { institution: e.target.value })} /></td>
                         <td className="ga-b" style={{ minWidth: 80 }}>
-                          <select className="cell" value={d.owner ?? fallbackOwner} onChange={(e) => patch(d._id, { owner: e.target.value as Owner })} aria-label="Titular">
+                          <select className="cell" value={d.owner ?? fallbackOwner} onChange={(e) => patch(d._id, { owner: e.target.value as Owner })} aria-label={L("Titular", "Owner")}>
                             {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
                           </select>
                         </td>
@@ -324,9 +327,9 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
                           <select className="cell" value={d.currency} onChange={(e) => patch(d._id, { currency: e.target.value as "BRL" | "USD" })}><option>BRL</option><option>USD</option></select>
                         </td>
                         <td className="small ga-e">
-                          {pendingQ && <span className="chip warn" title="Há uma pergunta da IA sobre este item">pergunta</span>}{" "}
-                          {existing.has(posKey(d.owner ?? fallbackOwner, d.institution, d.ticker, d.name)) && <span className="chip">atualiza</span>}{" "}
-                          {d.confidence !== "alta" && !pendingQ && <span className={`chip ${d.confidence === "baixa" ? "bad" : "warn"}`} title={d.notes ?? ""}>confiança {d.confidence}</span>}
+                          {pendingQ && <span className="chip warn" title={L("Há uma pergunta da IA sobre este item", "The AI has a question about this item")}>{L("pergunta", "question")}</span>}{" "}
+                          {existing.has(posKey(d.owner ?? fallbackOwner, d.institution, d.ticker, d.name)) && <span className="chip">{L("atualiza", "updates")}</span>}{" "}
+                          {d.confidence !== "alta" && !pendingQ && <span className={`chip ${d.confidence === "baixa" ? "bad" : "warn"}`} title={d.notes ?? ""}>{L(`confiança ${d.confidence}`, `${d.confidence === "baixa" ? "low" : d.confidence === "media" ? "medium" : d.confidence} confidence`)}</span>}
                         </td>
                       </tr>
                     );
@@ -339,17 +342,17 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
 
         {txs.length > 0 && (
           <div className="card">
-            <div className="card-head"><h2>Transações ({txs.length})</h2></div>
+            <div className="card-head"><h2>{L("Transações", "Transactions")} ({txs.length})</h2></div>
             <div className="table-wrap">
               <table className="mc t-rtx">
-                <thead><tr><th /><th>Data</th><th>Tipo</th><th>Descrição</th><th>Instituição</th><th>Titular</th><th className="right">Valor</th></tr></thead>
+                <thead><tr><th /><th>{L("Data", "Date")}</th><th>{L("Tipo", "Type")}</th><th>{L("Descrição", "Description")}</th><th>{L("Instituição", "Institution")}</th><th>{L("Titular", "Owner")}</th><th className="right">{L("Valor", "Value")}</th></tr></thead>
                 <tbody>
                   {txs.map((d) => (
                     <tr key={d._id} style={{ opacity: d.include ? 1 : 0.5 }}>
-                      <td className="ga-chk"><input type="checkbox" checked={d.include} onChange={(e) => patch(d._id, { include: e.target.checked })} aria-label="Incluir" /></td>
+                      <td className="ga-chk"><input type="checkbox" checked={d.include} onChange={(e) => patch(d._id, { include: e.target.checked })} aria-label={L("Incluir", "Include")} /></td>
                       <td className="num mc-hide">{d.date ?? "—"}</td>
-                      <td className="mc-hide"><span className="chip">{d.txType ?? "outro"}</span></td>
-                      <td className="ga-main">{d.ticker ? <b>{d.ticker} </b> : null}{d.name}<div className="muted small m-only">{[d.date, d.txType ?? "outro"].filter(Boolean).join(" · ")}</div></td>
+                      <td className="mc-hide"><span className="chip">{d.txType ?? L("outro", "other")}</span></td>
+                      <td className="ga-main">{d.ticker ? <b>{d.ticker} </b> : null}{d.name}<div className="muted small m-only">{[d.date, d.txType ?? L("outro", "other")].filter(Boolean).join(" · ")}</div></td>
                       <td className="muted ga-sub">{d.institution}</td>
                       <td className="ga-a"><span className={"chip owner-" + (d.owner ?? fallbackOwner)}>{d.owner ?? fallbackOwner}</span></td>
                       <td className="right num ga-val">{money(d.value, d.currency)}</td>
@@ -373,24 +376,24 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
   return (
     <>
       <PageHead
-        title="Importar"
+        title={L("Importar", "Import")}
         subtitle={mode === "files"
-          ? "Prints ou vídeos de tela do app do banco/corretora, PDFs, CSV ou XLSX (BTG, XP, Nubank, Inter…). A IA lê, confere os nomes dos arquivos e pergunta o que não souber classificar."
+          ? L("Prints ou vídeos de tela do app do banco/corretora, PDFs, CSV ou XLSX (BTG, XP, Nubank, Inter…). A IA lê, confere os nomes dos arquivos e pergunta o que não souber classificar.", "Screenshots or screen recordings of your bank/broker app, PDFs, CSV or XLSX (BTG, XP, Nubank, Inter…). The AI reads them, checks the file names and asks about anything it can't classify.")
           : mode === "text"
-            ? "Escreva o que mudou — aportes, resgates, compras, novos saldos. A IA encontra a posição certa, pergunta se tiver dúvida e você confere antes de aplicar."
-            : "Busca seus investimentos direto dos bancos pelo Open Finance (Meu Pluggy). Você confere tudo antes de salvar."}
+            ? L("Escreva o que mudou — aportes, resgates, compras, novos saldos. A IA encontra a posição certa, pergunta se tiver dúvida e você confere antes de aplicar.", "Write what changed — contributions, withdrawals, purchases, new balances. The AI finds the right position, asks if in doubt and you review before applying.")
+            : L("Busca seus investimentos direto dos bancos pelo Open Finance (Meu Pluggy). Você confere tudo antes de salvar.", "Fetches your investments straight from the banks through Open Finance (Meu Pluggy). You review everything before saving.")}
         actions={
-          <div className="seg" role="tablist" aria-label="Tipo de importação">
-            <button role="tab" aria-selected={mode === "files"} className={mode === "files" ? "active" : ""} onClick={() => setMode("files")}>Arquivos</button>
-            <button role="tab" aria-selected={mode === "text"} className={mode === "text" ? "active" : ""} onClick={() => setMode("text")}>Texto</button>
+          <div className="seg" role="tablist" aria-label={L("Tipo de importação", "Import type")}>
+            <button role="tab" aria-selected={mode === "files"} className={mode === "files" ? "active" : ""} onClick={() => setMode("files")}>{L("Arquivos", "Files")}</button>
+            <button role="tab" aria-selected={mode === "text"} className={mode === "text" ? "active" : ""} onClick={() => setMode("text")}>{L("Texto", "Text")}</button>
             <button role="tab" aria-selected={mode === "openfinance"} className={mode === "openfinance" ? "active" : ""} onClick={() => setMode("openfinance")}>Open Finance</button>
           </div>
         }
       />
       {target && (
         <Banner>
-          Atualizando <b>{target.institution}</b> <span className={"chip owner-" + target.owner}>{target.owner}</span>: suba o print com um nome como{" "}
-          <code>{fileSlug(target.institution)}-{target.owner.toLowerCase()}.png</code>, ou descreva a mudança na aba Texto. Ao salvar, a marcação de desatualizada sai sozinha.
+          {L("Atualizando ", "Updating ")}<b>{target.institution}</b> <span className={"chip owner-" + target.owner}>{target.owner}</span>{L(": suba o print com um nome como", ": upload the screenshot with a name like")}{" "}
+          <code>{fileSlug(target.institution)}-{target.owner.toLowerCase()}.png</code>{L(", ou descreva a mudança na aba Texto. Ao salvar, a marcação de desatualizada sai sozinha.", ", or describe the change in the Text tab. When you save, the outdated mark clears by itself.")}
         </Banner>
       )}
       {mode === "openfinance" ? (
@@ -410,9 +413,9 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
         onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && input.current?.click()}
       >
         <Upload size={30} />
-        <div className="big d-only">Arraste arquivos, clique para escolher ou cole um print (Ctrl+V)</div>
-        <div className="big m-only">Toque para escolher prints, vídeos ou arquivos</div>
-        <div className="muted small">PNG, JPG, WEBP, vídeo de tela (MP4, MOV, WEBM), PDF, CSV, XLSX</div>
+        <div className="big d-only">{L("Arraste arquivos, clique para escolher ou cole um print (Ctrl+V)", "Drag files, click to choose or paste a screenshot (Ctrl+V)")}</div>
+        <div className="big m-only">{L("Toque para escolher prints, vídeos ou arquivos", "Tap to choose screenshots, videos or files")}</div>
+        <div className="muted small">{L("PNG, JPG, WEBP, vídeo de tela (MP4, MOV, WEBM), PDF, CSV, XLSX", "PNG, JPG, WEBP, screen recording (MP4, MOV, WEBM), PDF, CSV, XLSX")}</div>
         <input ref={input} type="file" hidden multiple accept="image/*,video/*,.mov,.mkv,.pdf,.csv,.tsv,.txt,.xlsx,.xls,.xlsm,.ods,.ofx"
           onChange={(e) => { void addFiles([...(e.target.files ?? [])]); e.target.value = ""; }} />
       </div>
@@ -421,7 +424,10 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
         <>
           {nearDups > 0 && (
             <Banner kind="warn">
-              {nearDups === 1 ? "Um print parece" : `${nearDups} prints parecem`} quase idêntico{nearDups === 1 ? "" : "s"} a outro do lote (marcado em amarelo). Remova se for repetido — se não, a IA confere o conteúdo e conta cada ativo uma vez só.
+              {L(
+                `${nearDups === 1 ? "Um print parece" : `${nearDups} prints parecem`} quase idêntico${nearDups === 1 ? "" : "s"} a outro do lote (marcado em amarelo). Remova se for repetido — se não, a IA confere o conteúdo e conta cada ativo uma vez só.`,
+                `${nearDups === 1 ? "One screenshot looks" : `${nearDups} screenshots look`} almost identical to another in the batch (marked in yellow). Remove it if it's a repeat — otherwise the AI checks the content and counts each asset only once.`,
+              )}
             </Banner>
           )}
           <div className="thumbs">
@@ -430,23 +436,28 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
                 {f.preview ? <img src={f.preview} alt={f.name} /> : <div className="ph">{icon(f)}</div>}
                 <div className="cap" title={f.name}>{f.name}</div>
                 <FileHintChips name={f.name} />
-                {f.video && <div className="cap"><span className="chip" title={"Quadro do vídeo " + f.video.source}><Video size={11} /> vídeo {clock(f.video.at)}</span></div>}
-                {f.looksLike && <div className="cap"><span className="chip warn" title="Hash visual quase igual"><Copy size={11} /> parece {f.looksLike}</span></div>}
-                <button className="btn icon sm x" title="Remover" onClick={() => setFiles((fs) => fs.filter((x) => x.id !== f.id))}><X size={14} /></button>
+                {f.video && <div className="cap"><span className="chip" title={L("Quadro do vídeo ", "Frame from video ") + f.video.source}><Video size={11} /> {L("vídeo", "video")} {clock(f.video.at)}</span></div>}
+                {f.looksLike && <div className="cap"><span className="chip warn" title={L("Hash visual quase igual", "Nearly identical visual hash")}><Copy size={11} /> {L("parece", "looks like")} {f.looksLike}</span></div>}
+                <button className="btn icon sm x" title={L("Remover", "Remove")} onClick={() => setFiles((fs) => fs.filter((x) => x.id !== f.id))}><X size={14} /></button>
               </div>
             ))}
           </div>
           <div className="row" style={{ marginTop: 18 }}>
             <button className="btn primary" disabled={!!busy || !!progress || !config!.hasCredentials} onClick={processFiles}>
-              {busy ? <><Loader2 className="spin" size={16} /> {busy}</> : <><Sparkles size={16} /> Processar {files.length} arquivo{files.length > 1 ? "s" : ""}</>}
+              {busy ? <><Loader2 className="spin" size={16} /> {busy}</> : <><Sparkles size={16} /> {L(`Processar ${files.length} arquivo${files.length > 1 ? "s" : ""}`, `Process ${files.length} file${files.length > 1 ? "s" : ""}`)}</>}
             </button>
-            {busy && <button className="btn" onClick={() => abort.current?.abort()}>Cancelar</button>}
-            <span className="muted small">Modelo: {modelLabel} · esforço {ex.effort} (altere em Ajustes)</span>
+            {busy && <button className="btn" onClick={() => abort.current?.abort()}>{L("Cancelar", "Cancel")}</button>}
+            <span className="muted small">{L(`Modelo: ${modelLabel} · esforço ${ex.effort} (altere em Ajustes)`, `Model: ${modelLabel} · effort ${ex.effort} (change in Settings)`)}</span>
           </div>
         </>
       )}
       <p className="muted small" style={{ marginTop: 22 }}>
-        Dica: para registrar um aporte ou resgate sem print, use a aba <b>Texto</b>. Em vez de vários prints, dá para gravar a tela rolando o app do banco (pause um instante em cada parte): o app escolhe um quadro por tela. Nomeie os arquivos como <b>banco-pf</b> ou <b>banco-pj-dica</b> (ex.: <code>vest-pf.png</code>, <code>itau-pf-cdb100cdi.png</code>) para já definir instituição, titular e o produto — a IA confere essa leitura. Arquivos idênticos são ignorados automaticamente e prints repetidos são contados uma vez só. Classes: {Object.values(CLASS_META).map((m) => m.label).join(" · ")}.
+        {getLang() === "pt" ? (
+          <>Dica: para registrar um aporte ou resgate sem print, use a aba <b>Texto</b>. Em vez de vários prints, dá para gravar a tela rolando o app do banco (pause um instante em cada parte): o app escolhe um quadro por tela. Nomeie os arquivos como <b>banco-pf</b> ou <b>banco-pj-dica</b> (ex.: <code>vest-pf.png</code>, <code>itau-pf-cdb100cdi.png</code>) para já definir instituição, titular e o produto — a IA confere essa leitura. Arquivos idênticos são ignorados automaticamente e prints repetidos são contados uma vez só. Classes: </>
+        ) : (
+          <>Tip: to record a contribution or withdrawal without a screenshot, use the <b>Text</b> tab. Instead of several screenshots, you can record your screen while scrolling the bank app (pause for a moment on each part): the app picks one frame per screen. Name files like <b>bank-pf</b> or <b>bank-pj-hint</b> (e.g. <code>vest-pf.png</code>, <code>itau-pf-cdb100cdi.png</code>) to set institution, owner and product up front — the AI double-checks that reading. Identical files are ignored automatically and repeated screenshots are counted only once. Classes: </>
+        )}
+        {Object.values(CLASS_META).map((m) => m.label).join(" · ")}.
       </p>
       </>}
     </>
@@ -456,12 +467,12 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
 /** Leitura automática do nome do arquivo (a IA confirma ou corrige na revisão). */
 function FileHintChips({ name }: { name: string }) {
   const h = parseFileName(name);
-  if (!h.institution && !h.owner && !h.hint) return <div className="cap muted small">sem dica no nome</div>;
+  if (!h.institution && !h.owner && !h.hint) return <div className="cap muted small">{L("sem dica no nome", "no hint in name")}</div>;
   return (
     <div className="cap row wrap" style={{ gap: 4 }}>
       {h.institution && <span className="chip">{h.institution}</span>}
       {h.owner && <span className={"chip owner-" + h.owner}>{h.owner}</span>}
-      {h.hint && <span className="chip" title="Dica repassada à IA">{h.hint}</span>}
+      {h.hint && <span className="chip" title={L("Dica repassada à IA", "Hint passed on to the AI")}>{h.hint}</span>}
     </div>
   );
 }

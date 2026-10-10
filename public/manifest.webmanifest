@@ -1,8 +1,8 @@
 {
   "name": "Arca Assistant",
   "short_name": "Arca",
-  "description": "Seus investimentos organizados pela filosofia Arca.",
-  "lang": "pt-BR",
+  "description": "Your investments organized by the Arca method.",
+  "lang": "en",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { L } from "./i18n";
 import { inView } from "./owner";
 import type { Owner, View } from "./types";
 
@@ -9,21 +10,21 @@ import type { Owner, View } from "./types";
  */
 
 export const ASSET_TYPES = {
-  imovel: { label: "Imóveis", color: "#0ea5e9" },
-  carro: { label: "Veículos", color: "#6366f1" },
-  joias: { label: "Joias e ouro", color: "#eab308" },
-  eletronicos: { label: "Eletrônicos", color: "#14b8a6" },
-  outros: { label: "Outros", color: "#94a3b8" },
+  imovel: { get label() { return L("Imóveis", "Real estate"); }, color: "#0ea5e9" },
+  carro: { get label() { return L("Veículos", "Vehicles"); }, color: "#6366f1" },
+  joias: { get label() { return L("Joias e ouro", "Jewelry and gold"); }, color: "#eab308" },
+  eletronicos: { get label() { return L("Eletrônicos", "Electronics"); }, color: "#14b8a6" },
+  outros: { get label() { return L("Outros", "Other"); }, color: "#94a3b8" },
 } as const;
 export type AssetType = keyof typeof ASSET_TYPES;
 
 /** O que informar em cada tipo de bem para a estimativa da IA ficar precisa. */
 export const ASSET_DETAIL_HINTS: Record<keyof typeof ASSET_TYPES, { needs: string; short: string; example: string }> = {
-  imovel: { needs: "bairro e cidade, metragem (m²), quartos, vagas, andar e estado de conservação", short: "bairro, m² e quartos", example: "Apto 82 m², 3 quartos, 2 vagas, Vila Mariana – São Paulo, reformado" },
-  carro: { needs: "marca, modelo, versão, ano/modelo, quilometragem e estado", short: "versão, ano e km", example: "Caoa Chery Tiggo 8 Max Drive 1.6 Turbo 2024/2024, 28 mil km, único dono" },
-  joias: { needs: "peso em gramas, teor (18k/750), marca, pedras (tipo e quilates) e nota fiscal", short: "peso em gramas e pedras", example: "Anel Vivara ouro 18k, 4,2 g, solitário diamante 0,20 ct, com nota" },
-  eletronicos: { needs: "modelo exato, configuração (memória, armazenamento, tela), ano, estado, bateria e garantia", short: "modelo exato, tela e estado", example: 'MacBook Pro 16" M3 Max 36GB/512GB, 2023, bateria 92%, sem marcas' },
-  outros: { needs: "marca, modelo, ano, estado e acessórios", short: "marca, modelo e estado", example: "Bicicleta Caloi Elite Carbon 2022, aro 29, pouco uso" },
+  imovel: { get needs() { return L("bairro e cidade, metragem (m²), quartos, vagas, andar e estado de conservação", "neighborhood and city, area (m²), bedrooms, parking spaces, floor and condition"); }, get short() { return L("bairro, m² e quartos", "neighborhood, m² and bedrooms"); }, get example() { return L("Apto 82 m², 3 quartos, 2 vagas, Vila Mariana – São Paulo, reformado", "Apartment 82 m², 3 bedrooms, 2 parking spaces, Vila Mariana – São Paulo, renovated"); } },
+  carro: { get needs() { return L("marca, modelo, versão, ano/modelo, quilometragem e estado", "make, model, trim, year/model year, mileage and condition"); }, get short() { return L("versão, ano e km", "trim, year and mileage"); }, get example() { return L("Caoa Chery Tiggo 8 Max Drive 1.6 Turbo 2024/2024, 28 mil km, único dono", "Caoa Chery Tiggo 8 Max Drive 1.6 Turbo 2024/2024, 28,000 km, one owner"); } },
+  joias: { get needs() { return L("peso em gramas, teor (18k/750), marca, pedras (tipo e quilates) e nota fiscal", "weight in grams, purity (18k/750), brand, stones (type and carats) and receipt"); }, get short() { return L("peso em gramas e pedras", "weight in grams and stones"); }, get example() { return L("Anel Vivara ouro 18k, 4,2 g, solitário diamante 0,20 ct, com nota", "Vivara 18k gold ring, 4.2 g, 0.20 ct diamond solitaire, with receipt"); } },
+  eletronicos: { get needs() { return L("modelo exato, configuração (memória, armazenamento, tela), ano, estado, bateria e garantia", "exact model, configuration (memory, storage, screen), year, condition, battery and warranty"); }, get short() { return L("modelo exato, tela e estado", "exact model, screen and condition"); }, get example() { return L('MacBook Pro 16" M3 Max 36GB/512GB, 2023, bateria 92%, sem marcas', 'MacBook Pro 16" M3 Max 36GB/512GB, 2023, 92% battery, no marks'); } },
+  outros: { get needs() { return L("marca, modelo, ano, estado e acessórios", "brand, model, year, condition and accessories"); }, get short() { return L("marca, modelo e estado", "brand, model and condition"); }, get example() { return L("Bicicleta Caloi Elite Carbon 2022, aro 29, pouco uso", "Caloi Elite Carbon 2022 bicycle, 29\" wheels, lightly used"); } },
 };
 export const ASSET_TYPE_KEYS = Object.keys(ASSET_TYPES) as AssetType[];
 

@@ -1,7 +1,33 @@
 {
   "name": "arca-assistant",
-  "private": true,
   "version": "0.1.0",
+  "description": "Self-hosted AI portfolio tracker for Brazilian investors (Arca allocation, rebalancing, Open Finance, Claude/Codex/Cursor).",
+  "keywords": [
+    "personal-finance",
+    "investment-tracker",
+    "portfolio-tracker",
+    "asset-allocation",
+    "rebalancing",
+    "open-finance",
+    "pluggy",
+    "brazil",
+    "fii",
+    "b3",
+    "tesouro-direto",
+    "ai",
+    "llm",
+    "claude",
+    "codex",
+    "cursor",
+    "self-hosted",
+    "pwa",
+    "tailscale"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/isacsneto/arca-assistant.git"
+  },
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n api,web -c blue,magenta \"npm:dev:server\" \"npm:dev:web\"",

@@ -27,6 +27,7 @@ import {
   assetEstimatePrompt, projectionPrompt, promptImportPrompt, refinePrompt, refreshPrompt, scanPrompt, scanSystem,
 } from "./prompts";
 import { AiError, runAi, type Progress } from "./ai";
+import { L } from "../shared/i18n";
 
 /*
  * Tarefas de IA do app. Não sabem qual provedor está rodando: montam o pedido
@@ -87,14 +88,14 @@ export async function refineImport(req: RefineRequest, ai: AiTask, signal?: Abor
   // Nunca perder itens numa revisão: se o modelo devolver menos, o pedido foi mal aplicado.
   const removalAsked = req.answers.some((a) => /duplicad|ignor|remov|exclu|apag/i.test(a.answer));
   if (!removalAsked && data.items.length < req.items.length)
-    throw new AiError("A revisão perdeu itens da importação. Tente responder de novo.");
+    throw new AiError(L("A revisão perdeu itens da importação. Tente responder de novo.", "The review dropped items from the import. Try answering again."));
   return finalizeExtraction(data, req.files.map((f) => f.file));
 }
 
 export async function scanClass(assetClass: ArcaClass, state: AppState, emit: (e: ScanEvent) => void, signal: AbortSignal): Promise<ScanResult> {
   const { settings, positions } = state;
   const ai = aiFor(settings, "scan");
-  emit({ type: "status", assetClass, text: "Iniciando pesquisa…" });
+  emit({ type: "status", assetClass, text: L("Iniciando pesquisa…", "Starting research…") });
   const { data, searches } = await runAi(ai, {
     system: scanSystem(),
     prompt: scanPrompt({ assetClass, today: todayBR(), allocation: computeAllocation(positions, settings.usdBrl), settings, positions }),
@@ -129,7 +130,7 @@ export async function projectWithAi(state: AppState, emit: (e: JobEvent<Projecti
   const { settings, positions } = state;
   const ai = aiFor(settings, "projection");
   const baseTotal = positions.reduce((s, p) => s + toBRL(p, settings.usdBrl), 0);
-  emit({ type: "status", text: "Iniciando pesquisa de cenários…" });
+  emit({ type: "status", text: L("Iniciando pesquisa de cenários…", "Starting scenario research…") });
   const { data, searches } = await runAi(ai, {
     system: PROJECTION_SYSTEM,
     prompt: projectionPrompt({ positions, settings, today: todayBR(), total: baseTotal }),
@@ -150,7 +151,12 @@ export async function estimateAsset(
   signal: AbortSignal,
   files: UploadFile[] = [],
 ): Promise<AssetEstimate> {
-  emit({ type: "status", text: files.length ? `Lendo ${files.length} anexo${files.length > 1 ? "s" : ""} e procurando anúncios…` : "Procurando anúncios e referências…" });
+  emit({ type: "status", text: files.length
+      ? L(
+          `Lendo ${files.length} anexo${files.length > 1 ? "s" : ""} e procurando anúncios…`,
+          `Reading ${files.length} attachment${files.length > 1 ? "s" : ""} and looking for listings…`,
+        )
+      : L("Procurando anúncios e referências…", "Looking for listings and references…") });
   const { data, searches } = await runAi(ai, {
     system: ASSET_ESTIMATE_SYSTEM,
     prompt:

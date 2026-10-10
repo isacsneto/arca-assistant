@@ -2,13 +2,14 @@ import { useState } from "react";
 import { FileText, Loader2, Paperclip, Upload, X } from "lucide-react";
 import type { AssetAttachment, PhysicalAsset } from "../../shared/assets";
 import { prepareFile } from "../lib/files";
+import { L } from "../../shared/i18n";
 
 const MAX = 12;
 const attachmentUrl = (assetId: string, fileId: string) => `/api/assets/${encodeURIComponent(assetId)}/attachments/${encodeURIComponent(fileId)}`;
 
 async function json<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Erro ${res.status}`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? L(`Erro ${res.status}`, `Error ${res.status}`));
   return body as T;
 }
 
@@ -26,7 +27,7 @@ export function AssetAttachments({ asset, onChange }: { asset: PhysicalAsset; on
     if (!files.length) return;
     setError(null);
     if (list.length + files.length > MAX) {
-      setError(`Máximo de ${MAX} anexos por bem.`);
+      setError(L(`Máximo de ${MAX} anexos por bem.`, `Maximum of ${MAX} attachments per asset.`));
       return;
     }
     setBusy(true);
@@ -72,11 +73,11 @@ export function AssetAttachments({ asset, onChange }: { asset: PhysicalAsset; on
     >
       <div className="row spread wrap" style={{ marginBottom: list.length ? 10 : 0 }}>
         <div>
-          <b className="row" style={{ gap: 6 }}><Paperclip size={15} /> Anexos ({list.length})</b>
-          <span className="muted small">Fotos, nota fiscal, documento (CRLV), laudo ou certificado — a IA lê ao estimar. Arraste, cole (Ctrl+V) ou escolha.</span>
+          <b className="row" style={{ gap: 6 }}><Paperclip size={15} /> {L("Anexos", "Attachments")} ({list.length})</b>
+          <span className="muted small">{L("Fotos, nota fiscal, documento (CRLV), laudo ou certificado — a IA lê ao estimar. Arraste, cole (Ctrl+V) ou escolha.", "Photos, invoice, vehicle document (CRLV), appraisal or certificate — the AI reads them when estimating. Drag, paste (Ctrl+V) or choose.")}</span>
         </div>
         <label className={"btn sm" + (busy ? " disabled" : "")}>
-          {busy ? <><Loader2 size={14} className="spin" /> Enviando…</> : <><Upload size={14} /> Adicionar</>}
+          {busy ? <><Loader2 size={14} className="spin" /> {L("Enviando…", "Uploading…")}</> : <><Upload size={14} /> {L("Adicionar", "Add")}</>}
           <input type="file" hidden multiple disabled={busy} accept="image/*,.pdf,.txt,.csv"
             onChange={(e) => { void add([...(e.target.files ?? [])]); e.target.value = ""; }} />
         </label>
@@ -91,7 +92,7 @@ export function AssetAttachments({ asset, onChange }: { asset: PhysicalAsset; on
                   {a.kind === "image" ? <img src={url} alt={a.name} /> : <div className="att-ph"><FileText size={22} /><span>{a.kind.toUpperCase()}</span></div>}
                 </a>
                 <div className="att-name">{a.name}</div>
-                <button type="button" className="btn icon sm att-x" onClick={() => void remove(a)} aria-label={`Remover ${a.name}`}><X size={12} /></button>
+                <button type="button" className="btn icon sm att-x" onClick={() => void remove(a)} aria-label={L(`Remover ${a.name}`, `Remove ${a.name}`)}><X size={12} /></button>
               </div>
             );
           })}

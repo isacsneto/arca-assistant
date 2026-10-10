@@ -439,7 +439,7 @@ test("as tarefas recebem o provedor/modelo do Codex quando ele está escolhido",
     },
     async (base) => {
       await fetch(`${base}/api/import`, json({ files: [{ name: "a.csv", kind: "text", data: "x" }] }));
-      assert.deepEqual(seen, { task: "extraction", provider: "codex", auth: "local", model: "gpt-5.5", effort: "medium" });
+      assert.deepEqual(seen, { task: "extraction", provider: "codex", auth: "local", model: "gpt-5.5", effort: "medium", language: "en" });
     },
     { settings: { ai: { provider: "codex", auth: "local", models: { codex: { strong: "gpt-6-astra", fast: "gpt-5.5" }, cursor: { strong: "", fast: "" } } } } } as Partial<AppState>,
   );

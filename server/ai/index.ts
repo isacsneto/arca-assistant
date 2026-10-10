@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { L, LANGS } from "../../shared/i18n";
 import type { z } from "zod";
 import { PROVIDERS, PROVIDER_IDS, type AiStatus, type AiTask, type ProviderId } from "../../shared/ai";
 import { claudeEngine } from "./claude";
@@ -28,9 +29,18 @@ export async function runAi<S extends z.ZodType>(task: AiTask, req: AiRequest<S>
   let apiKey: string | undefined;
   if (task.auth === "apiKey") {
     apiKey = secrets.get(task.provider);
-    if (!apiKey) throw new AiError(`Nenhuma ${PROVIDERS[task.provider].keyLabel.toLowerCase()} salva. Cadastre em Ajustes → Provedor de IA.`, 401);
+    if (!apiKey) throw new AiError(
+        L(
+          `Nenhuma ${PROVIDERS[task.provider].keyLabel.toLowerCase()} salva. Cadastre em Ajustes → Provedor de IA.`,
+          `No ${PROVIDERS[task.provider].keyLabel} saved. Add it in Settings → AI provider.`,
+        ),
+        401,
+      );
   }
-  return engines[task.provider](req, { task, apiKey });
+  // Os prompts são em português; o idioma da resposta segue o da interface.
+  const language = LANGS[task.language ?? "pt"].ai;
+  const system = `${req.system}\n\n## Idioma da resposta\nWrite every human-readable text field of the JSON (summaries, explanations, questions, options, notes, warnings, theses, rationales) in ${language}. Keep tickers, product names, enum values and numbers unchanged.`;
+  return engines[task.provider]({ ...req, system }, { task, apiKey });
 }
 
 export function setApiKey(provider: ProviderId, key: string | null) {
@@ -76,10 +86,10 @@ export async function aiStatus(force = false): Promise<AiStatus> {
 export function explainError(err: unknown): AiError {
   if (err instanceof AiError) return err;
   const msg = err instanceof Error ? err.message : String(err);
-  if (/ENOENT|spawn/i.test(msg)) return new AiError("Não foi possível iniciar o CLI da IA. Verifique a instalação em Ajustes → Provedor de IA.");
+  if (/ENOENT|spawn/i.test(msg)) return new AiError(L("Não foi possível iniciar o CLI da IA. Verifique a instalação em Ajustes → Provedor de IA.", "Couldn't start the AI CLI. Check the installation in Settings → AI provider."));
   if (/not logged in|log ?in|authenticat|api key|credential|\b401\b|oauth/i.test(msg))
-    return new AiError("A IA não está autenticada. Faça login no CLI ou cadastre uma chave de API em Ajustes → Provedor de IA.", 401);
+    return new AiError(L("A IA não está autenticada. Faça login no CLI ou cadastre uma chave de API em Ajustes → Provedor de IA.", "The AI isn't authenticated. Log in to the CLI or add an API key in Settings → AI provider."), 401);
   if (/rate.?limit|usage limit|429|overloaded|quota/i.test(msg))
-    return new AiError("Limite de uso da IA atingido. Aguarde o reset ou use um modelo/esforço menor.", 429);
+    return new AiError(L("Limite de uso da IA atingido. Aguarde o reset ou use um modelo/esforço menor.", "AI usage limit reached. Wait for the reset or use a smaller model/effort."), 429);
   return new AiError(msg);
 }

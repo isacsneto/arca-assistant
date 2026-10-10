@@ -10,6 +10,7 @@ import { OWNERS, type Owner } from "../../shared/types";
 import { useStore } from "../store";
 import { brl, pct, uid } from "../lib/format";
 import { Empty, PageHead } from "./ui";
+import { L, getLang } from "../../shared/i18n";
 
 /** Patrimônio físico: fora da carteira de investimentos. */
 export function AssetsView() {
@@ -27,12 +28,12 @@ export function AssetsView() {
     const ctrl = new AbortController();
     controllers.current[a.id] = ctrl;
     const setRun = (r: EstimateRun) => setRuns((s) => ({ ...s, [a.id]: r }));
-    setRun({ status: "Procurando anúncios…" });
+    setRun({ status: L("Procurando anúncios…", "Looking for listings…") });
     setErrors(({ [a.id]: _drop, ...rest }) => rest);
     try {
       await streamEvents<JobEvent<AssetEstimate>>("/api/assets/estimate", { asset: a }, (e) => {
-        if (e.type === "search") setRun({ status: "Pesquisando…", last: e.query });
-        else if (e.type === "fetch") setRun({ status: "Lendo anúncio…", last: hostOf(e.url) });
+        if (e.type === "search") setRun({ status: L("Pesquisando…", "Searching…"), last: e.query });
+        else if (e.type === "fetch") setRun({ status: L("Lendo anúncio…", "Reading listing…"), last: hostOf(e.url) });
         else if (e.type === "status") setRun({ status: e.text });
         else if (e.type === "error") setErrors((s) => ({ ...s, [a.id]: e.message }));
         else if (e.type === "result")
@@ -70,15 +71,16 @@ export function AssetsView() {
   return (
     <>
       <PageHead
-        title={view === "all" ? "Bens" : `Bens · ${view}`}
-        subtitle="Patrimônio físico — carros, imóveis, joias, eletrônicos. Fica fora da carteira de investimentos: não entra na Arca, no rebalanceamento nem na projeção."
+        title={view === "all" ? L("Bens", "Physical assets") : `${L("Bens", "Physical assets")} · ${view}`}
+        subtitle={L("Patrimônio físico — carros, imóveis, joias, eletrônicos. Fica fora da carteira de investimentos: não entra na Arca, no rebalanceamento nem na projeção.",
+          "Physical wealth — cars, real estate, jewelry, electronics. Kept outside the investment portfolio: not part of the Arca, rebalancing or projection.")}
         actions={
           <>
             <button className="btn" disabled={!visible.length || !config!.hasCredentials || Object.keys(runs).length > 0} onClick={() => void estimateAll()}
-              title="Pesquisa anúncios para todos os bens (2 por vez)">
-              <Sparkles size={16} /> Estimar todos
+              title={L("Pesquisa anúncios para todos os bens (2 por vez)", "Searches listings for all assets (2 at a time)")}>
+              <Sparkles size={16} /> {L("Estimar todos", "Estimate all")}
             </button>
-            <button className="btn primary" onClick={() => setAdding((v) => !v)}><Plus size={16} /> Adicionar bem</button>
+            <button className="btn primary" onClick={() => setAdding((v) => !v)}><Plus size={16} /> {L("Adicionar bem", "Add asset")}</button>
           </>
         }
       />
@@ -86,9 +88,19 @@ export function AssetsView() {
       <div className="banner tip">
         <Lightbulb size={18} />
         <div className="grow">
-          <b>Quanto mais detalhes no item, melhor a estimativa da IA.</b> A IA compara o seu bem com anúncios reais — sem versão, ano, peso ou
-          metragem ela precisa supor, e a estimativa sai com confiança baixa. Escreva no nome do item ou na <b>Observação</b> — e, se quiser,
-          anexe <b>fotos, nota fiscal ou documentos</b> pelo clipe <Paperclip size={12} style={{ verticalAlign: -1 }} /> ao lado do item:
+          {getLang() === "pt" ? (
+            <>
+              <b>Quanto mais detalhes no item, melhor a estimativa da IA.</b> A IA compara o seu bem com anúncios reais — sem versão, ano, peso ou
+              metragem ela precisa supor, e a estimativa sai com confiança baixa. Escreva no nome do item ou na <b>Observação</b> — e, se quiser,
+              anexe <b>fotos, nota fiscal ou documentos</b> pelo clipe <Paperclip size={12} style={{ verticalAlign: -1 }} /> ao lado do item:
+            </>
+          ) : (
+            <>
+              <b>The more details on the item, the better the AI estimate.</b> The AI compares your asset with real listings — without version, year, weight or
+              size it has to guess, and the estimate comes out with low confidence. Write them in the item name or in <b>Notes</b> — and, if you want,
+              attach <b>photos, invoices or documents</b> with the clip <Paperclip size={12} style={{ verticalAlign: -1 }} /> next to the item:
+            </>
+          )}
           <ul className="tip-list">
             {ASSET_TYPE_KEYS.map((k) => (
               <li key={k}><b>{ASSET_TYPES[k].label}:</b> {ASSET_DETAIL_HINTS[k].needs}.</li>
@@ -99,15 +111,15 @@ export function AssetsView() {
 
       <div className="grid kpis" style={{ marginBottom: 16 }}>
         <div className="card kpi">
-          <div className="label">Total em bens</div>
+          <div className="label">{L("Total em bens", "Total in assets")}</div>
           <div className="value num">{brl(summary.total)}</div>
-          <div className="sub">{summary.count} ite{summary.count === 1 ? "m" : "ns"}{view !== "all" ? ` · ${VIEW_LABEL[view].toLowerCase()}` : ""}</div>
+          <div className="sub">{itemsLabel(summary.count)}{view !== "all" ? ` · ${VIEW_LABEL[view].toLowerCase()}` : ""}</div>
         </div>
         {summary.byType.map((t) => (
           <div className="card kpi" key={t.type}>
             <div className="label row" style={{ gap: 6 }}><span className="dot" style={{ background: ASSET_TYPES[t.type].color }} />{ASSET_TYPES[t.type].label}</div>
             <div className="value num" style={{ fontSize: 20 }}>{brl(t.total)}</div>
-            <div className="sub">{t.count} ite{t.count === 1 ? "m" : "ns"} · {pct(summary.total ? (t.total / summary.total) * 100 : 0, 0)}</div>
+            <div className="sub">{itemsLabel(t.count)} · {pct(summary.total ? (t.total / summary.total) * 100 : 0, 0)}</div>
           </div>
         ))}
       </div>
@@ -121,13 +133,13 @@ export function AssetsView() {
           />
         )}
         {visible.length === 0 ? (
-          <Empty title="Nenhum bem cadastrado">
-            <p>Cadastre carros, imóveis, joias e outros bens para acompanhar o patrimônio total — sem misturar com os investimentos.</p>
+          <Empty title={L("Nenhum bem cadastrado", "No assets yet")}>
+            <p>{L("Cadastre carros, imóveis, joias e outros bens para acompanhar o patrimônio total — sem misturar com os investimentos.", "Add cars, real estate, jewelry and other assets to track your total wealth — without mixing them with investments.")}</p>
           </Empty>
         ) : (
           <div className="table-wrap">
             <table className="mc t-assets">
-              <thead><tr><th>Tipo</th><th>Item</th><th>Titular</th><th className="right">Valor (R$)</th><th>Estimativa (IA)</th><th>Observação</th><th /></tr></thead>
+              <thead><tr><th>{L("Tipo", "Type")}</th><th>Item</th><th>{L("Titular", "Owner")}</th><th className="right">{L("Valor (R$)", "Value (R$)")}</th><th>{L("Estimativa (IA)", "Estimate (AI)")}</th><th>{L("Observação", "Notes")}</th><th /></tr></thead>
               <tbody>
                 {visible.map((a) => (
                   <Fragment key={a.id}>
@@ -135,7 +147,7 @@ export function AssetsView() {
                     <td className="ga-a" style={{ minWidth: 130 }}>
                       <span className="row" style={{ gap: 6 }}>
                         <span className="dot" style={{ background: ASSET_TYPES[a.type].color }} />
-                        <select className="cell" value={a.type} onChange={(e) => patch(a.id, { type: e.target.value as AssetType })} aria-label="Tipo">
+                        <select className="cell" value={a.type} onChange={(e) => patch(a.id, { type: e.target.value as AssetType })} aria-label={L("Tipo", "Type")}>
                           {ASSET_TYPE_KEYS.map((k) => <option key={k} value={k}>{ASSET_TYPES[k].label}</option>)}
                         </select>
                       </span>
@@ -146,21 +158,23 @@ export function AssetsView() {
                           onBlur={(e) => e.target.value.trim() && e.target.value !== a.name && patch(a.id, { name: e.target.value.trim() })} aria-label="Item" />
                         <button type="button" className={"btn ghost sm att-toggle" + (a.attachments?.length ? " has" : "")}
                           onClick={() => setOpenId((o) => (o === a.id ? null : a.id))} aria-expanded={openId === a.id}
-                          title={a.attachments?.length ? `${a.attachments.length} anexo(s) — ver ou adicionar` : "Adicionar fotos, nota fiscal ou documentos"}>
+                          title={a.attachments?.length
+                            ? L(`${a.attachments.length} anexo(s) — ver ou adicionar`, `${a.attachments.length} attachment(s) — view or add`)
+                            : L("Adicionar fotos, nota fiscal ou documentos", "Add photos, invoice or documents")}>
                           <Paperclip size={14} />{a.attachments?.length ? a.attachments.length : ""}
                         </button>
                       </div>
                     </td>
                     <td className="ga-b" style={{ minWidth: 70 }}>
-                      <select className="cell" value={a.owner} onChange={(e) => patch(a.id, { owner: e.target.value as Owner })} aria-label="Titular">
+                      <select className="cell" value={a.owner} onChange={(e) => patch(a.id, { owner: e.target.value as Owner })} aria-label={L("Titular", "Owner")}>
                         {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </td>
                     <td className="right ga-val" style={{ minWidth: 120 }}>
                       <input className="cell num right" type="number" step="0.01" min="0" defaultValue={a.value.toFixed(2)} key={a.value}
-                        onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v >= 0 && v !== a.value) patch(a.id, { value: v }); }} aria-label={`Valor de ${a.name}`} />
+                        onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v >= 0 && v !== a.value) patch(a.id, { value: v }); }} aria-label={L(`Valor de ${a.name}`, `Value of ${a.name}`)} />
                     </td>
-                    <td className="ga-c" data-l="Estimativa (IA)" style={{ minWidth: 190 }}>
+                    <td className="ga-c" data-l={L("Estimativa (IA)", "Estimate (AI)")} style={{ minWidth: 190 }}>
                       <EstimateCell
                         asset={a}
                         run={runs[a.id]}
@@ -172,11 +186,11 @@ export function AssetsView() {
                         onToggle={() => setOpenId((o) => (o === a.id ? null : a.id))}
                       />
                     </td>
-                    <td className="ga-d" data-l="Observação" style={{ minWidth: 110 }}>
-                      <input className="cell small" type="text" placeholder={"Ex.: " + ASSET_DETAIL_HINTS[a.type].needs} title={"Detalhes que melhoram a estimativa: " + ASSET_DETAIL_HINTS[a.type].needs} defaultValue={a.notes ?? ""} key={a.notes ?? ""}
-                        onBlur={(e) => e.target.value !== (a.notes ?? "") && patch(a.id, { notes: e.target.value.trim() || undefined })} aria-label="Observação" />
+                    <td className="ga-d" data-l={L("Observação", "Notes")} style={{ minWidth: 110 }}>
+                      <input className="cell small" type="text" placeholder={L("Ex.: ", "E.g.: ") + ASSET_DETAIL_HINTS[a.type].needs} title={L("Detalhes que melhoram a estimativa: ", "Details that improve the estimate: ") + ASSET_DETAIL_HINTS[a.type].needs} defaultValue={a.notes ?? ""} key={a.notes ?? ""}
+                        onBlur={(e) => e.target.value !== (a.notes ?? "") && patch(a.id, { notes: e.target.value.trim() || undefined })} aria-label={L("Observação", "Notes")} />
                     </td>
-                    <td className="right ga-act"><button className="btn ghost icon danger" title="Remover" onClick={() => remove(a.id)}><Trash2 size={16} /></button></td>
+                    <td className="right ga-act"><button className="btn ghost icon danger" title={L("Remover", "Remove")} onClick={() => remove(a.id)}><Trash2 size={16} /></button></td>
                   </tr>
                   {openId === a.id && (
                     <tr className="est-row">
@@ -203,7 +217,7 @@ export function AssetsView() {
             </table>
           </div>
         )}
-        <p className="muted small" style={{ marginTop: 10 }}>Valores estimados de mercado, editáveis a qualquer momento. Clique num campo para alterar.</p>
+        <p className="muted small" style={{ marginTop: 10 }}>{L("Valores estimados de mercado, editáveis a qualquer momento. Clique num campo para alterar.", "Estimated market values, editable at any time. Click a field to change it.")}</p>
       </div>
     </>
   );
@@ -227,23 +241,25 @@ function AddAsset({ onAdd, onCancel, defaultOwner }: { onAdd: (a: PhysicalAsset)
         onAdd({ id: uid(), type, name: name.trim(), value: Number(value), owner, notes: notes.trim() || undefined, updatedAt: new Date().toISOString() });
       }}
     >
-      <label className="field" style={{ width: 150 }}>Tipo
+      <label className="field" style={{ width: 150 }}>{L("Tipo", "Type")}
         <select value={type} onChange={(e) => setType(e.target.value as AssetType)}>{ASSET_TYPE_KEYS.map((k) => <option key={k} value={k}>{ASSET_TYPES[k].label}</option>)}</select>
       </label>
-      <label className="field grow" style={{ minWidth: 200 }}>Item<input type="text" value={name} placeholder={"Ex.: " + ASSET_DETAIL_HINTS[type].example} onChange={(e) => setName(e.target.value)} autoFocus /></label>
-      <label className="field" style={{ width: 80 }}>Titular
+      <label className="field grow" style={{ minWidth: 200 }}>Item<input type="text" value={name} placeholder={L("Ex.: ", "E.g.: ") + ASSET_DETAIL_HINTS[type].example} onChange={(e) => setName(e.target.value)} autoFocus /></label>
+      <label className="field" style={{ width: 80 }}>{L("Titular", "Owner")}
         <select value={owner} onChange={(e) => setOwner(e.target.value as Owner)}>{OWNERS.map((o) => <option key={o}>{o}</option>)}</select>
       </label>
-      <label className="field" style={{ width: 140 }}>Valor (R$)<input type="number" step="0.01" min="0" value={value} onChange={(e) => setValue(e.target.value)} /></label>
-      <label className="field" style={{ width: 220 }}>Observação<input type="text" value={notes} placeholder="Detalhes extras" onChange={(e) => setNotes(e.target.value)} /></label>
-      <button className="btn primary" disabled={!valid}>Adicionar</button>
-      <button className="btn" type="button" onClick={onCancel}>Cancelar</button>
+      <label className="field" style={{ width: 140 }}>{L("Valor (R$)", "Value (R$)")}<input type="number" step="0.01" min="0" value={value} onChange={(e) => setValue(e.target.value)} /></label>
+      <label className="field" style={{ width: 220 }}>{L("Observação", "Notes")}<input type="text" value={notes} placeholder={L("Detalhes extras", "Extra details")} onChange={(e) => setNotes(e.target.value)} /></label>
+      <button className="btn primary" disabled={!valid}>{L("Adicionar", "Add")}</button>
+      <button className="btn" type="button" onClick={onCancel}>{L("Cancelar", "Cancel")}</button>
       <p className="small muted" style={{ flexBasis: "100%", margin: 0 }}>
-        <Lightbulb size={13} style={{ verticalAlign: -2 }} /> Para {ASSET_TYPES[type].label.toLowerCase()}, informe <b>{ASSET_DETAIL_HINTS[type].needs}</b> — quanto mais detalhes, mais precisa a estimativa da IA.
+        <Lightbulb size={13} style={{ verticalAlign: -2 }} /> {L("Para", "For")} {ASSET_TYPES[type].label.toLowerCase()}, {L("informe", "provide")} <b>{ASSET_DETAIL_HINTS[type].needs}</b> — {L("quanto mais detalhes, mais precisa a estimativa da IA.", "the more details, the more accurate the AI estimate.")}
       </p>
     </form>
   );
 }
+
+const itemsLabel = (n: number) => (n === 1 ? L("1 item", "1 item") : L(`${n} itens`, `${n} items`));
 
 function hostOf(url: string): string {
   try {
@@ -258,5 +274,5 @@ function estimatedTotal(list: PhysicalAsset[]): string {
   const withEst = list.filter((a) => a.estimate).length;
   if (!withEst) return "";
   const total = list.reduce((s, a) => s + (a.estimate ? Math.round(a.estimate.estimate) : a.value), 0);
-  return `IA: ${brl(total)}${withEst < list.length ? ` (${withEst}/${list.length} estimados)` : ""}`;
+  return `${L("IA", "AI")}: ${brl(total)}${withEst < list.length ? ` (${withEst}/${list.length} ${L("estimados", "estimated")})` : ""}`;
 }

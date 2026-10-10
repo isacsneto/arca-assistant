@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { AssetAttachment } from "../shared/assets";
 import type { UploadFile } from "../shared/types";
+import { L } from "../shared/i18n";
 
 /*
  * Anexos dos bens (fotos, nota fiscal, documentos), guardados em disco:
@@ -37,12 +38,12 @@ export class AttachmentError extends Error {
 export const isSafeAssetId = (id: string) => SAFE_ID.test(id);
 
 function assetDir(root: string, assetId: string): string {
-  if (!isSafeAssetId(assetId)) throw new AttachmentError("Bem inválido.");
+  if (!isSafeAssetId(assetId)) throw new AttachmentError(L("Bem inválido.", "Invalid asset."));
   return path.join(root, assetId);
 }
 
 function filePath(root: string, assetId: string, fileId: string): string {
-  if (!SAFE_FILE.test(fileId)) throw new AttachmentError("Anexo inválido.", 404);
+  if (!SAFE_FILE.test(fileId)) throw new AttachmentError(L("Anexo inválido.", "Invalid attachment."), 404);
   return path.join(assetDir(root, assetId), fileId);
 }
 
@@ -54,9 +55,9 @@ function mediaOf(f: UploadFile): string {
 
 /** Grava os arquivos enviados e devolve os metadados para guardar no bem. */
 export async function saveAttachments(root: string, assetId: string, files: UploadFile[], existing = 0): Promise<AssetAttachment[]> {
-  if (!files.length) throw new AttachmentError("Nenhum arquivo enviado.");
+  if (!files.length) throw new AttachmentError(L("Nenhum arquivo enviado.", "No files sent."));
   if (existing + files.length > MAX_ATTACHMENTS_PER_ASSET)
-    throw new AttachmentError(`Máximo de ${MAX_ATTACHMENTS_PER_ASSET} anexos por bem.`);
+    throw new AttachmentError(L(`Máximo de ${MAX_ATTACHMENTS_PER_ASSET} anexos por bem.`, `Maximum of ${MAX_ATTACHMENTS_PER_ASSET} attachments per asset.`));
   const dir = assetDir(root, assetId);
   await fs.mkdir(dir, { recursive: true });
 
@@ -64,8 +65,8 @@ export async function saveAttachments(root: string, assetId: string, files: Uplo
   for (const f of files) {
     const mediaType = mediaOf(f);
     const bytes = f.kind === "text" ? Buffer.from(f.data, "utf8") : Buffer.from(f.data, "base64");
-    if (!bytes.length) throw new AttachmentError(`"${f.name}" está vazio.`);
-    if (bytes.length > MAX_ATTACHMENT_BYTES) throw new AttachmentError(`"${f.name}" passa de 15 MB.`);
+    if (!bytes.length) throw new AttachmentError(L(`"${f.name}" está vazio.`, `"${f.name}" is empty.`));
+    if (bytes.length > MAX_ATTACHMENT_BYTES) throw new AttachmentError(L(`"${f.name}" passa de 15 MB.`, `"${f.name}" exceeds 15 MB.`));
     const id = `${randomUUID()}.${EXT_BY_MEDIA[mediaType]}`;
     await fs.writeFile(path.join(dir, id), bytes);
     out.push({
@@ -85,7 +86,7 @@ export async function readAttachment(root: string, assetId: string, fileId: stri
   try {
     await fs.access(p);
   } catch {
-    throw new AttachmentError("Anexo não encontrado.", 404);
+    throw new AttachmentError(L("Anexo não encontrado.", "Attachment not found."), 404);
   }
   return { path: p, mediaType: MEDIA_BY_EXT[fileId.split(".").pop()!.toLowerCase()] ?? "application/octet-stream" };
 }

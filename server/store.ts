@@ -5,6 +5,7 @@ import { withOwner } from "../shared/owner";
 import { sanitizeAssets } from "../shared/assets";
 import { aiSettings } from "../shared/ai";
 import { openFinanceSettings } from "../shared/openFinance";
+import { toLang } from "../shared/i18n";
 import { stateFile } from "./paths";
 
 export interface Store {
@@ -37,6 +38,7 @@ export function withDefaults(raw: Partial<AppState>): AppState {
       estimate: { ...base.settings.estimate, ...raw.settings?.estimate },
       ai: aiSettings({ ai: raw.settings?.ai ?? base.settings.ai }),
       openFinance: openFinanceSettings(raw.settings?.openFinance),
+      language: raw.settings?.language ? toLang(raw.settings.language) : base.settings.language,
     },
   };
 }

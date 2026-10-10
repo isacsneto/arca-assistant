@@ -1,5 +1,6 @@
 import { Loader2, Square } from "lucide-react";
 import type { JobState } from "../lib/useJob";
+import { L } from "../../shared/i18n";
 
 export function JobProgress({ job, onCancel }: { job: JobState<unknown>; onCancel: () => void }) {
   return (
@@ -8,10 +9,10 @@ export function JobProgress({ job, onCancel }: { job: JobState<unknown>; onCance
         <div className="row">
           <Loader2 size={16} className="spin" />
           <b>{job.status}</b>
-          {job.searches > 0 && <span className="muted small">· {job.searches} buscas</span>}
+          {job.searches > 0 && <span className="muted small">· {L(`${job.searches} buscas`, `${job.searches} ${job.searches === 1 ? "search" : "searches"}`)}</span>}
         </div>
         <button className="btn sm" onClick={onCancel}>
-          <Square size={12} /> Parar
+          <Square size={12} /> {L("Parar", "Stop")}
         </button>
       </div>
       {job.feed.length > 0 && (

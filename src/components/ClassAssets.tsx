@@ -3,6 +3,7 @@ import { CLASS_META, type AssetClass, type Position } from "../../shared/types";
 import { toBRL } from "../../shared/arca";
 import { brl, pct } from "../lib/format";
 import { ClassLabel } from "./ui";
+import { L } from "../../shared/i18n";
 
 /** Lista dos ativos de uma classe, com peso dentro da classe — aberta ao clicar na categoria. */
 export function ClassAssets({
@@ -30,14 +31,14 @@ export function ClassAssets({
       <div className="row spread" style={{ marginBottom: 8 }}>
         <div className="row">
           <ClassLabel c={assetClass} />
-          <span className="muted small">· {items.length} ativo{items.length === 1 ? "" : "s"} · {brl(total)}</span>
+          <span className="muted small">· {L(`${items.length} ativo${items.length === 1 ? "" : "s"}`, `${items.length} asset${items.length === 1 ? "" : "s"}`)} · {brl(total)}</span>
         </div>
-        <button className="btn ghost icon sm" onClick={onClose} title="Fechar" aria-label="Fechar lista">
+        <button className="btn ghost icon sm" onClick={onClose} title={L("Fechar", "Close")} aria-label={L("Fechar lista", "Close list")}>
           <X size={14} />
         </button>
       </div>
       {items.length === 0 ? (
-        <p className="muted small">Nenhum ativo nesta classe.</p>
+        <p className="muted small">{L("Nenhum ativo nesta classe.", "No assets in this class.")}</p>
       ) : (
         <div className="table-wrap">
           <table className="mc t-cls">
@@ -55,7 +56,7 @@ export function ClassAssets({
                       </div>
                     </td>
                     <td className="ga-a" style={{ width: "34%", minWidth: 120 }}>
-                      <div className="bar" style={{ height: 8 }} title={`${pct(share)} da classe`}>
+                      <div className="bar" style={{ height: 8 }} title={L(`${pct(share)} da classe`, `${pct(share)} of the class`)}>
                         <div className="fill" style={{ width: `${share}%`, background: color }} />
                       </div>
                     </td>

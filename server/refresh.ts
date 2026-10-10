@@ -1,6 +1,7 @@
 import type { AppState, ClaudeRefresh, JobEvent, Position, RefreshLine, RefreshResult } from "../shared/types";
 import { closeAt, convert, yahooSymbols, type FetchQuote } from "./quotes";
 import { mapPool } from "./pool";
+import { L, locale } from "../shared/i18n";
 import { openFinanceRefresh, openFinanceSettings, type ConnectionData } from "../shared/openFinance";
 
 export interface RefreshDeps {
@@ -22,7 +23,7 @@ const DAY = 86_400_000;
 const MAX_CHANGE = 3;
 
 function fmt(n: number, digits = 2) {
-  return n.toLocaleString("pt-BR", { maximumFractionDigits: digits });
+  return n.toLocaleString(locale(), { maximumFractionDigits: digits });
 }
 
 async function priceFromQuote(
@@ -41,7 +42,8 @@ async function priceFromQuote(
       const close = closeAt(q.history, p.updatedAt);
       if (oldInQuoteCcy == null || !close) continue;
       quantity = oldInQuoteCcy / close;
-      inferredFrom = `${new Date(p.updatedAt).toLocaleDateString("pt-BR")} a ${fmt(close)} ${q.currency}`;
+      const date = new Date(p.updatedAt).toLocaleDateString(locale());
+      inferredFrom = L(`${date} a ${fmt(close)} ${q.currency}`, `${date} at ${fmt(close)} ${q.currency}`);
     }
     const newValue = convert(quantity * q.price, q.currency, p.currency, usdBrl);
     if (newValue == null) continue;
@@ -56,8 +58,11 @@ async function priceFromQuote(
       quantity,
       unitPrice: q.price,
       note: inferredFrom
-        ? `${fmt(quantity, 4)} un. (inferida pela cotação de ${inferredFrom}) × ${fmt(q.price)} ${q.currency}`
-        : `${fmt(quantity, 4)} un. × ${fmt(q.price)} ${q.currency}`,
+        ? L(
+            `${fmt(quantity, 4)} un. (inferida pela cotação de ${inferredFrom}) × ${fmt(q.price)} ${q.currency}`,
+            `${fmt(quantity, 4)} units (inferred from the quote on ${inferredFrom}) × ${fmt(q.price)} ${q.currency}`,
+          )
+        : L(`${fmt(quantity, 4)} un. × ${fmt(q.price)} ${q.currency}`, `${fmt(quantity, 4)} units × ${fmt(q.price)} ${q.currency}`),
       source: `Yahoo Finance (${symbol})`,
     };
   }
@@ -77,7 +82,7 @@ export async function refreshValues(
   const now = (deps.now ?? (() => new Date()))();
   const lines = new Map<string, RefreshLine>();
 
-  emit({ type: "status", text: "Buscando cotação do dólar…" });
+  emit({ type: "status", text: L("Buscando cotação do dólar…", "Fetching the dollar exchange rate…") });
   const fx = await deps.fetchQuote("BRL=X").catch(() => null);
   const usdBrl = fx?.price ?? state.settings.usdBrl;
 
@@ -89,7 +94,10 @@ export async function refreshValues(
     try {
       const data = await deps.openFinance(state, signal);
       if (data?.length) {
-        emit({ type: "status", text: `Buscando no Open Finance (${data.length} ${data.length === 1 ? "conexão" : "conexões"})…` });
+        emit({ type: "status", text: L(
+            `Buscando no Open Finance (${data.length} ${data.length === 1 ? "conexão" : "conexões"})…`,
+            `Fetching from Open Finance (${data.length} ${data.length === 1 ? "connection" : "connections"})…`,
+          ) });
         const of = openFinanceRefresh(state.positions, data, { includeAccounts: openFinanceSettings(state.settings.openFinance).includeAccounts });
         covered = of.covered;
         warnings.push(...of.warnings);
@@ -100,11 +108,12 @@ export async function refreshValues(
       }
     } catch (err) {
       if (signal.aborted) throw err;
-      warnings.push(`Open Finance indisponível agora (${err instanceof Error ? err.message : String(err)}) — usei cotação/IA.`);
+      const msg = err instanceof Error ? err.message : String(err);
+      warnings.push(L(`Open Finance indisponível agora (${msg}) — usei cotação/IA.`, `Open Finance unavailable right now (${msg}) — used quotes/AI.`));
     }
   }
 
-  emit({ type: "status", text: "Buscando cotações de mercado…" });
+  emit({ type: "status", text: L("Buscando cotações de mercado…", "Fetching market quotes…") });
   const pending: Position[] = [];
   await mapPool(state.positions.filter((p) => !covered.has(p.id)), 4, async (p) => {
     if (signal.aborted) return;
@@ -112,19 +121,22 @@ export async function refreshValues(
     if (line) lines.set(p.id, line);
     else pending.push(p);
   });
-  emit({ type: "status", text: `${lines.size - covered.size} posições atualizadas pela cotação.` });
+  emit({ type: "status", text: L(`${lines.size - covered.size} posições atualizadas pela cotação.`, `${lines.size - covered.size} positions updated from market quotes.`) });
 
   // Sem cotação: o que foi atualizado há menos de 1 dia não muda; o resto vai para o Claude.
   const forClaude: Position[] = [];
   for (const p of pending) {
     const age = now.getTime() - Date.parse(p.updatedAt);
-    if (Number.isFinite(age) && age < DAY) lines.set(p.id, kept(p, "Atualizado há menos de 1 dia."));
+    if (Number.isFinite(age) && age < DAY) lines.set(p.id, kept(p, L("Atualizado há menos de 1 dia.", "Updated less than 1 day ago.")));
     else forClaude.push(p);
   }
 
   let ratesUsed: string | undefined;
   if (forClaude.length && !signal.aborted) {
-    emit({ type: "status", text: `Pesquisando ${forClaude.length} posições sem cotação (renda fixa, saldos…)…` });
+    emit({ type: "status", text: L(
+        `Pesquisando ${forClaude.length} posições sem cotação (renda fixa, saldos…)…`,
+        `Researching ${forClaude.length} positions without a market quote (fixed income, balances…)…`,
+      ) });
     try {
       const res = await deps.claudeRefresh(forClaude, { usdBrl, state }, emit as (e: JobEvent<never>) => void, signal);
       ratesUsed = res.ratesUsed;
@@ -132,9 +144,9 @@ export async function refreshValues(
       for (const p of forClaude) {
         const u = byId.get(p.id);
         if (!u) {
-          lines.set(p.id, kept(p, "Sem estimativa do Claude."));
+          lines.set(p.id, kept(p, L("Sem estimativa do Claude.", "No estimate from Claude.")));
         } else if (!(u.newValue >= 0) || (p.value > 0 && (u.newValue / p.value > MAX_CHANGE || u.newValue / p.value < 1 / MAX_CHANGE))) {
-          lines.set(p.id, kept(p, `Estimativa descartada por variação implausível (${fmt(u.newValue)}).`));
+          lines.set(p.id, kept(p, L(`Estimativa descartada por variação implausível (${fmt(u.newValue)}).`, `Estimate discarded due to implausible change (${fmt(u.newValue)}).`)));
         } else {
           lines.set(p.id, {
             ...kept(p, u.note),
@@ -147,15 +159,15 @@ export async function refreshValues(
     } catch (err) {
       if (signal.aborted) throw err;
       const msg = err instanceof Error ? err.message : String(err);
-      emit({ type: "status", text: `Não foi possível estimar as posições sem cotação: ${msg}` });
-      for (const p of forClaude) lines.set(p.id, kept(p, `Não estimado: ${msg}`));
+      emit({ type: "status", text: L(`Não foi possível estimar as posições sem cotação: ${msg}`, `Couldn't estimate the positions without a market quote: ${msg}`) });
+      for (const p of forClaude) lines.set(p.id, kept(p, L(`Não estimado: ${msg}`, `Not estimated: ${msg}`)));
     }
   }
 
   return {
     runAt: now.toISOString(),
     usdBrl: fx?.price ?? null,
-    lines: [...state.positions.map((p) => lines.get(p.id) ?? kept(p, "Não processado.")), ...extra],
+    lines: [...state.positions.map((p) => lines.get(p.id) ?? kept(p, L("Não processado.", "Not processed."))), ...extra],
     ratesUsed,
     ...(warnings.length && { warnings }),
   };

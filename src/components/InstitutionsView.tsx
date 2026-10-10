@@ -7,6 +7,7 @@ import { VIEW_LABEL } from "../../shared/owner";
 import { useStore } from "../store";
 import { brl, pct } from "../lib/format";
 import { ClassDot, Empty, PageHead } from "./ui";
+import { L } from "../../shared/i18n";
 
 interface Group {
   key: string;
@@ -56,25 +57,28 @@ export function InstitutionsView() {
   return (
     <>
       <PageHead
-        title="Instituições"
-        subtitle={`Em que banco ou corretora cada investimento está${view === "all" ? "" : ` — ${VIEW_LABEL[view].toLowerCase()}`}.`}
+        title={L("Instituições", "Institutions")}
+        subtitle={L(
+          `Em que banco ou corretora cada investimento está${view === "all" ? "" : ` — ${VIEW_LABEL[view].toLowerCase()}`}.`,
+          `Which bank or broker holds each investment${view === "all" ? "" : ` — ${view}`}.`,
+        )}
         actions={
           view === "all" && (
             <label className="check small">
               <input type="checkbox" checked={splitOwner} onChange={(e) => setSplitOwner(e.target.checked)} />
-              Separar PF e PJ da mesma instituição
+              {L("Separar PF e PJ da mesma instituição", "Split PF and PJ at the same institution")}
             </label>
           )
         }
       />
 
       {groups.length === 0 ? (
-        <div className="card"><Empty title="Nenhum investimento nesta visão" /></div>
+        <div className="card"><Empty title={L("Nenhum investimento nesta visão", "No investments in this view")} /></div>
       ) : (
         <>
           <div className="card" style={{ marginBottom: 16 }}>
-            <div className="card-head"><h2>Distribuição por instituição</h2><span className="muted small">{groups.length} instituições · {brl(grand)}</span></div>
-            <div className="inst-bar" role="img" aria-label="Participação de cada instituição no total">
+            <div className="card-head"><h2>{L("Distribuição por instituição", "Breakdown by institution")}</h2><span className="muted small">{L(`${groups.length} instituições`, `${groups.length} institution${groups.length === 1 ? "" : "s"}`)} · {brl(grand)}</span></div>
+            <div className="inst-bar" role="img" aria-label={L("Participação de cada instituição no total", "Share of each institution in the total")}>
               {groups.map((g, i) => (
                 <div key={g.key} style={{ width: `${(g.total / grand) * 100}%`, background: `var(--inst-${i % 6})` }} title={`${g.institution}: ${pct((g.total / grand) * 100)}`} />
               ))}
@@ -94,7 +98,7 @@ export function InstitutionsView() {
                       <div className="row wrap" style={{ gap: 6 }}>
                         <b>{g.institution}</b>
                         {g.owners.map((o) => <span key={o} className={`chip owner-${o}`}>{o}</span>)}
-                        {g.owners.some((o) => isStale(state!.settings, g.institution, o)) && <span className="chip stale"><BellRing size={11} /> desatualizada</span>}
+                        {g.owners.some((o) => isStale(state!.settings, g.institution, o)) && <span className="chip stale"><BellRing size={11} /> {L("desatualizada", "outdated")}</span>}
                       </div>
                       <div className="row wrap small muted" style={{ gap: 10, marginTop: 4 }}>
                         {ALL_CLASSES.filter((c) => g.byClass[c]).map((c) => (
@@ -104,15 +108,15 @@ export function InstitutionsView() {
                     </div>
                     <div className="right inst-total">
                       <div className="num"><b>{brl(g.total)}</b></div>
-                      <div className="muted small num">{pct((g.total / grand) * 100)} do total · {g.items.length} ativo{g.items.length === 1 ? "" : "s"}</div>
+                      <div className="muted small num">{pct((g.total / grand) * 100)} {L("do total", "of total")} · {L(`${g.items.length} ativo${g.items.length === 1 ? "" : "s"}`, `${g.items.length} asset${g.items.length === 1 ? "" : "s"}`)}</div>
                     </div>
                   </button>
                   {(() => {
                     const stale = g.owners.every((o) => isStale(state!.settings, g.institution, o));
                     return (
                       <button type="button" className={"btn sm inst-stale" + (stale ? " stale-btn" : "")} onClick={() => toggleStale(g)}
-                        title={stale ? "Desmarcar: os valores já estão em dia" : "Pedir para atualizar esta instituição sempre que abrir o app"}>
-                        {stale ? <><BellOff size={14} /> Desmarcar</> : <><BellRing size={14} /> Marcar desatualizada</>}
+                        title={stale ? L("Desmarcar: os valores já estão em dia", "Unmark: the values are up to date") : L("Pedir para atualizar esta instituição sempre que abrir o app", "Ask to update this institution every time you open the app")}>
+                        {stale ? <><BellOff size={14} /> {L("Desmarcar", "Unmark")}</> : <><BellRing size={14} /> {L("Marcar desatualizada", "Mark outdated")}</>}
                       </button>
                     );
                   })()}
@@ -120,7 +124,7 @@ export function InstitutionsView() {
                   {isOpen && (
                     <div className="table-wrap" style={{ marginTop: 12 }}>
                       <table className="mc t-inst">
-                        <thead><tr><th>Ativo</th><th>Classe</th>{view === "all" && <th>Titular</th>}<th className="right">Valor</th><th className="right">% na instituição</th></tr></thead>
+                        <thead><tr><th>{L("Ativo", "Asset")}</th><th>{L("Classe", "Class")}</th>{view === "all" && <th>{L("Titular", "Owner")}</th>}<th className="right">{L("Valor", "Value")}</th><th className="right">{L("% na instituição", "% of institution")}</th></tr></thead>
                         <tbody>
                           {g.items.map(({ p, v }) => (
                             <tr key={p.id}>

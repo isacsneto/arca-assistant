@@ -1,3 +1,4 @@
+import { L } from "./i18n";
 import type { Position, PromptOp, Transaction } from "./types";
 
 /** Como uma operação do import por texto muda a carteira (para a tela de revisão). */
@@ -27,7 +28,7 @@ export function previewOps(positions: Position[], ops: PromptOp[]): OpPreview[] 
     const base = { index, op, error: null as string | null };
     if (op.action === "criar") {
       const np = op.newPosition;
-      if (!np) return { ...base, label: "?", institution: "?", owner: null, currency: "BRL", before: null, after: null, error: "Faltam os dados do ativo novo." };
+      if (!np) return { ...base, label: "?", institution: "?", owner: null, currency: "BRL", before: null, after: null, error: L("Faltam os dados do ativo novo.", "The new asset details are missing.") };
       const value = op.value ?? op.delta;
       return {
         ...base,
@@ -37,12 +38,12 @@ export function previewOps(positions: Position[], ops: PromptOp[]): OpPreview[] 
         currency: np.currency,
         before: null,
         after: value,
-        error: value == null || !(value >= 0) ? "Valor do ativo novo inválido." : null,
+        error: value == null || !(value >= 0) ? L("Valor do ativo novo inválido.", "Invalid value for the new asset.") : null,
       };
     }
 
     const p = op.positionId ? byId.get(op.positionId) : undefined;
-    if (!p) return { ...base, label: "?", institution: "?", owner: null, currency: "BRL", before: null, after: null, error: "Posição não encontrada na carteira." };
+    if (!p) return { ...base, label: "?", institution: "?", owner: null, currency: "BRL", before: null, after: null, error: L("Posição não encontrada na carteira.", "Position not found in the portfolio.") };
     const before = running.get(p.id) ?? p.value;
     let after: number | null;
     let error: string | null = null;
@@ -50,8 +51,8 @@ export function previewOps(positions: Position[], ops: PromptOp[]): OpPreview[] 
     else if (op.action === "definir") after = op.value;
     else after = op.delta == null ? null : round2(before + op.delta);
 
-    if (after == null || !Number.isFinite(after)) error = "Valor não informado.";
-    else if (after < 0) error = `O saldo ficaria negativo (${round2(after)}).`;
+    if (after == null || !Number.isFinite(after)) error = L("Valor não informado.", "Value not provided.");
+    else if (after < 0) error = L(`O saldo ficaria negativo (${round2(after)}).`, `The balance would become negative (${round2(after)}).`);
     if (!error && after != null) running.set(p.id, after);
 
     return { ...base, label: label(p), institution: p.institution, owner: p.owner, currency: p.currency, before, after, error };

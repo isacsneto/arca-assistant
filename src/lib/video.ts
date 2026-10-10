@@ -1,5 +1,6 @@
 import { MAX_VIDEO_SECONDS, VIDEO_SAMPLE_STEP, frameName, pickFrames, type FrameSample } from "../../shared/videoFrames";
 import { dhashOf } from "./files";
+import { L } from "../../shared/i18n";
 
 /*
  * Vídeo de tela → quadros (JPEG) para a IA ler como prints.
@@ -25,8 +26,8 @@ function once(el: HTMLVideoElement, ok: string, timeoutMs: number): Promise<void
       fn();
     };
     const onOk = () => done(resolve);
-    const onErr = () => done(() => reject(new Error("vídeo não suportado pelo navegador")));
-    const timer = setTimeout(() => done(() => reject(new Error("tempo esgotado ao ler o vídeo"))), timeoutMs);
+    const onErr = () => done(() => reject(new Error(L("vídeo não suportado pelo navegador", "video not supported by the browser"))));
+    const timer = setTimeout(() => done(() => reject(new Error(L("tempo esgotado ao ler o vídeo", "timed out reading the video")))), timeoutMs);
     el.addEventListener(ok, onOk);
     el.addEventListener("error", onErr);
   });
@@ -42,7 +43,7 @@ function toJpeg(source: CanvasImageSource, w: number, h: number): Promise<Blob> 
   const scale = Math.min(1, MAX_SIDE / Math.max(w, h));
   const canvas = Object.assign(document.createElement("canvas"), { width: Math.round(w * scale), height: Math.round(h * scale) });
   canvas.getContext("2d")!.drawImage(source, 0, 0, canvas.width, canvas.height);
-  return new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("falha ao gerar o quadro"))), "image/jpeg", 0.88));
+  return new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error(L("falha ao gerar o quadro", "failed to generate the frame")))), "image/jpeg", 0.88));
 }
 
 /** Duração real (vídeos do MediaRecorder às vezes informam Infinity até buscar o fim). */
@@ -61,14 +62,14 @@ async function inBrowser(file: File, progress: Progress): Promise<VideoFrame[]> 
   el.playsInline = true;
   el.preload = "auto";
   try {
-    progress(`Abrindo o vídeo ${file.name}…`);
+    progress(L(`Abrindo o vídeo ${file.name}…`, `Opening video ${file.name}…`));
     // Formato que o navegador não decodifica costuma travar aqui: o plano B (servidor) assume.
     const meta = once(el, "loadeddata", 8_000);
     el.src = url;
     await meta;
-    if (!el.videoWidth || !el.videoHeight) throw new Error("vídeo sem imagem decodificável");
+    if (!el.videoWidth || !el.videoHeight) throw new Error(L("vídeo sem imagem decodificável", "video has no decodable image"));
     const duration = await durationOf(el);
-    if (!duration) throw new Error("duração desconhecida");
+    if (!duration) throw new Error(L("duração desconhecida", "unknown duration"));
     if (duration > MAX_VIDEO_SECONDS) throw new TooLong();
     const step = Math.max(VIDEO_SAMPLE_STEP, duration / 240);
     // 1ª passada: só o hash de cada amostra (rápido, pouca memória).
@@ -76,7 +77,7 @@ async function inBrowser(file: File, progress: Progress): Promise<VideoFrame[]> 
     for (let t = 0; t < duration; t += step) {
       await seek(el, Math.min(t, duration - 0.05));
       samples.push({ t, hash: dhashOf(el) });
-      progress(`Analisando o vídeo ${file.name}… ${Math.round((t / duration) * 100)}%`);
+      progress(L(`Analisando o vídeo ${file.name}… ${Math.round((t / duration) * 100)}%`, `Analyzing video ${file.name}… ${Math.round((t / duration) * 100)}%`));
     }
     // 2ª passada: quadros escolhidos em resolução cheia.
     const picked = pickFrames(samples);
@@ -86,7 +87,7 @@ async function inBrowser(file: File, progress: Progress): Promise<VideoFrame[]> 
       await seek(el, Math.min(t, duration - 0.05));
       const blob = await toJpeg(el, el.videoWidth, el.videoHeight);
       frames.push({ file: new File([blob], frameName(file.name, n + 1), { type: "image/jpeg" }), at: t });
-      progress(`Extraindo quadros de ${file.name}… ${n + 1}/${picked.length}`);
+      progress(L(`Extraindo quadros de ${file.name}… ${n + 1}/${picked.length}`, `Extracting frames from ${file.name}… ${n + 1}/${picked.length}`));
     }
     return frames;
   } finally {
@@ -98,15 +99,15 @@ async function inBrowser(file: File, progress: Progress): Promise<VideoFrame[]> 
 
 class TooLong extends Error {
   constructor() {
-    super(`vídeo longo demais (máximo ${MAX_VIDEO_SECONDS / 60} minutos)`);
+    super(L(`vídeo longo demais (máximo ${MAX_VIDEO_SECONDS / 60} minutos)`, `video too long (maximum ${MAX_VIDEO_SECONDS / 60} minutes)`));
   }
 }
 
 async function onServer(file: File, progress: Progress): Promise<VideoFrame[]> {
-  progress(`Convertendo ${file.name} no servidor…`);
+  progress(L(`Convertendo ${file.name} no servidor…`, `Converting ${file.name} on the server…`));
   const res = await fetch("/api/video/frames", { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
   const body = (await res.json().catch(() => ({}))) as { samples?: { t: number; data: string }[]; error?: string };
-  if (!res.ok || !body.samples) throw new Error(body.error ?? `Erro ${res.status}`);
+  if (!res.ok || !body.samples) throw new Error(body.error ?? L(`Erro ${res.status}`, `Error ${res.status}`));
   const decoded = await Promise.all(
     body.samples.map(async (s) => {
       const blob = new Blob([Uint8Array.from(atob(s.data), (c) => c.charCodeAt(0))], { type: "image/jpeg" });

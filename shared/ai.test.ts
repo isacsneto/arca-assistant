@@ -7,7 +7,7 @@ const settings = (ai?: Partial<Settings["ai"]>): Settings => ({ ...DEFAULT_SETTI
 
 test("Claude: modelo e esforço vêm da configuração de cada tarefa", () => {
   const s = settings();
-  assert.deepEqual(aiFor(s, "scan"), { task: "scan", provider: "claude", auth: "local", model: "claude-opus-5-5", effort: "high" });
+  assert.deepEqual(aiFor(s, "scan"), { task: "scan", provider: "claude", auth: "local", model: "claude-opus-5-5", effort: "high", language: "en" });
   assert.equal(aiFor(s, "extraction").model, "claude-sonnet-5-5");
   assert.equal(aiFor(s, "prompt").model, aiFor(s, "extraction").model, "import por texto usa o modelo de leitura");
   assert.equal(aiFor(s, "refine").effort, "medium");
@@ -15,7 +15,7 @@ test("Claude: modelo e esforço vêm da configuração de cada tarefa", () => {
 
 test("Codex/Cursor: modelo por força (forte/rápido), vazio = padrão do CLI; esforço continua por tarefa", () => {
   const s = settings({ provider: "codex", auth: "apiKey", models: { codex: { strong: "gpt-6-astra", fast: " " }, cursor: { strong: "", fast: "" } } });
-  assert.deepEqual(aiFor(s, "projection"), { task: "projection", provider: "codex", auth: "apiKey", model: "gpt-6-astra", effort: "high" });
+  assert.deepEqual(aiFor(s, "projection"), { task: "projection", provider: "codex", auth: "apiKey", model: "gpt-6-astra", effort: "high", language: "en" });
   assert.equal(aiFor(s, "estimate").model, undefined);
   assert.equal(aiFor(settings({ provider: "cursor" }), "scan").model, undefined);
 });

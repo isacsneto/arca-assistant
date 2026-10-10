@@ -1,6 +1,7 @@
 import type { AssetClass, ExtractedItem, ExtractionResult, FileReading, Owner, Position, RefreshLine } from "./types";
 import { norm, posKey } from "./importMerge";
 import { parseFileName } from "./fileHints";
+import { L, locale } from "./i18n";
 
 /*
  * Open Finance via Pluggy (Meu Pluggy). O servidor busca os investimentos e contas de
@@ -98,7 +99,7 @@ export interface ConnectionData {
 
 const FIXED_INCOME_LABEL: Record<string, string> = {
   CDB: "CDB", LCI: "LCI", LCA: "LCA", LC: "LC", CRI: "CRI", CRA: "CRA",
-  TREASURY: "Tesouro Direto", DEBENTURES: "Debênture", LIG: "LIG", LF: "Letra Financeira",
+  TREASURY: "Tesouro Direto", get DEBENTURES() { return L("Debênture", "Debenture"); }, LIG: "LIG", LF: "Letra Financeira",
 };
 
 /** ETFs brasileiros que não são de ações Brasil. */
@@ -129,11 +130,14 @@ function byName(name: string): AssetClass | null {
 
 function rateLabel(inv: PluggyInvestment): string | null {
   const t = (inv.rateType ?? "").toUpperCase();
-  const fmt = (x: number) => String(Math.round(x * 100) / 100).replace(".", ",");
+  const fmt = (x: number) => {
+    const s = String(Math.round(x * 100) / 100);
+    return L(s.replace(".", ","), s);
+  };
   if (t === "CDI" && inv.rate) return `${fmt(inv.rate)}% CDI`;
   if (t === "SELIC") return inv.rate ? `${fmt(inv.rate)}% Selic` : "Selic";
   if (t === "IPCA") return inv.fixedAnnualRate ? `IPCA + ${fmt(inv.fixedAnnualRate)}%` : "IPCA+";
-  if ((t === "PRE_FIXADO" || t === "PREFIXADO") && (inv.fixedAnnualRate ?? inv.rate)) return `${fmt((inv.fixedAnnualRate ?? inv.rate)!)}% a.a.`;
+  if ((t === "PRE_FIXADO" || t === "PREFIXADO") && (inv.fixedAnnualRate ?? inv.rate)) return `${fmt((inv.fixedAnnualRate ?? inv.rate)!)}% ${L("a.a.", "p.a.")}`;
   return null;
 }
 
@@ -146,45 +150,45 @@ export function classifyInvestment(inv: PluggyInvestment): Classification {
 
   switch (type) {
     case "FIXED_INCOME": {
-      const label = FIXED_INCOME_LABEL[sub] ?? "Renda fixa";
+      const label = FIXED_INCOME_LABEL[sub] ?? L("Renda fixa", "Fixed income");
       return ok("caixa", [label, rateLabel(inv)].filter(Boolean).join(" "));
     }
     case "SECURITY":
-      return ok("outros", sub === "PGBL" ? "Previdência PGBL" : sub === "VGBL" ? "Previdência VGBL" : "Previdência");
+      return ok("outros", sub === "PGBL" ? L("Previdência PGBL", "PGBL pension plan") : sub === "VGBL" ? L("Previdência VGBL", "VGBL pension plan") : L("Previdência", "Pension plan (Previdência)"));
     case "COE":
       return ok("outros", "COE");
     case "EQUITY":
       if (sub === "REAL_ESTATE_FUND") return ok("fiis", "FII");
       if (sub === "BDR") return ok("internacional", "BDR");
-      if (sub === "DERIVATIVES" || sub === "OPTION") return ok("outros", sub === "OPTION" ? "Opção" : "Derivativo");
-      return ok("acoes", "Ação");
+      if (sub === "DERIVATIVES" || sub === "OPTION") return ok("outros", sub === "OPTION" ? L("Opção", "Option") : L("Derivativo", "Derivative"));
+      return ok("acoes", L("Ação", "Stock"));
     case "ETF": {
       const known = ETF_CLASS[code];
       if (known) return ok(known, "ETF");
       const named = byName(inv.name);
-      return named ? guess(named, "ETF", "Classe deduzida pelo nome do ETF — confira.") : guess("acoes", "ETF", "ETF sem classe conhecida; considerado ETF de ações Brasil — confira.");
+      return named ? guess(named, "ETF", L("Classe deduzida pelo nome do ETF — confira.", "Class inferred from the ETF name — please check.")) : guess("acoes", "ETF", L("ETF sem classe conhecida; considerado ETF de ações Brasil — confira.", "ETF with no known class; treated as a Brazilian stock ETF — please check."));
     }
     case "MUTUAL_FUND": {
       const fixed: Record<string, Classification> = {
-        FIXED_INCOME_FUND: ok("caixa", "Fundo de renda fixa"),
-        STOCK_FUND: ok("acoes", "Fundo de ações"),
-        MULTIMARKET_FUND: ok("outros", "Fundo multimercado"),
-        EXCHANGE_FUND: guess("internacional", "Fundo cambial", "Fundo cambial (exposição ao dólar) — confira."),
-        OFFSHORE_FUND: ok("internacional", "Fundo no exterior"),
+        FIXED_INCOME_FUND: ok("caixa", L("Fundo de renda fixa", "Fixed income fund")),
+        STOCK_FUND: ok("acoes", L("Fundo de ações", "Stock fund")),
+        MULTIMARKET_FUND: ok("outros", L("Fundo multimercado", "Multimarket fund")),
+        EXCHANGE_FUND: guess("internacional", L("Fundo cambial", "FX fund"), L("Fundo cambial (exposição ao dólar) — confira.", "FX fund (dollar exposure) — please check.")),
+        OFFSHORE_FUND: ok("internacional", L("Fundo no exterior", "Offshore fund")),
         FIP_FUND: ok("outros", "FIP"),
-        ETF_FUND: guess("acoes", "Fundo de índice", "Fundo de índice — confira se é de ações Brasil."),
+        ETF_FUND: guess("acoes", L("Fundo de índice", "Index fund"), L("Fundo de índice — confira se é de ações Brasil.", "Index fund — check whether it tracks Brazilian stocks.")),
       };
       if (fixed[sub]) return fixed[sub];
       const named = byName(inv.name);
       return named
-        ? guess(named, "Fundo de investimento", "Classe deduzida pelo nome do fundo — confira.")
-        : { assetClass: "outros", subtype: "Fundo de investimento", confidence: "baixa", note: "Tipo de fundo não informado pela instituição — escolha a classe." };
+        ? guess(named, L("Fundo de investimento", "Investment fund"), L("Classe deduzida pelo nome do fundo — confira.", "Class inferred from the fund name — please check."))
+        : { assetClass: "outros", subtype: L("Fundo de investimento", "Investment fund"), confidence: "baixa", note: L("Tipo de fundo não informado pela instituição — escolha a classe.", "Fund type not provided by the institution — choose the class.") };
     }
     default: {
       const named = byName(inv.name);
       return named
-        ? guess(named, "Investimento", "Tipo não informado; classe deduzida pelo nome — confira.")
-        : { assetClass: "outros", subtype: "Investimento", confidence: "baixa", note: "Tipo não informado pela instituição — escolha a classe." };
+        ? guess(named, L("Investimento", "Investment"), L("Tipo não informado; classe deduzida pelo nome — confira.", "Type not provided; class inferred from the name — please check."))
+        : { assetClass: "outros", subtype: L("Investimento", "Investment"), confidence: "baixa", note: L("Tipo não informado pela instituição — escolha a classe.", "Type not provided by the institution — choose the class.") };
     }
   }
 }
@@ -221,7 +225,7 @@ export function institutionName(conn: OpenFinanceConnection, item: PluggyItem | 
 
 /* ---------------- conversão ---------------- */
 
-const money = (x: number) => x.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (x: number) => x.toLocaleString(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 
 /** Itens (posições) de uma conexão: investimentos com saldo e, se pedido, contas. */
@@ -244,7 +248,7 @@ function connectionItems(d: ConnectionData, institution: string, source: string,
       quantity: inv.quantity ?? null,
       date: inv.date?.slice(0, 10) ?? null,
       confidence: c.confidence,
-      notes: [c.note, inv.dueDate ? `vence em ${inv.dueDate.slice(0, 10)}` : null, inv.issuer ? `emissor: ${inv.issuer}` : null].filter(Boolean).join(" · ") || null,
+      notes: [c.note, inv.dueDate ? L(`vence em ${inv.dueDate.slice(0, 10)}`, `matures on ${inv.dueDate.slice(0, 10)}`) : null, inv.issuer ? L(`emissor: ${inv.issuer}`, `issuer: ${inv.issuer}`) : null].filter(Boolean).join(" · ") || null,
     });
   }
   if (includeAccounts) {
@@ -256,7 +260,7 @@ function connectionItems(d: ConnectionData, institution: string, source: string,
         name: savings ? "Poupança" : "Conta corrente",
         ticker: null,
         assetClass: "caixa",
-        subtype: savings ? "Poupança" : "Conta corrente",
+        subtype: savings ? L("Poupança", "Savings account") : L("Conta corrente", "Checking account"),
         currency: a.currencyCode === "USD" ? "USD" : "BRL",
         value: Math.round(a.balance! * 100) / 100,
         quantity: null,
@@ -294,17 +298,24 @@ export function toImport(data: ConnectionData[], positions: Pick<Position, "inst
     items.push(...mine);
     connections.push({ itemId: d.connection.itemId, file: source, institution, owner });
     const total = mine.reduce((s, i) => s + i.value, 0);
-    const updated = d.item?.lastUpdatedAt ? ` Dados de ${new Date(d.item.lastUpdatedAt).toLocaleDateString("pt-BR")}.` : "";
+    const updated = d.item?.lastUpdatedAt ? L(` Dados de ${new Date(d.item.lastUpdatedAt).toLocaleDateString(locale())}.`, ` Data from ${new Date(d.item.lastUpdatedAt).toLocaleDateString(locale())}.`) : "";
     files.push({
       file: source,
       institution,
       owner,
       productHint: d.item?.connector?.name ?? null,
-      summary: mine.length ? `${mine.length} ${mine.length === 1 ? "item" : "itens"} · R$ ${money(total)} (valores líquidos).${updated}` : `Nenhum investimento com saldo.${updated}`,
+      summary: mine.length
+        ? L(`${mine.length} ${mine.length === 1 ? "item" : "itens"} · R$ ${money(total)} (valores líquidos).${updated}`, `${mine.length} ${mine.length === 1 ? "item" : "items"} · R$ ${money(total)} (net values).${updated}`)
+        : L(`Nenhum investimento com saldo.${updated}`, `No investments with a balance.${updated}`),
       duplicateOf: null,
     });
     if (d.item?.status && !/UPDATED/i.test(d.item.status))
-      warnings.push(`${institution} (${owner}): a conexão está com status "${d.item.status}" na Pluggy — os dados podem estar desatualizados. Reconecte no Meu Pluggy se precisar.`);
+      warnings.push(
+        L(
+          `${institution} (${owner}): a conexão está com status "${d.item.status}" na Pluggy — os dados podem estar desatualizados. Reconecte no Meu Pluggy se precisar.`,
+          `${institution} (${owner}): the connection has status "${d.item.status}" on Pluggy — the data may be outdated. Reconnect in Meu Pluggy if needed.`,
+        ),
+      );
   }
   return { items, files, questions: [], warnings, connections };
 }
@@ -335,35 +346,35 @@ export function openFinanceRefresh(positions: Position[], data: ConnectionData[]
     const institution = institutionName(d.connection, d.item, known);
     const owner = d.connection.owner;
     if (d.error) {
-      warnings.push(`Open Finance · ${institution} (${owner}): ${d.error} — usei cotação/IA para esta instituição.`);
+      warnings.push(L(`Open Finance · ${institution} (${owner}): ${d.error} — usei cotação/IA para esta instituição.`, `Open Finance · ${institution} (${owner}): ${d.error} — used quotes/AI for this institution instead.`));
       continue;
     }
     const source = `Open Finance · ${institution} ${owner}`;
     const fresh = connectionItems(d, institution, source, opts.includeAccounts);
     const scope = positions.filter((p) => p.owner === owner && norm(p.institution) === norm(institution));
     const used = new Set<number>();
-    const updated = d.item?.lastUpdatedAt ? `dados de ${new Date(d.item.lastUpdatedAt).toLocaleDateString("pt-BR")}` : "Open Finance";
+    const updated = d.item?.lastUpdatedAt ? L(`dados de ${new Date(d.item.lastUpdatedAt).toLocaleDateString(locale())}`, `data from ${new Date(d.item.lastUpdatedAt).toLocaleDateString(locale())}`) : "Open Finance";
 
     for (const p of scope) {
       covered.add(p.id);
       const key = posKey(p.owner, p.institution, p.ticker, p.name);
       const i = fresh.findIndex((it, k) => !used.has(k) && posKey(owner, institution, it.ticker, it.name) === key);
       if (i < 0) {
-        lines.push({ id: p.id, name: label(p), currency: p.currency, oldValue: p.value, newValue: 0, method: "removido", note: `Não veio do Open Finance (${updated}): sai da carteira.`, source: "Pluggy" });
+        lines.push({ id: p.id, name: label(p), currency: p.currency, oldValue: p.value, newValue: 0, method: "removido", note: L(`Não veio do Open Finance (${updated}): sai da carteira.`, `Not in Open Finance (${updated}): removed from the portfolio.`), source: "Pluggy" });
         continue;
       }
       used.add(i);
       const it = fresh[i];
       lines.push({
         id: p.id, name: label(p), currency: it.currency, oldValue: p.value, newValue: it.value, method: "openfinance",
-        quantity: it.quantity ?? undefined, note: `Valor líquido informado pelo banco (${updated}).`, source: "Pluggy",
+        quantity: it.quantity ?? undefined, note: L(`Valor líquido informado pelo banco (${updated}).`, `Net value reported by the bank (${updated}).`), source: "Pluggy",
       });
     }
     fresh.forEach((it, k) => {
       if (used.has(k)) return;
       lines.push({
         id: `of-new:${d.connection.itemId}:${k}`, name: `${label(it)} (${institution} ${owner})`, currency: it.currency, oldValue: 0, newValue: it.value,
-        method: "openfinance", quantity: it.quantity ?? undefined, note: `Novo no Open Finance (${updated}): entra na carteira.`, source: "Pluggy", add: it,
+        method: "openfinance", quantity: it.quantity ?? undefined, note: L(`Novo no Open Finance (${updated}): entra na carteira.`, `New in Open Finance (${updated}): added to the portfolio.`), source: "Pluggy", add: it,
       });
     });
   }

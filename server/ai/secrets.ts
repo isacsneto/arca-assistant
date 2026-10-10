@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { PROVIDER_IDS, type ProviderId } from "../../shared/ai";
+import { L } from "../../shared/i18n";
 
 /*
  * Chaves de API dos provedores. Ficam só no servidor (arquivo fora do git,
@@ -33,7 +34,7 @@ export function fileSecrets(file: string, env: NodeJS.ProcessEnv = process.env):
     get,
     has: (p) => Boolean(get(p)),
     set(p, key) {
-      if (!PROVIDER_IDS.includes(p)) throw new Error("Provedor inválido.");
+      if (!PROVIDER_IDS.includes(p)) throw new Error(L("Provedor inválido.", "Invalid provider."));
       const all = read();
       const clean = key?.trim();
       if (clean) all[p] = clean;

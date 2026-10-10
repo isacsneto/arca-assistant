@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { runProcess } from "./ai/proc";
+import { L } from "../shared/i18n";
 
 /*
  * Plano B para vídeos que o navegador não decodifica (ex.: .mov HEVC do iPhone em
@@ -29,7 +30,7 @@ async function ffmpegPath(): Promise<string> {
   const p = typeof mod === "string" ? mod : mod.default;
   // O binário vem do script de instalação do pacote; o npm pode ter bloqueado esse script.
   if (!p || !(await fs.stat(p).catch(() => null)))
-    throw new VideoError("O navegador não abriu este vídeo e o ffmpeg não está instalado (rode: npm approve-scripts ffmpeg-static && npm rebuild ffmpeg-static). Ou grave/converta o vídeo em MP4.", 501);
+    throw new VideoError(L("O navegador não abriu este vídeo e o ffmpeg não está instalado (rode: npm approve-scripts ffmpeg-static && npm rebuild ffmpeg-static). Ou grave/converta o vídeo em MP4.", "The browser couldn't open this video and ffmpeg isn't installed (run: npm approve-scripts ffmpeg-static && npm rebuild ffmpeg-static). Or record/convert the video to MP4."), 501);
   return p;
 }
 
@@ -52,8 +53,8 @@ export async function sampleVideo(bytes: Buffer, opts: { step: number; signal?: 
     await fs.writeFile(input, bytes);
     const probe = await runProcess(ffmpeg, ["-hide_banner", "-i", input], { cwd: dir, env: process.env, signal: opts.signal });
     const duration = parseDuration(probe.stderr);
-    if (!duration) throw new VideoError("Não consegui ler este vídeo. Tente gravar em MP4.");
-    if (duration > 15 * 60) throw new VideoError("Vídeo longo demais (máximo 15 minutos).");
+    if (!duration) throw new VideoError(L("Não consegui ler este vídeo. Tente gravar em MP4.", "Couldn't read this video. Try recording in MP4."));
+    if (duration > 15 * 60) throw new VideoError(L("Vídeo longo demais (máximo 15 minutos).", "Video too long (15 minutes max)."));
     const step = sampleStep(duration, opts.step);
     // Lado maior até 1600 px: suficiente para ler texto de tela de celular.
     const scale = "scale='if(gte(iw,ih),min(1600,iw),-2)':'if(gte(iw,ih),-2,min(1600,ih))'";
@@ -62,7 +63,7 @@ export async function sampleVideo(bytes: Buffer, opts: { step: number; signal?: 
       ["-hide_banner", "-loglevel", "error", "-i", input, "-vf", `fps=1/${step},${scale}`, "-q:v", "4", path.join(dir, "f_%04d.jpg")],
       { cwd: dir, env: process.env, signal: opts.signal },
     );
-    if (run.code !== 0) throw new VideoError("O ffmpeg não conseguiu extrair quadros deste vídeo.");
+    if (run.code !== 0) throw new VideoError(L("O ffmpeg não conseguiu extrair quadros deste vídeo.", "ffmpeg couldn't extract frames from this video."));
     const names = (await fs.readdir(dir)).filter((n) => n.startsWith("f_")).sort();
     return Promise.all(
       names.map(async (n, i) => ({ t: Math.round(i * step * 10) / 10, data: (await fs.readFile(path.join(dir, n))).toString("base64") })),

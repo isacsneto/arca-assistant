@@ -6,6 +6,11 @@ import { useStore } from "../store";
 import { dateTime, safeUrl } from "../lib/format";
 import { Banner, ClassLabel, Empty, PageHead } from "./ui";
 import { useAi } from "../lib/useAi";
+import { L, getLang } from "../../shared/i18n";
+
+/** Rótulo exibido da convicção (o valor salvo continua alta/media/baixa). */
+const convictionLabel = (c: string) =>
+  c === "alta" ? L("convicção alta", "high conviction") : c === "media" ? L("convicção media", "med. conviction") : c === "baixa" ? L("convicção baixa", "low conviction") : L(`convicção ${c}`, `conviction ${c}`);
 
 interface Progress {
   status: string;
@@ -35,9 +40,9 @@ export function ScanView() {
       const cur: Progress = p[c] ?? { status: "", lines: [], searches: 0, state: "running" };
       switch (e.type) {
         case "status": return { ...p, [c]: { ...cur, status: e.text } };
-        case "search": return { ...p, [c]: { ...cur, status: "Pesquisando na web…", searches: cur.searches + 1, lines: [...cur.lines, `🔎 ${e.query}`].slice(-6) } };
-        case "fetch": return { ...p, [c]: { ...cur, status: "Lendo documento…", lines: [...cur.lines, `📄 ${e.url}`].slice(-6) } };
-        case "result": return { ...p, [c]: { ...cur, status: "Concluído", state: "done" } };
+        case "search": return { ...p, [c]: { ...cur, status: L("Pesquisando na web…", "Searching the web…"), searches: cur.searches + 1, lines: [...cur.lines, `🔎 ${e.query}`].slice(-6) } };
+        case "fetch": return { ...p, [c]: { ...cur, status: L("Lendo documento…", "Reading document…"), lines: [...cur.lines, `📄 ${e.url}`].slice(-6) } };
+        case "result": return { ...p, [c]: { ...cur, status: L("Concluído", "Done"), state: "done" } };
         case "error": return { ...p, [c]: { ...cur, state: "error", error: e.message } };
       }
     });
@@ -48,7 +53,7 @@ export function ScanView() {
     setError(null);
     setRunning(true);
     setActive(selected[0]);
-    setProgress(Object.fromEntries(selected.map((c) => [c, { status: "Na fila…", lines: [], searches: 0, state: "running" as const }])));
+    setProgress(Object.fromEntries(selected.map((c) => [c, { status: L("Na fila…", "Queued…"), lines: [], searches: 0, state: "running" as const }])));
     abort.current = new AbortController();
     try {
       await runScan(selected, onEvent, abort.current.signal);
@@ -59,7 +64,7 @@ export function ScanView() {
       // Categorias sem resultado (scan parado ou conexão caiu) não podem ficar "rodando" para sempre.
       setProgress((p) =>
         Object.fromEntries(
-          Object.entries(p).map(([c, v]) => [c, v.state === "running" ? { ...v, state: "error", error: "Interrompido antes de terminar." } : v]),
+          Object.entries(p).map(([c, v]) => [c, v.state === "running" ? { ...v, state: "error", error: L("Interrompido antes de terminar.", "Interrupted before finishing.") } : v]),
         ),
       );
     }
@@ -72,8 +77,9 @@ export function ScanView() {
   return (
     <>
       <PageHead
-        title="Scan de ativos"
-        subtitle="A IA pesquisa na web balanços de empresas, relatórios de fundos e a situação fiscal do governo para sugerir as melhores opções de cada classe da Arca."
+        title={L("Scan de ativos", "Asset scan")}
+        subtitle={L("A IA pesquisa na web balanços de empresas, relatórios de fundos e a situação fiscal do governo para sugerir as melhores opções de cada classe da Arca.",
+          "The AI searches the web for company financial statements, fund reports and the government's fiscal situation to suggest the best options for each Arca class.")}
       />
       {error && <Banner kind="bad">{error}</Banner>}
 
@@ -87,15 +93,19 @@ export function ScanView() {
           ))}
           <div className="grow" />
           {running ? (
-            <button className="btn" onClick={() => abort.current?.abort()}><Square size={14} /> Parar</button>
+            <button className="btn" onClick={() => abort.current?.abort()}><Square size={14} /> {L("Parar", "Stop")}</button>
           ) : (
             <button className="btn primary" disabled={!selected.length || !config!.hasCredentials} onClick={start}>
-              <Radar size={16} /> Escanear {selected.length === 4 ? "tudo" : `${selected.length} categoria${selected.length > 1 ? "s" : ""}`}
+              <Radar size={16} /> {selected.length === 4
+                ? L("Escanear tudo", "Scan all")
+                : L(`Escanear ${selected.length} categoria${selected.length > 1 ? "s" : ""}`, `Scan ${selected.length} ${selected.length > 1 ? "categories" : "category"}`)}
             </button>
           )}
         </div>
         <p className="muted small" style={{ marginTop: 10 }}>
-          Modelo: {modelLabel} · esforço {EFFORT_LABEL[scanSettings.effort].toLowerCase()} (altere em Ajustes). Cada categoria faz dezenas de buscas e leva alguns minutos; usa o limite da sua assinatura{ai.viaApi ? " / créditos da sua chave de API" : ""} de {ai.name} (até 2 categorias em paralelo).
+          {L("Modelo", "Model")}: {modelLabel} · {L("esforço", "effort")} {EFFORT_LABEL[scanSettings.effort].toLowerCase()} ({L("altere em Ajustes", "change it in Settings")}).{" "}
+          {L(`Cada categoria faz dezenas de buscas e leva alguns minutos; usa o limite da sua assinatura${ai.viaApi ? " / créditos da sua chave de API" : ""} de ${ai.name} (até 2 categorias em paralelo).`,
+            `Each category runs dozens of searches and takes a few minutes; it uses your ${ai.name} subscription limits${ai.viaApi ? " / API key credits" : ""} (up to 2 categories in parallel).`)}
         </p>
       </div>
 
@@ -111,17 +121,17 @@ export function ScanView() {
 
       {prog?.state === "running" && (
         <div className="card" style={{ marginBottom: 16 }}>
-          <div className="row"><Loader2 size={16} className="spin" /><b>{prog.status}</b><span className="muted small">· {prog.searches} buscas</span></div>
+          <div className="row"><Loader2 size={16} className="spin" /><b>{prog.status}</b><span className="muted small">· {prog.searches} {L("buscas", "searches")}</span></div>
           <div className="feed" style={{ marginTop: 10 }}>{prog.lines.map((l, i) => <div className="line" key={i}>{l}</div>)}</div>
         </div>
       )}
-      {prog?.state === "error" && <Banner kind="bad">Falha no scan de {CLASS_META[active].label}: {prog.error}</Banner>}
+      {prog?.state === "error" && <Banner kind="bad">{L("Falha no scan de", "Scan failed for")} {CLASS_META[active].label}: {prog.error}</Banner>}
 
       {scan ? (
         <ScanReportView scan={scan} />
       ) : (
         prog?.state !== "running" && (
-          <div className="card"><Empty title={`Nenhum scan de ${CLASS_META[active].label} ainda`}>Escolha as categorias acima e clique em Escanear.</Empty></div>
+          <div className="card"><Empty title={L(`Nenhum scan de ${CLASS_META[active].label} ainda`, `No ${CLASS_META[active].label} scan yet`)}>{L("Escolha as categorias acima e clique em Escanear.", "Choose the categories above and click Scan.")}</Empty></div>
         )
       )}
     </>
@@ -134,13 +144,17 @@ function ScanReportView({ scan }: { scan: ScanResult }) {
   return (
     <div className="stack-lg">
       <Banner kind="warn">
-        Análise gerada por IA com dados públicos da web, em {dateTime(scan.runAt)} (dados até {scan.dataAsOf}). Não é recomendação de investimento: confira os números nas fontes antes de decidir.
+        {getLang() === "pt" ? (
+          <>Análise gerada por IA com dados públicos da web, em {dateTime(scan.runAt)} (dados até {scan.dataAsOf}). Não é recomendação de investimento: confira os números nas fontes antes de decidir.</>
+        ) : (
+          <>AI-generated analysis using public web data, on {dateTime(scan.runAt)} (data as of {scan.dataAsOf}). Not investment advice: check the numbers in the sources before deciding.</>
+        )}
       </Banner>
 
       <div className="card">
-        <div className="card-head"><h2>Resumo</h2><span className="muted small">{scan.searches} buscas · {scan.model}</span></div>
+        <div className="card-head"><h2>{L("Resumo", "Summary")}</h2><span className="muted small">{scan.searches} {L("buscas", "searches")} · {scan.model}</span></div>
         <p className="prose">{scan.summary}</p>
-        <h3 style={{ margin: "16px 0 6px" }}>Cenário</h3>
+        <h3 style={{ margin: "16px 0 6px" }}>{L("Cenário", "Scenario")}</h3>
         <p className="prose muted">{scan.macroContext}</p>
       </div>
 
@@ -151,8 +165,8 @@ function ScanReportView({ scan }: { scan: ScanResult }) {
               <span className="rank">{p.rank}</span>
               <h2>{p.ticker}</h2>
               <span className="muted grow">{p.name}</span>
-              <span className={`chip ${p.conviction === "alta" ? "ok" : p.conviction === "media" ? "warn" : ""}`}>convicção {p.conviction}</span>
-              <span className="chip">{((p.suggestedWeightInClass / totalW) * 100).toFixed(0)}% da classe</span>
+              <span className={`chip ${p.conviction === "alta" ? "ok" : p.conviction === "media" ? "warn" : ""}`}>{convictionLabel(p.conviction)}</span>
+              <span className="chip">{((p.suggestedWeightInClass / totalW) * 100).toFixed(0)}% {L("da classe", "of class")}</span>
             </div>
             <p className="prose" style={{ marginTop: 10 }}>{p.thesis}</p>
             {p.keyMetrics.length > 0 && (
@@ -165,18 +179,18 @@ function ScanReportView({ scan }: { scan: ScanResult }) {
 
       {scan.avoid.length > 0 && (
         <div className="card">
-          <h2 style={{ marginBottom: 10 }}>Evitar por enquanto</h2>
+          <h2 style={{ marginBottom: 10 }}>{L("Evitar por enquanto", "Avoid for now")}</h2>
           <ul className="risks" style={{ marginTop: 0 }}>{scan.avoid.map((a, i) => <li key={i}><b>{a.ticker}</b> — {a.reason}</li>)}</ul>
         </div>
       )}
 
       {scan.portfolioNotes && (
-        <div className="card"><h2 style={{ marginBottom: 8 }}>Sobre a sua carteira</h2><p className="prose">{scan.portfolioNotes}</p></div>
+        <div className="card"><h2 style={{ marginBottom: 8 }}>{L("Sobre a sua carteira", "About your portfolio")}</h2><p className="prose">{scan.portfolioNotes}</p></div>
       )}
 
       {scan.sources.length > 0 && (
         <div className="card">
-          <h2 style={{ marginBottom: 10 }}><Globe size={15} style={{ verticalAlign: -2 }} /> Fontes</h2>
+          <h2 style={{ marginBottom: 10 }}><Globe size={15} style={{ verticalAlign: -2 }} /> {L("Fontes", "Sources")}</h2>
           <div className="stack" style={{ gap: 6 }}>
             {scan.sources.map((s, i) => {
               const href = safeUrl(s.url);
@@ -191,7 +205,7 @@ function ScanReportView({ scan }: { scan: ScanResult }) {
           </div>
         </div>
       )}
-      <span className="muted small row"><Search size={13} /> Rode o scan de novo sempre que quiser atualizar (balanços saem a cada trimestre).</span>
+      <span className="muted small row"><Search size={13} /> {L("Rode o scan de novo sempre que quiser atualizar (balanços saem a cada trimestre).", "Run the scan again whenever you want to update (financial statements come out every quarter).")}</span>
     </div>
   );
 }

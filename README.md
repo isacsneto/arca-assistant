@@ -2,10 +2,12 @@
 
 # 🏛️ Arca Assistant
 
-### Seu patrimônio inteiro num lugar só — organizado pela filosofia **Arca**, com IA que lê seus prints, pesquisa o mercado e projeta o futuro.
+**English** · [Português](README.pt-BR.md)
 
-**Claude · Codex (ChatGPT) · Cursor** — com o login que você já tem ou com chave de API.
-Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que você escolher, na hora de cada análise).
+### Your whole net worth in one place — organized by the **Arca** method, with AI that reads your bank screenshots, researches the market and projects the future.
+
+**Claude · Codex (ChatGPT) · Cursor** — with the login you already have, or an API key.
+Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes to the AI you pick, at the moment of each analysis).
 
 <br/>
 
@@ -15,199 +17,227 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 ![Claude](https://img.shields.io/badge/Claude-Agent%20SDK-d97757)
 ![Codex](https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white)
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
-![Testes](https://img.shields.io/badge/testes-147%20passando-2ea44f)
+![Open Finance](https://img.shields.io/badge/Open%20Finance-Pluggy-6c47ff)
+![PWA](https://img.shields.io/badge/PWA-iOS%20%26%20Android-5a0fc8)
+![Tests](https://img.shields.io/badge/tests-147%20passing-2ea44f)
 
 <br/>
 
-<img src="docs/demo.gif" alt="Demonstração do Arca Assistant com uma carteira fictícia" width="900"/>
+<img src="docs/demo.gif" alt="Arca Assistant demo with a fictional portfolio" width="900"/>
 
-<sub>Demonstração com dados 100% fictícios (<code>npm run demo</code>). <a href="docs/demo.mp4">Versão em vídeo (MP4)</a></sub>
+<sub>Demo with 100% fictional data (<code>npm run demo</code>). <a href="docs/demo.mp4">Video version (MP4)</a></sub>
 
 </div>
 
 ---
 
-## ✨ O que ele faz
+**Arca Assistant** is a self-hosted, AI-powered **personal finance and investment portfolio tracker** built for Brazilian investors (and anyone who likes the **Arca** asset allocation). It consolidates stocks, REITs (FIIs), fixed income (CDB, LCI, Tesouro Direto), international ETFs, crypto and physical assets across banks and brokers, **rebalances** to your target allocation, and runs **AI market research and long-term projections**. Bring your own AI: **Claude Code, OpenAI Codex (ChatGPT) or Cursor**.
+
+> **The Arca method** (popularized by Thiago Nigro, *Primo Rico*) splits a portfolio equally into four "pillars": **Stocks · Real estate (FIIs) · Cash / Fixed income · International** (25/25/25/25). The app also ships the *Arca Grão* split (30/10/40/20) or your own custom targets.
+
+## ✨ Features
 
 | | |
 |---|---|
-| 📸 **Importa qualquer coisa** | Prints do app do banco, PDFs, CSV/XLSX (BTG, XP, Nubank, Itaú, Inter…) ou uma frase: *"17000.30 adicionados à caixinha cdb do inter pj"*. A IA extrai, classifica e **pergunta quando não tem certeza**. |
-| 🎬 **Vídeo de tela** | Grave a tela rolando o app do banco em vez de tirar dez prints. O app escolhe **um quadro por tela** (descarta o borrão da rolagem e as repetições) e a IA lê como prints. MP4, MOV, WEBM… |
-| 🏦 **Open Finance** | Conecte seus bancos pelo [Meu Pluggy](https://meu.pluggy.ai) (grátis para uso pessoal) e puxe os investimentos direto da fonte — renda fixa, ações, FIIs, ETFs, fundos, previdência — já classificados na Arca. Pode ser a **fonte da verdade**: substitui o que havia na instituição e alimenta o *Atualizar valores*. |
-| 📱 **No celular** | Interface feita para iPhone e Android (barra de abas, folhas que sobem de baixo, campos sem zoom) e **instalável na tela inicial**. Acesso de fora de casa pelo Tailscale, sem expor nada na internet. |
-| 🧠 **Entende o nome do arquivo** | `itau-pf-cdb100cdi.png` → Itaú · pessoa física · CDB 100% do CDI. A IA confere a leitura. |
-| 🔁 **Detecta duplicados** | Arquivo idêntico (SHA-256), print quase igual (hash visual) e mesma tela em prints diferentes (a IA compara o conteúdo). |
-| 🏛️ **Carteira pela Arca** | Ações · Imóveis (FIIs) · Caixa/Renda Fixa · Internacional — Arca do Primo Rico (25/25/25/25), Arca Grão (30/10/40/20) ou sua própria divisão. Clique numa classe e veja os ativos. |
-| 👥 **PF e PJ** | Visão consolidada ou separada por titular em todas as telas, inclusive na projeção. |
-| ⚖️ **Rebalanceamento** | Diz quanto aportar em cada classe (ou quanto vender) para voltar às metas, e onde colocar o dinheiro. |
-| 🔎 **Scan de ativos** | A IA pesquisa balanços, relatórios de FIIs, a situação fiscal do governo e ETFs, e devolve um ranking com tese, métricas, riscos e fontes. |
-| 🔄 **Atualizar valores** | Ações, FIIs, ETFs, dólar e cripto pela cotação de mercado; renda fixa estimada pela IA acumulando CDI/Selic/IPCA; instituições conectadas ao Open Finance, direto do banco. Você revisa antes de aplicar. |
-| 📈 **Projeção 5–30 anos** | Cenário mais provável e pior caso plausível, com premissas pesquisadas (Focus, juros, fiscal, valuation) e a conta feita pelo app — nominal e em reais de hoje. |
-| 🏦 **Por instituição** | Quanto você tem em cada banco/corretora. Marque uma como desatualizada e o app lembra você de atualizar. |
-| 🚗 **Bens físicos** | Carros, imóveis, joias e eletrônicos fora dos investimentos, com **estimativa de valor por IA** (FIPE, anúncios de novos e usados, cotação do ouro) e anexos (fotos, nota fiscal). |
-| ⏰ **Lembretes** | Instituições desatualizadas ao abrir o app e revisão periódica ("está tudo atualizado?") a cada 1 ou 2 semanas. |
+| 📸 **Import anything** | Bank app screenshots, PDFs, CSV/XLSX statements (BTG, XP, Nubank, Itaú, Inter…) or a sentence: *"17000.30 added to the cdb box at inter pj"*. The AI extracts, classifies and **asks when it isn't sure**. |
+| 🎬 **Screen recordings** | Record your screen scrolling the bank app instead of taking ten screenshots. The app picks **one frame per screen** (skipping scroll blur and repeats) and the AI reads them like screenshots. MP4, MOV, WEBM… |
+| 🏦 **Open Finance** | Connect your banks through [Meu Pluggy](https://meu.pluggy.ai) (free for personal use) and pull investments straight from the source — fixed income, stocks, FIIs, ETFs, funds, pension plans — already classified into the Arca. It can be the **source of truth**: it replaces what you had at that institution and feeds *Update values*. |
+| 🌐 **English and Portuguese** | The whole UI in both languages (switch in Settings or in the menu footer). The AI writes scans, projections and questions in the chosen language. |
+| 📱 **Mobile-first PWA** | Designed for iPhone and Android (tab bar, bottom sheets, no zoom on inputs) and **installable on the home screen**. Reach it away from home through Tailscale, without exposing anything to the internet. |
+| 🧠 **Understands file names** | `itau-pf-cdb100cdi.png` → Itaú · individual (PF) · CDB at 100% of CDI. The AI double-checks it. |
+| 🔁 **Duplicate detection** | Identical files (SHA-256), near-identical screenshots (perceptual hash) and the same screen in different screenshots (the AI compares the content). |
+| 🏛️ **Arca portfolio** | Stocks · Real estate (FIIs) · Cash / Fixed income · International — Arca (25/25/25/25), Arca Grão (30/10/40/20) or your own split. Click a class to see its assets. |
+| 👥 **Individual & company (PF / PJ)** | Consolidated or per-owner view on every screen, including the projection. |
+| ⚖️ **Rebalancing** | How much to contribute to each class (or sell) to get back on target, and where to put the money. |
+| 🔎 **AI asset scan** | The AI researches balance sheets, FII reports, Brazil's fiscal situation and ETFs, and returns a ranking with thesis, metrics, risks and sources. |
+| 🔄 **Update values** | Stocks, FIIs, ETFs, USD and crypto by market quote; fixed income estimated by the AI accruing CDI/Selic/IPCA; Open Finance institutions straight from the bank. You review before applying. |
+| 📈 **5–30 year projection** | Likely and plausible worst-case scenarios, with researched assumptions (Focus survey, rates, fiscal, valuation) and the math done by the app — nominal and in today's money. |
+| 🏦 **By institution** | How much you hold at each bank/broker. Mark one as outdated and the app reminds you to update it. |
+| 🚗 **Physical assets** | Cars, real estate, jewelry and electronics outside the portfolio, with **AI value estimates** (FIPE table, new and used listings, gold price) and attachments (photos, invoices). |
+| ⏰ **Reminders** | Outdated institutions on startup and a periodic "is everything up to date?" check every 1 or 2 weeks. |
 
 <div align="center">
-<img src="docs/screenshots/carteira.jpg" alt="Carteira consolidada pela Arca" width="49%"/>
-<img src="docs/screenshots/projecao.jpg" alt="Projeção de 5 a 30 anos" width="49%"/>
-<img src="docs/screenshots/scan.jpg" alt="Scan de ativos com IA" width="49%"/>
-<img src="docs/screenshots/bens.jpg" alt="Bens com estimativa por IA" width="49%"/>
+<img src="docs/screenshots/carteira.jpg" alt="Portfolio consolidated by the Arca method" width="49%"/>
+<img src="docs/screenshots/projecao.jpg" alt="5 to 30 year projection" width="49%"/>
+<img src="docs/screenshots/scan.jpg" alt="AI asset scan" width="49%"/>
+<img src="docs/screenshots/bens.jpg" alt="Physical assets with AI estimates" width="49%"/>
 </div>
+
+<sub>Screenshots show the Portuguese UI; switch to English in Settings → Language.</sub>
 
 ---
 
-## 🚀 Começando
+## 🚀 Getting started
 
-**Requisitos:** Node.js 20+ e **uma** das IAs abaixo.
+**Requirements:** Node.js 20+ and **one** of the AIs below.
+
+### 🤖 Install with your AI (copy & paste)
+
+Open **Claude Code**, **Codex** or the **Cursor** agent in an empty folder and paste:
+
+```text
+Install Arca Assistant (https://github.com/isacsneto/arca-assistant) on this computer and keep it running for me:
+1. Check that Node.js 20+ and git are installed; if not, tell me how to install them on my OS and wait.
+2. Clone the repository into a folder (default: ~/arca-assistant) and run "npm install".
+3. Check whether an AI is ready: Claude Code ("claude auth status"), Codex ("npx codex login status") or Cursor ("agent status"). If none is logged in, ask which one I want and guide me through the login (I will run interactive logins myself).
+4. Ask whether I want the app to start automatically with the computer. If yes, run "npm run local:install" (Windows, macOS or Linux) and show me the address it prints; if not, run "npm run local".
+5. If Tailscale is installed, check that the https://….ts.net address opens; if "tailscale serve" asks to enable HTTPS, show me the link.
+6. Open http://localhost:3001 and tell me to pick the language and the AI provider in Settings.
+Do not put my financial data, passwords or API keys in commands or files (I enter those myself in the app's Settings screen). Do not expose the app to the internet: no port forwarding and no Tailscale Funnel.
+```
+
+### ⌨️ Or by hand
 
 ```bash
 git clone https://github.com/isacsneto/arca-assistant.git
 cd arca-assistant
 npm install
-npm run dev          # abre em http://localhost:5173
+npm run dev          # opens http://localhost:5173
 ```
 
-Quer ver antes de colocar seus dados? Rode a demonstração com uma carteira fictícia (porta 3101, dados separados):
+Want to try it before adding your data? Run the demo with a fictional portfolio (port 3101, separate data):
 
 ```bash
-npm run demo         # npm run demo:reset recria os dados fictícios
+npm run demo         # npm run demo:reset recreates the fictional data
 ```
 
-### 🤖 Escolha sua IA
+### 🤖 Choose your AI
 
-Em **Ajustes → Provedor de IA** você escolhe o provedor e o modo de acesso. O app mostra se cada um está instalado, logado e com chave.
+In **Settings → AI provider** you pick the provider and the access mode. The app shows whether each one is installed, logged in and has a key.
 
-| Provedor | 🔐 Login local (usa sua assinatura) | 🔑 Chave de API |
+| Provider | 🔐 Local login (uses your subscription) | 🔑 API key |
 |---|---|---|
-| **Claude** (Anthropic) | `claude auth login` — o motor do Claude Code já vem no app | `ANTHROPIC_API_KEY` |
-| **Codex** (OpenAI / ChatGPT) | `npx codex login` — o Codex CLI já vem no app | `CODEX_API_KEY` ou `OPENAI_API_KEY` |
-| **Cursor** | instale o [Cursor CLI](https://cursor.com/docs/cli/installation) e rode `agent login` | `CURSOR_API_KEY` (precisa do CLI) |
+| **Claude** (Anthropic) | `claude auth login` — the Claude Code engine ships with the app | `ANTHROPIC_API_KEY` |
+| **Codex** (OpenAI / ChatGPT) | `npx codex login` — the Codex CLI ships with the app | `CODEX_API_KEY` or `OPENAI_API_KEY` |
+| **Cursor** | install the [Cursor CLI](https://cursor.com/docs/cli/installation) and run `agent login` | `CURSOR_API_KEY` (needs the CLI) |
 
-- Chaves podem ser cadastradas pela tela (ficam só em `data/secrets.json`, fora do git, e **nunca vão para o navegador**) ou por variável de ambiente.
-- No Claude você escolhe o modelo de cada tarefa (Opus para pesquisas longas, Sonnet para leitura…). No Codex e no Cursor, um modelo **forte** (scan e projeção) e um **rápido** (o resto) — em branco usa o padrão do CLI.
-- O esforço de raciocínio é ajustável por tarefa em todos.
+- Keys can be entered in the UI (stored only in `data/secrets.json`, outside git, and **never sent to the browser**) or via environment variables.
+- With Claude you pick the model per task (Opus for long research, Sonnet for reading…). With Codex and Cursor, a **strong** model (scan and projection) and a **fast** one (everything else) — blank uses the CLI default.
+- Reasoning effort is adjustable per task for all of them.
+- The app's language (**Settings → Language**) also sets the language the AI writes in.
 
-### 🖥️ Deixar rodando sozinho no seu computador (grátis)
+### 🖥️ Keep it running on your computer (free)
 
-A opção mais barata é o seu próprio computador: custo zero, a IA usa o login que você já tem (sem pagar chave de API) e os dados não saem da sua máquina.
+The cheapest option is your own computer: zero cost, the AI uses the login you already have (no API key to pay for) and your data never leaves your machine.
 
 ```bash
-npm run local:install    # sobe sozinho a cada login (Windows, macOS ou Linux) + acesso pelo Tailscale
-npm run local:stop       # para agora (volta no próximo login; local:install religa)
-npm run local:uninstall  # remove a inicialização automática e o tailscale serve
-npm run local            # roda em primeiro plano, reiniciando se cair (sem instalar nada)
+npm run local:install    # starts on every login (Windows, macOS or Linux) + Tailscale access
+npm run local:stop       # stop now (comes back on next login; local:install starts it again)
+npm run local:uninstall  # removes auto-start and tailscale serve
+npm run local            # foreground, restarting if it crashes (installs nothing)
 ```
 
-O `local:install` compila o app, sobe o servidor em `http://localhost:3001` e reinicia se ele cair. Só uma instância roda por vez, porque duas gravando o mesmo `data/` se sobrescreveriam. Os logs ficam em `data/logs/server.log`.
+`local:install` builds the app, starts the server at `http://localhost:3001` and restarts it if it crashes. Only one instance runs at a time, since two writing the same `data/` would overwrite each other. Logs live in `data/logs/server.log`.
 
-| Sistema | O que o `local:install` cria | Observações |
+| OS | What `local:install` creates | Notes |
 |---|---|---|
-| **Windows** | Tarefa **"Arca Assistant"** no Agendador, ao fazer login (janela oculta) | Rode no PowerShell, sem `!` na frente. Não precisa ser administrador. |
-| **macOS** | LaunchAgent `~/Library/LaunchAgents/com.arca-assistant.plist` (`RunAtLoad` + `KeepAlive`) | Usa o Tailscale do app da Mac App Store ou o CLI. |
-| **Linux** | Serviço systemd do usuário `~/.config/systemd/user/arca-assistant.service` | Para rodar mesmo sem você logado: `sudo loginctl enable-linger $USER`. Se o `tailscale serve` recusar: `sudo tailscale set --operator=$USER`. |
+| **Windows** | Task Scheduler task **"Arca Assistant"** at logon (hidden window) | Run it in PowerShell. No admin needed. |
+| **macOS** | LaunchAgent `~/Library/LaunchAgents/com.arca-assistant.plist` (`RunAtLoad` + `KeepAlive`) | Works with the Tailscale Mac app or CLI. |
+| **Linux** | systemd user service `~/.config/systemd/user/arca-assistant.service` | To run even when you're logged out: `sudo loginctl enable-linger $USER`. If `tailscale serve` refuses: `sudo tailscale set --operator=$USER`. |
 
-Os serviços rodam com o **seu usuário**, para a IA usar o login local do Claude ou do Codex que você já fez no terminal.
+Services run as **your user**, so the AI uses the Claude or Codex login you already did in the terminal.
 
-**Bom saber**
+**Good to know**
 
-- O computador precisa estar ligado (e, no Windows e no macOS, com você logado). Se ele dormir, o app fica fora do ar até acordar; desative a suspensão automática se quiser acesso o tempo todo.
-- Depois de um `git pull`, rode `npm run local:stop` e `npm run local:install`: o app recompila ao subir.
-- Para desenvolver com `npm run dev`, rode antes `npm run local:stop` (os dois usam a porta 3001).
+- The computer must be on (and, on Windows and macOS, logged in). If it sleeps, the app is offline until it wakes; disable automatic sleep if you want access all the time.
+- After a `git pull`, run `npm run local:stop` and `npm run local:install`: the app rebuilds on start.
+- To develop with `npm run dev`, run `npm run local:stop` first (both use port 3001).
 
-### 📱 Acessar pelo celular com o Tailscale
+### 📱 Access from your phone with Tailscale
 
-O [Tailscale](https://tailscale.com/download) cria uma rede privada entre os seus aparelhos (grátis para uso pessoal). O app continua escutando só em `127.0.0.1`; o Tailscale entrega o endereço **apenas para os aparelhos logados na sua conta**.
+[Tailscale](https://tailscale.com/download) creates a private network between your devices (free for personal use). The app keeps listening only on `127.0.0.1`; Tailscale serves the address **only to devices signed in to your account**.
 
-1. Instale o Tailscale no computador que roda o app e entre com a sua conta (Google, Microsoft, Apple ou GitHub).
-2. Rode `npm run local:install`. Ele configura o `tailscale serve` com HTTPS e mostra o endereço, algo como `https://meu-pc.tail1234.ts.net`.
-   - Na primeira vez o Tailscale pode pedir para **habilitar HTTPS/Serve na sua rede**: abra o link que aparecer, confirme e rode o comando de novo.
-   - O primeiro acesso pode levar até um minuto, enquanto o certificado é emitido.
-3. No celular, instale o app **Tailscale** ([iPhone](https://apps.apple.com/app/tailscale/id1470499037) · [Android](https://play.google.com/store/apps/details?id=com.tailscale.ipn)), entre com a **mesma conta** e deixe a VPN ligada.
-4. Abra o endereço `https://….ts.net` no navegador do celular.
+1. Install Tailscale on the computer running the app and sign in (Google, Microsoft, Apple or GitHub).
+2. Run `npm run local:install`. It configures `tailscale serve` with HTTPS and prints the address, something like `https://my-pc.tail1234.ts.net`.
+   - The first time, Tailscale may ask you to **enable HTTPS/Serve on your tailnet**: open the link it prints, confirm and run the command again.
+   - The first visit can take up to a minute while the certificate is issued.
+3. On your phone, install the **Tailscale** app ([iPhone](https://apps.apple.com/app/tailscale/id1470499037) · [Android](https://play.google.com/store/apps/details?id=com.tailscale.ipn)), sign in with the **same account** and keep the VPN on.
+4. Open the `https://….ts.net` address in your phone's browser.
 
-**Instalar como app na tela inicial**
+**Install it as an app on your home screen**
 
-- **iPhone (Safari):** abra o endereço → botão **Compartilhar** → **Adicionar à Tela de Início** → **Adicionar**. O Arca abre em tela cheia, com ícone próprio, barra de abas embaixo e respeitando a Dynamic Island.
-- **Android (Chrome):** abra o endereço → menu **⋮** → **Instalar app** (ou **Adicionar à tela inicial**).
+- **iPhone (Safari):** open the address → **Share** button → **Add to Home Screen** → **Add**. Arca opens full screen, with its own icon, a bottom tab bar and respecting the Dynamic Island.
+- **Android (Chrome):** open the address → **⋮** menu → **Install app** (or **Add to home screen**).
 
-O app instalado é só um atalho para o seu servidor: com a VPN do Tailscale desligada, ou o computador desligado, ele não abre.
+The installed app is just a shortcut to your server: with the Tailscale VPN off, or the computer off, it won't open.
 
-> 🔒 **Não exponha o app na internet** (porta aberta no roteador, Tailscale Funnel, túnel público): ele não tem tela de login, e quem acessar vê sua carteira. O `tailscale serve` é diferente do Funnel: só a sua rede enxerga.
+> 🔒 **Don't expose the app to the internet** (router port forwarding, Tailscale Funnel, public tunnels): it has no login screen, and anyone who reaches it sees your portfolio. `tailscale serve` is different from Funnel: only your tailnet can see it.
 
-Hospedagens como Vercel, Netlify e Render grátis não servem: apagam os arquivos salvos, não rodam os CLIs de IA e cortam tarefas longas. Se quiser o app 24 h sem depender do seu computador, use uma VPS pequena (ou a VM grátis da Oracle Cloud), rode o `npm run local:install` lá (Linux) e acesse pelo Tailscale do mesmo jeito.
+Hosts like Vercel, Netlify or free Render don't work: they wipe saved files, can't run the AI CLIs and cut long tasks. If you want it 24/7 without depending on your computer, use a small VPS (or Oracle Cloud's free VM), run `npm run local:install` there (Linux) and reach it through Tailscale the same way.
 
-### 🏦 Open Finance (opcional)
+### 🏦 Open Finance (optional, Brazil)
 
-1. Crie a conta em [meu.pluggy.ai](https://meu.pluggy.ai) e conecte seus bancos (a autorização é feita no app de cada banco).
-2. Em **Ajustes → Open Finance**, cole o **Client ID** e o **Client Secret** da sua aplicação (o app confere com a Pluggy antes de salvar).
-3. Clique em **Buscar conexões** (ou cole o `itemId` de cada banco) e marque se cada uma é PF ou PJ.
-4. **Importar → Open Finance → Buscar investimentos**: revise e salve.
+1. Create an account at [meu.pluggy.ai](https://meu.pluggy.ai) and connect your banks (authorization happens in each bank's app).
+2. In **Settings → Open Finance**, paste your application's **Client ID** and **Client Secret** (the app verifies them with Pluggy before saving).
+3. Click **Find connections** (or paste each bank's `itemId`) and mark each one as PF or PJ.
+4. **Import → Open Finance → Fetch investments**: review and save.
 
-Com **"Usar o Open Finance como fonte da verdade"** ligado (padrão), cada conexão passa a ser espelho do banco **no seu escopo exato: instituição + titular**:
+With **"Use Open Finance as the source of truth"** on (default), each connection mirrors the bank **within its exact scope: institution + owner**:
 
-- **ao importar**, o que você tinha naquela instituição e titular é substituído pelo que veio do Open Finance;
-- no **Atualizar valores** da Carteira, os valores daquele escopo vêm da Pluggy, e não da cotação nem da IA. Ativos novos aparecem para entrar e os que sumiram aparecem para sair. Você revisa antes de aplicar.
-- **Nada fora do escopo é tocado.** Exemplo: uma conexão **BTG PF** substitui e atualiza só o BTG PF. O **BTG PJ** continua intacto (com valores de print, texto, cotação ou IA), a não ser que você tenha também uma conexão **BTG PJ** trazendo dados. Uma conexão com erro não muda nada no escopo dela.
+- **on import**, what you had at that institution and owner is replaced by what came from Open Finance;
+- in the Portfolio's **Update values**, that scope's values come from Pluggy instead of quotes or the AI. New assets show up to be added and missing ones to be removed. You review before applying.
+- **Nothing outside the scope is touched.** Example: a **BTG PF** connection replaces and updates only BTG PF. **BTG PJ** stays intact (with values from screenshots, text, quotes or the AI) unless you also have a **BTG PJ** connection returning data. A failing connection changes nothing in its scope.
 
-O plano gratuito do Meu Pluggy cobre até 5 conexões do mesmo titular, atualizadas a cada 24 h. Corretoras de fora do Brasil não fazem parte do Open Finance; para elas, use print, vídeo ou texto. As credenciais ficam só no servidor (`data/secrets.json` ou `PLUGGY_CLIENT_ID` / `PLUGGY_CLIENT_SECRET`).
+Meu Pluggy's free plan covers up to 5 connections of the same owner, refreshed every 24 h. Brokers outside Brazil aren't part of Open Finance; for those, use screenshots, video or text. Credentials stay on the server only (`data/secrets.json` or `PLUGGY_CLIENT_ID` / `PLUGGY_CLIENT_SECRET`).
 
 ---
 
-## 🧩 Como funciona
+## 🧩 How it works
 
 ```mermaid
 flowchart LR
-  UI["React + Vite<br/>(navegador)"] -- "/api" --> API["Express<br/>(127.0.0.1)"]
-  API --> Tasks["Tarefas<br/>ler prints · texto · scan<br/>valores · projeção · bens"]
+  UI["React + Vite<br/>(browser / PWA)"] -- "/api" --> API["Express<br/>(127.0.0.1)"]
+  API --> Tasks["Tasks<br/>read screenshots · text · scan<br/>values · projection · assets"]
   Tasks --> runAi{{"runAi()"}}
   runAi --> C["Claude<br/>Agent SDK"]
   runAi --> X["Codex<br/>codex exec --output-schema"]
   runAi --> K["Cursor<br/>agent -p --output-format json"]
-  API --> Q["Yahoo Finance<br/>(cotações)"]
+  API --> Q["Yahoo Finance<br/>(quotes)"]
   API --> P["Pluggy<br/>(Open Finance)"]
-  API --> D[("data/<br/>state.json · anexos · chaves")]
+  API --> D[("data/<br/>state.json · attachments · keys")]
 ```
 
-- **Uma interface de IA, três motores.** Cada tarefa pede *instruções + tarefa + schema JSON + anexos + busca na web*; o motor do provedor traduz isso (saída estruturada nativa no Claude e no Codex; JSON validado com nova tentativa no Cursor).
-- **A conta é do app, não do modelo.** A IA define premissas e lê documentos; rebalanceamento, projeção, acúmulo de valores e validações (saldo negativo, duplicados, itens perdidos) são calculados em código testado.
-- **Você revisa antes de salvar.** Importações, atualizações de valor e operações por texto sempre mostram antes → depois.
+- **One AI interface, three engines.** Each task asks for *instructions + task + JSON schema + attachments + web search*; each provider's engine translates that (native structured output on Claude and Codex; validated JSON with a retry on Cursor).
+- **The app does the math, not the model.** The AI sets assumptions and reads documents; rebalancing, projection, value accrual and validations (negative balances, duplicates, lost items) are computed in tested code.
+- **You review before saving.** Imports, value updates and text operations always show before → after.
 
-### 📁 Dica: nomeie seus arquivos
+### 📁 Tip: name your files
 
-`<instituição>-<pf|pj>[-<produto>]` — por exemplo `vest-pf.png`, `btg-pj.pdf`, `itau-pf-cdb100cdi.jpg`, `xp_pj_lci95.png`. Versões e cópias (`v2`, `copia`, `(2)`, datas) são ignoradas.
-
----
-
-## 🔒 Privacidade e segurança
-
-- O servidor escuta **só em `127.0.0.1`**: ninguém na sua rede acessa sua carteira.
-- Tudo fica em `data/` (fora do git): carteira, anexos dos bens e chaves de API.
-- Arquivos enviados vão para a IA escolhida na hora da análise; prints de importação não são guardados.
-- Cada chamada de IA é isolada: sem acesso aos seus outros projetos, em modo somente leitura e só com as ferramentas necessárias (ler os anexos, buscar na web).
-- Links vindos da web são filtrados (só `http/https`); anexos têm nomes gerados pelo servidor (sem path traversal).
+`<institution>-<pf|pj>[-<product>]` — e.g. `vest-pf.png`, `btg-pj.pdf`, `itau-pf-cdb100cdi.jpg`, `xp_pj_lci95.png`. Versions and copies (`v2`, `copy`, `(2)`, dates) are ignored.
 
 ---
 
-## 🛠️ Desenvolvimento
+## 🔒 Privacy & security
+
+- The server listens **only on `127.0.0.1`**: nobody on your network can reach your portfolio.
+- Everything lives in `data/` (outside git): portfolio, asset attachments and API keys.
+- Uploaded files go to the chosen AI at analysis time; import screenshots aren't stored.
+- Each AI call is isolated: no access to your other projects, read-only, and only the tools it needs (read attachments, web search).
+- Links coming from the web are filtered (`http/https` only); attachments get server-generated names (no path traversal).
+
+---
+
+## 🛠️ Development
 
 ```bash
-npm test             # 147 testes (node:test + tsx)
+npm test             # 147 tests (node:test + tsx)
 npm run typecheck
-npm run build && npm start   # produção local em http://localhost:3001
+npm run build && npm start   # local production at http://localhost:3001
+API_PORT=3101 npx vite       # front-end against another instance (e.g. the demo)
 ```
 
 ```
-shared/   regras e tipos (Arca, projeção, importação, duplicados, PF/PJ, IA) — testados
-server/   Express, tarefas de IA (tasks.ts), motores em server/ai/, cotações, anexos
-src/      React: Carteira, Rebalancear, Projeção, Instituições, Bens, Importar, Scan…
-scripts/  demo com carteira fictícia, local.mjs (rodar sempre) e serviços por sistema (windows/, unix/)
+shared/   rules and types (Arca, projection, import, duplicates, PF/PJ, AI, Open Finance, i18n) — tested
+server/   Express, AI tasks (tasks.ts), engines in server/ai/, quotes, Pluggy, video, attachments
+src/      React: Portfolio, Rebalance, Projection, Institutions, Assets, Import, Scan…
+scripts/  demo with a fictional portfolio, local.mjs (always on) and per-OS services (windows/, unix/)
 ```
 
-`ARCA_DATA_DIR` aponta para outra pasta de dados (é assim que a demo roda sem tocar nos seus dados).
+`ARCA_DATA_DIR` points to another data folder (that's how the demo runs without touching your data). UI strings are written in both languages in place: `L("Carteira", "Portfolio")` (see `shared/i18n.ts`).
 
 ---
 
 <sub>
-⚠️ <b>Aviso:</b> o Arca Assistant é uma ferramenta pessoal de organização. Análises, scans, estimativas e projeções são gerados por IA a partir de dados públicos e podem conter erros — <b>não são recomendação de investimento</b>. Confira as fontes antes de decidir.
-A "Arca" é a metodologia divulgada por Thiago Nigro (Primo Rico); este projeto não tem relação com ele, com o Grupo Primo nem com as instituições citadas.
+⚠️ <b>Disclaimer:</b> Arca Assistant is a personal organization tool. Analyses, scans, estimates and projections are AI-generated from public data and may contain errors — <b>they are not investment advice</b>. Check the sources before deciding.
+"Arca" is the method popularized by Thiago Nigro (Primo Rico); this project is not affiliated with him, Grupo Primo or any institution mentioned.
 </sub>

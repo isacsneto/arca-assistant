@@ -1,4 +1,5 @@
 import type { UploadFile } from "../../shared/types";
+import { L } from "../../shared/i18n";
 
 export interface PreparedFile extends UploadFile {
   id: string;
@@ -83,7 +84,7 @@ async function prepareImage(file: File): Promise<Pick<PreparedFile, "mediaType" 
   ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
   bmp.close();
   const blob = await new Promise<Blob>((res, rej) =>
-    canvas.toBlob((b) => (b ? res(b) : rej(new Error("Falha ao converter imagem"))), "image/jpeg", 0.9),
+    canvas.toBlob((b) => (b ? res(b) : rej(new Error(L("Falha ao converter imagem", "Failed to convert image")))), "image/jpeg", 0.9),
   );
   return { mediaType: "image/jpeg", data: await readAsBase64(blob) };
 }
@@ -107,7 +108,7 @@ export async function prepareFile(file: File): Promise<PreparedFile> {
     return { id, name, kind: "image", size: file.size, preview: URL.createObjectURL(file), sha: await sha256(file), ...(await visualHash(file)), ...img };
   }
   if (file.type === "application/pdf" || lower.endsWith(".pdf")) {
-    if (file.size > 30 * 1024 * 1024) throw new Error(`${name}: PDF acima de 30 MB.`);
+    if (file.size > 30 * 1024 * 1024) throw new Error(L(`${name}: PDF acima de 30 MB.`, `${name}: PDF over 30 MB.`));
     return { id, name, kind: "pdf", size: file.size, sha: await sha256(file), mediaType: "application/pdf", data: await readAsBase64(file) };
   }
   if (/\.(xlsx|xlsm|xls|ods)$/.test(lower)) {
@@ -121,5 +122,5 @@ export async function prepareFile(file: File): Promise<PreparedFile> {
   if (/\.(csv|tsv|txt|ofx|json)$/.test(lower) || file.type.startsWith("text/")) {
     return { id, name, kind: "text", size: file.size, sha: await sha256(file), data: await decodeText(file) };
   }
-  throw new Error(`${name}: formato não suportado (use imagem, vídeo, PDF, CSV ou XLSX).`);
+  throw new Error(L(`${name}: formato não suportado (use imagem, vídeo, PDF, CSV ou XLSX).`, `${name}: unsupported format (use image, video, PDF, CSV or XLSX).`));
 }

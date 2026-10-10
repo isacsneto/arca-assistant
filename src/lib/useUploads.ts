@@ -4,6 +4,7 @@ import { isVideoName } from "../../shared/videoFrames";
 import type { UploadFile } from "../../shared/types";
 import { prepareFile, type PreparedFile } from "./files";
 import { videoFrames } from "./video";
+import { L } from "../../shared/i18n";
 
 export type Upload = PreparedFile & { looksLike?: string };
 
@@ -32,8 +33,9 @@ export function useUploads() {
       }
       try {
         const frames = await videoFrames(f, setProgress);
-        if (!frames.length) bad.push(`${f.name}: nenhum quadro aproveitável.`);
-        else info.push(`${f.name}: ${frames.length} ${frames.length === 1 ? "quadro escolhido" : "quadros escolhidos"} (um por tela).`);
+        if (!frames.length) bad.push(L(`${f.name}: nenhum quadro aproveitável.`, `${f.name}: no usable frames.`));
+        else info.push(L(`${f.name}: ${frames.length} ${frames.length === 1 ? "quadro escolhido" : "quadros escolhidos"} (um por tela).`,
+          `${f.name}: ${frames.length} ${frames.length === 1 ? "frame picked" : "frames picked"} (one per screen).`));
         for (const fr of frames) expanded.push({ file: fr.file, video: { source: f.name, at: fr.at } });
       } catch (e) {
         bad.push((e as Error).message);
@@ -50,7 +52,7 @@ export function useUploads() {
     });
     const { accepted, exact } = checkDuplicates(ref.current, ok);
     if (bad.length) setError(bad.join(" "));
-    setNotice([...info, ...exact.map((e) => `"${e.file.name}" é idêntico a "${e.sameAs}" e foi ignorado.`)]);
+    setNotice([...info, ...exact.map((e) => L(`"${e.file.name}" é idêntico a "${e.sameAs}" e foi ignorado.`, `"${e.file.name}" is identical to "${e.sameAs}" and was skipped.`))]);
     setFiles((prev) => [...prev, ...accepted]);
   }, []);
 

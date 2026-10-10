@@ -1,3 +1,4 @@
+import { L } from "./i18n";
 import type { Owner, View } from "./types";
 
 const SUFFIX = /\s*(?:\((PF|PJ)\)|[-–·]\s*(PF|PJ))\s*$/i;
@@ -17,4 +18,8 @@ export function inView<T extends { owner: Owner }>(items: T[], view: View): T[] 
   return view === "all" ? items : items.filter((x) => x.owner === view);
 }
 
-export const VIEW_LABEL: Record<View, string> = { all: "Consolidado", PF: "Pessoa física", PJ: "Pessoa jurídica" };
+export const VIEW_LABEL: Record<View, string> = {
+  get all() { return L("Consolidado", "All"); },
+  get PF() { return L("Pessoa física", "Individual (PF)"); },
+  get PJ() { return L("Pessoa jurídica", "Company (PJ)"); },
+};

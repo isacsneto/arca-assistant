@@ -7,6 +7,7 @@ import { inlineTexts, stageFiles } from "./files";
 import { quickExec, runProcess } from "./proc";
 import { keyEnvVars } from "./secrets";
 import { AiError, type Engine } from "./types";
+import { L } from "../../shared/i18n";
 
 /*
  * Cursor via o CLI `agent` (instalado à parte: https://cursor.com/docs/cli/installation).
@@ -79,7 +80,7 @@ const INSTRUCTION = "Leia o arquivo prompt.md nesta pasta e execute exatamente o
 
 export const cursorEngine: Engine = async (req, { task, apiKey }) => {
   const bin = await cursorBin();
-  if (!bin) throw new AiError("Cursor CLI não encontrado. Instale em https://cursor.com/docs/cli/installation e rode `agent login`.", 400);
+  if (!bin) throw new AiError(L("Cursor CLI não encontrado. Instale em https://cursor.com/docs/cli/installation e rode `agent login`.", "Cursor CLI not found. Install it from https://cursor.com/docs/cli/installation and run `agent login`."), 400);
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "arca-cursor-"));
   try {
     const staged = req.files?.length ? await stageFiles(req.files, dir, { pdfAsText: true }) : [];
@@ -106,7 +107,7 @@ export const cursorEngine: Engine = async (req, { task, apiKey }) => {
     for (let attempt = 0; attempt < 2; attempt++) {
       const prompt = attempt === 0 ? base : `${base}\n\nATENÇÃO: a resposta anterior não seguiu o schema (${lastError}). Corrija e responda só o JSON.`;
       await fs.writeFile(path.join(dir, "prompt.md"), prompt);
-      req.onProgress?.({ type: "status", text: attempt === 0 ? "Cursor trabalhando…" : "Cursor corrigindo o formato…" });
+      req.onProgress?.({ type: "status", text: attempt === 0 ? L("Cursor trabalhando…", "Cursor working…") : L("Cursor corrigindo o formato…", "Cursor fixing the format…") });
       // No Windows o CLI é um .cmd e roda via shell: a instrução precisa ir entre aspas.
       const instruction = isWin ? `"${INSTRUCTION}"` : INSTRUCTION;
       const { code, stdout, stderr } = await runProcess(bin, cursorArgs({ model: task.model, instruction }), {
@@ -122,11 +123,11 @@ export const cursorEngine: Engine = async (req, { task, apiKey }) => {
         /* saída não-JSON */
       }
       if (code !== 0 || result.is_error || !result.result) {
-        const why = (result.result || stderr || `código ${code}`).slice(-400);
+        const why = (result.result || stderr || L(`código ${code}`, `exit code ${code}`)).slice(-400);
         if (/log ?in|unauthori[sz]ed|401|api key/i.test(why))
-          throw new AiError(task.auth === "apiKey" ? "Chave da API do Cursor inválida." : "Cursor CLI não está logado. Rode `agent login`.", 401);
-        if (/rate.?limit|usage limit|429/i.test(why)) throw new AiError("Limite de uso do Cursor atingido.", 429);
-        throw new AiError(`O Cursor não retornou resultado: ${why}`);
+          throw new AiError(task.auth === "apiKey" ? L("Chave da API do Cursor inválida.", "Invalid Cursor API key.") : L("Cursor CLI não está logado. Rode `agent login`.", "Cursor CLI isn't logged in. Run `agent login`."), 401);
+        if (/rate.?limit|usage limit|429/i.test(why)) throw new AiError(L("Limite de uso do Cursor atingido.", "Cursor usage limit reached."), 429);
+        throw new AiError(L(`O Cursor não retornou resultado: ${why}`, `Cursor returned no result: ${why}`));
       }
       try {
         const parsed = req.schema.safeParse(extractJson(result.result));
@@ -136,7 +137,7 @@ export const cursorEngine: Engine = async (req, { task, apiKey }) => {
         lastError = (e as Error).message;
       }
     }
-    throw new AiError("O Cursor respondeu fora do formato esperado. Tente novamente ou use outro provedor.");
+    throw new AiError(L("O Cursor respondeu fora do formato esperado. Tente novamente ou use outro provedor.", "Cursor responded in an unexpected format. Try again or use another provider."));
   } finally {
     await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }

@@ -1,4 +1,5 @@
 import type { Effort, Settings } from "./types";
+import { L, type Lang } from "./i18n";
 
 /*
  * Provedores de IA suportados. Cada um roda pelo seu próprio CLI, com o login
@@ -8,10 +9,10 @@ export const PROVIDERS = {
   claude: {
     label: "Claude",
     vendor: "Anthropic",
-    local: "Claude Code — login da sua assinatura",
+    get local() { return L("Claude Code — login da sua assinatura", "Claude Code — your subscription login"); },
     loginCmd: "claude auth login",
     install: "https://claude.com/claude-code",
-    keyLabel: "Chave da API Anthropic",
+    get keyLabel() { return L("Chave da API Anthropic", "Anthropic API key"); },
     keyEnv: "ANTHROPIC_API_KEY",
     keyPlaceholder: "sk-ant-…",
     keyUrl: "https://console.anthropic.com/settings/keys",
@@ -19,10 +20,10 @@ export const PROVIDERS = {
   codex: {
     label: "Codex (ChatGPT)",
     vendor: "OpenAI",
-    local: "Codex CLI — login do ChatGPT (já incluso no app)",
+    get local() { return L("Codex CLI — login do ChatGPT (já incluso no app)", "Codex CLI — ChatGPT login (bundled with the app)"); },
     loginCmd: "npx codex login",
     install: "https://developers.openai.com/codex/cli",
-    keyLabel: "Chave da API OpenAI",
+    get keyLabel() { return L("Chave da API OpenAI", "OpenAI API key"); },
     keyEnv: "CODEX_API_KEY",
     keyPlaceholder: "sk-…",
     keyUrl: "https://platform.openai.com/api-keys",
@@ -30,10 +31,10 @@ export const PROVIDERS = {
   cursor: {
     label: "Cursor",
     vendor: "Cursor",
-    local: "Cursor CLI (agent) — login do Cursor",
+    get local() { return L("Cursor CLI (agent) — login do Cursor", "Cursor CLI (agent) — Cursor login"); },
     loginCmd: "agent login",
     install: "https://cursor.com/docs/cli/installation",
-    keyLabel: "Chave da API do Cursor",
+    get keyLabel() { return L("Chave da API do Cursor", "Cursor API key"); },
     keyEnv: "CURSOR_API_KEY",
     keyPlaceholder: "key_…",
     keyUrl: "https://cursor.com/dashboard?tab=integrations",
@@ -77,6 +78,8 @@ export interface AiTask {
   /** undefined = modelo padrão do provedor. */
   model?: string;
   effort: Effort;
+  /** Idioma dos textos que a IA escreve para o usuário. */
+  language?: Lang;
 }
 
 export function aiSettings(settings: Pick<Settings, "ai">): AiSettings {
@@ -98,7 +101,7 @@ export function aiFor(settings: Settings, task: AiTaskName): AiTask {
     task === "refine" || task === "prompt" ? settings.extraction : settings[task];
   const model =
     ai.provider === "claude" ? setting.model : ai.models[ai.provider][TASK_TIER[task]].trim() || undefined;
-  return { task, provider: ai.provider, auth: ai.auth, model, effort: setting.effort };
+  return { task, provider: ai.provider, auth: ai.auth, model, effort: setting.effort, language: settings.language };
 }
 
 /** Rótulo curto para mostrar/gravar quem gerou um resultado. */

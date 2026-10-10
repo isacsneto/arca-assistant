@@ -11,6 +11,7 @@ import { OpenFinanceSettings } from "./OpenFinanceSettings";
 import { aiSettings } from "../../shared/ai";
 import { useStore } from "../store";
 import { Banner, ClassDot, PageHead } from "./ui";
+import { L, LANGS, getLang, type Lang } from "../../shared/i18n";
 
 export function SettingsView() {
   const { state, config, update } = useStore();
@@ -27,9 +28,9 @@ export function SettingsView() {
     try {
       const { usdBrl } = await api.getFx();
       set({ usdBrl: Math.round(usdBrl * 100) / 100 });
-      setFxMsg("Cotação atualizada.");
+      setFxMsg(L("Cotação atualizada.", "Exchange rate updated."));
     } catch (e) {
-      setFxMsg(e instanceof Error ? e.message : "Falhou.");
+      setFxMsg(e instanceof Error ? e.message : L("Falhou.", "Failed."));
     }
   };
 
@@ -45,7 +46,7 @@ export function SettingsView() {
   const importData = async (f: File) => {
     try {
       const data = JSON.parse(await f.text()) as Partial<AppState>;
-      if (!Array.isArray(data.positions) || !data.settings) throw new Error("Arquivo de backup inválido.");
+      if (!Array.isArray(data.positions) || !data.settings) throw new Error(L("Arquivo de backup inválido.", "Invalid backup file."));
       update((s) => ({
         ...s,
         positions: data.positions!,
@@ -53,17 +54,33 @@ export function SettingsView() {
         assets: data.assets ?? s.assets,
         settings: { ...s.settings, ...data.settings },
       }));
-      setMsg({ kind: "ok", text: "Backup restaurado." });
+      setMsg({ kind: "ok", text: L("Backup restaurado.", "Backup restored.") });
     } catch (e) {
-      setMsg({ kind: "bad", text: e instanceof Error ? e.message : "Falha ao ler o backup." });
+      setMsg({ kind: "bad", text: e instanceof Error ? e.message : L("Falha ao ler o backup.", "Failed to read the backup.") });
     }
   };
 
   return (
     <>
-      <PageHead title="Ajustes" />
+      <PageHead title={L("Ajustes", "Settings")} />
       {msg && <Banner kind={msg.kind}>{msg.text}</Banner>}
       <div className="stack-lg">
+        <section className="card">
+          <h2 style={{ marginBottom: 6 }}>Language / Idioma</h2>
+          <p className="muted small" style={{ marginBottom: 12 }}>
+            {L("A IA também escreve os textos dela (scans, projeções, perguntas) neste idioma.",
+              "The AI also writes its texts (scans, projections, questions) in this language.")}
+          </p>
+          <div className="seg" role="radiogroup" aria-label="Language / Idioma">
+            {(Object.keys(LANGS) as Lang[]).map((l) => (
+              <button key={l} type="button" role="radio" aria-checked={getLang() === l} className={getLang() === l ? "active" : ""}
+                onClick={() => set({ language: l })}>
+                {LANGS[l].label}
+              </button>
+            ))}
+          </div>
+        </section>
+
         <AiProviderSettings />
 
         <OpenFinanceSettings />
@@ -71,11 +88,11 @@ export function SettingsView() {
         <section className="card">
           <div className="card-head">
             <div>
-              <h2>Metodologia de alocação</h2>
-              <p className="muted small">Define as metas de cada classe usadas na Carteira, no Rebalancear e no Scan. Escolha uma pronta ou ajuste os percentuais.</p>
+              <h2>{L("Metodologia de alocação", "Allocation method")}</h2>
+              <p className="muted small">{L("Define as metas de cada classe usadas na Carteira, no Rebalancear e no Scan. Escolha uma pronta ou ajuste os percentuais.", "Sets the target for each class used in Portfolio, Rebalance and Scan. Pick a preset or adjust the percentages.")}</p>
             </div>
           </div>
-          <div className="methods" role="radiogroup" aria-label="Metodologia">
+          <div className="methods" role="radiogroup" aria-label={L("Metodologia", "Method")}>
             {(Object.keys(METHODOLOGIES) as (keyof typeof METHODOLOGIES)[]).map((k) => {
               const m = METHODOLOGIES[k];
               return (
@@ -91,12 +108,12 @@ export function SettingsView() {
             <button type="button" role="radio" aria-checked={settings.methodology === "custom"}
               className={"method" + (settings.methodology === "custom" ? " active" : "")}
               onClick={() => set({ methodology: "custom" })}>
-              <b>Personalizada</b>
+              <b>{L("Personalizada", "Custom")}</b>
               <span className="num small">{ARCA_CLASSES.map((c) => settings.targets[c]).join(" / ")}</span>
-              <span className="muted small">Seus próprios percentuais — edite abaixo.</span>
+              <span className="muted small">{L("Seus próprios percentuais — edite abaixo.", "Your own percentages — edit below.")}</span>
             </button>
           </div>
-          <p className="muted small" style={{ margin: "12px 0 8px" }}>Ordem: {ARCA_CLASSES.map((c) => CLASS_META[c].label).join(" / ")}. Alterar qualquer valor muda para "Personalizada".</p>
+          <p className="muted small" style={{ margin: "12px 0 8px" }}>{L("Ordem", "Order")}: {ARCA_CLASSES.map((c) => CLASS_META[c].label).join(" / ")}. {L('Alterar qualquer valor muda para "Personalizada".', 'Changing any value switches to "Custom".')}</p>
           <div className="grid kpis">
             {ARCA_CLASSES.map((c) => (
               <label className="field" key={c}>
@@ -114,81 +131,81 @@ export function SettingsView() {
             ))}
           </div>
           <div style={{ marginTop: 12 }}>
-            <span className={`chip ${Math.round(sum) === 100 ? "ok" : "bad"}`}>Total: {sum}% {Math.round(sum) === 100 ? "✓" : "(deve somar 100%)"}</span>
+            <span className={`chip ${Math.round(sum) === 100 ? "ok" : "bad"}`}>Total: {sum}% {Math.round(sum) === 100 ? "✓" : L("(deve somar 100%)", "(must add up to 100%)")}</span>
           </div>
         </section>
 
         <section className="card">
           <div className="card-head"><div>
-            <h2>{isClaude ? "Modelos do Claude" : "Esforço por tarefa"}</h2>
+            <h2>{isClaude ? L("Modelos do Claude", "Claude models") : L("Esforço por tarefa", "Effort per task")}</h2>
             <p className="muted small">
               {isClaude
-                ? "Escolha o modelo e o esforço de raciocínio de cada tarefa. Mais esforço = mais preciso, porém mais lento e mais caro."
-                : "Quanto a IA raciocina em cada tarefa (os modelos do provedor ficam na seção acima). Mais esforço = mais preciso, porém mais lento."}
+                ? L("Escolha o modelo e o esforço de raciocínio de cada tarefa. Mais esforço = mais preciso, porém mais lento e mais caro.", "Choose the model and reasoning effort for each task. More effort = more accurate, but slower and more expensive.")
+                : L("Quanto a IA raciocina em cada tarefa (os modelos do provedor ficam na seção acima). Mais esforço = mais preciso, porém mais lento.", "How much the AI reasons on each task (the provider's models are in the section above). More effort = more accurate, but slower.")}
             </p>
           </div></div>
           <div className="grid two">
-            <ModelPicker showModel={isClaude} title="Ler prints e arquivos" value={settings.extraction} models={config!.models} onChange={(extraction) => set({ extraction })}
-              tip="Sonnet 5.5 com esforço médio costuma bastar. Suba o esforço se os valores saírem errados." />
-            <ModelPicker showModel={isClaude} title="Scan de melhores ativos" value={settings.scan} models={config!.models} onChange={(scan) => set({ scan })}
-              tip="Pesquisa longa na web com análise de balanços: Opus 5.5 com esforço alto é um bom ponto de partida." />
-            <ModelPicker showModel={isClaude} title="Atualizar valores" value={settings.refresh} models={config!.models} onChange={(refresh) => set({ refresh })}
-              tip="Ações, FIIs e ETFs usam cotação de mercado direto; a IA só estima renda fixa e o que não tem cotação. Sonnet 5.5 médio basta." />
-            <ModelPicker showModel={isClaude} title="Estimar valor dos bens" value={settings.estimate} models={config!.models} onChange={(estimate) => set({ estimate })}
-              tip="Pesquisa anúncios de novos e usados (FIPE, OLX, Mercado Livre…): Sonnet 5.5 médio é suficiente." />
-            <ModelPicker showModel={isClaude} title="Projeção de cenários" value={settings.projection} models={config!.models} onChange={(projection) => set({ projection })}
-              tip="Pesquisa macro e de longo prazo para definir premissas: Opus 5.5 com esforço alto." />
+            <ModelPicker showModel={isClaude} title={L("Ler prints e arquivos", "Read screenshots and files")} value={settings.extraction} models={config!.models} onChange={(extraction) => set({ extraction })}
+              tip={L("Sonnet 5.5 com esforço médio costuma bastar. Suba o esforço se os valores saírem errados.", "Sonnet 5.5 with medium effort is usually enough. Raise the effort if values come out wrong.")} />
+            <ModelPicker showModel={isClaude} title={L("Scan de melhores ativos", "Best-asset scan")} value={settings.scan} models={config!.models} onChange={(scan) => set({ scan })}
+              tip={L("Pesquisa longa na web com análise de balanços: Opus 5.5 com esforço alto é um bom ponto de partida.", "Long web research with financial statement analysis: Opus 5.5 with high effort is a good starting point.")} />
+            <ModelPicker showModel={isClaude} title={L("Atualizar valores", "Update values")} value={settings.refresh} models={config!.models} onChange={(refresh) => set({ refresh })}
+              tip={L("Ações, FIIs e ETFs usam cotação de mercado direto; a IA só estima renda fixa e o que não tem cotação. Sonnet 5.5 médio basta.", "Stocks, FIIs and ETFs use market quotes directly; the AI only estimates fixed income and what has no quote. Sonnet 5.5 medium is enough.")} />
+            <ModelPicker showModel={isClaude} title={L("Estimar valor dos bens", "Estimate asset values")} value={settings.estimate} models={config!.models} onChange={(estimate) => set({ estimate })}
+              tip={L("Pesquisa anúncios de novos e usados (FIPE, OLX, Mercado Livre…): Sonnet 5.5 médio é suficiente.", "Searches new and used listings (FIPE, OLX, Mercado Livre…): Sonnet 5.5 medium is enough.")} />
+            <ModelPicker showModel={isClaude} title={L("Projeção de cenários", "Scenario projection")} value={settings.projection} models={config!.models} onChange={(projection) => set({ projection })}
+              tip={L("Pesquisa macro e de longo prazo para definir premissas: Opus 5.5 com esforço alto.", "Macro and long-term research to set assumptions: Opus 5.5 with high effort.")} />
           </div>
         </section>
 
         <section className="card">
-          <h2 style={{ marginBottom: 6 }}>Lembretes de atualização</h2>
+          <h2 style={{ marginBottom: 6 }}>{L("Lembretes de atualização", "Update reminders")}</h2>
           <p className="muted small" style={{ marginBottom: 12 }}>
-            De tempos em tempos o app pergunta, ao abrir, se está tudo atualizado. Instituições marcadas como desatualizadas (na aba Instituições) aparecem sempre que você abre o app.
+            {L("De tempos em tempos o app pergunta, ao abrir, se está tudo atualizado. Instituições marcadas como desatualizadas (na aba Instituições) aparecem sempre que você abre o app.", "Every so often the app asks, when it opens, whether everything is up to date. Institutions marked as outdated (in the Institutions tab) show up every time you open the app.")}
           </p>
           <label className="field" style={{ maxWidth: 280 }}>
-            Perguntar se está tudo atualizado
+            {L("Perguntar se está tudo atualizado", "Ask whether everything is up to date")}
             <select value={settings.reviewIntervalDays} onChange={(e) => set({ reviewIntervalDays: Number(e.target.value) as 0 | 7 | 14 })}>
-              <option value={7}>Toda semana</option>
-              <option value={14}>A cada 2 semanas</option>
-              <option value={0}>Nunca</option>
+              <option value={7}>{L("Toda semana", "Every week")}</option>
+              <option value={14}>{L("A cada 2 semanas", "Every 2 weeks")}</option>
+              <option value={0}>{L("Nunca", "Never")}</option>
             </select>
           </label>
           {settings.staleInstitutions.length > 0 && (
             <p className="small" style={{ marginTop: 10 }}>
-              Desatualizadas agora: {settings.staleInstitutions.map((m) => `${m.institution} (${m.owner})`).join(", ")}.
+              {L("Desatualizadas agora", "Outdated now")}: {settings.staleInstitutions.map((m) => `${m.institution} (${m.owner})`).join(", ")}.
             </p>
           )}
         </section>
 
         <section className="card">
-          <h2 style={{ marginBottom: 12 }}>Perfil do investidor</h2>
+          <h2 style={{ marginBottom: 12 }}>{L("Perfil do investidor", "Investor profile")}</h2>
           <label className="field">
-            <span className="hint">Usado pelo scan para calibrar as sugestões (horizonte, tolerância a risco, objetivos).</span>
+            <span className="hint">{L("Usado pelo scan para calibrar as sugestões (horizonte, tolerância a risco, objetivos).", "Used by the scan to calibrate suggestions (horizon, risk tolerance, goals).")}</span>
             <textarea value={settings.investorProfile} onChange={(e) => set({ investorProfile: e.target.value })} />
           </label>
         </section>
 
         <section className="card">
-          <h2 style={{ marginBottom: 12 }}>Câmbio</h2>
+          <h2 style={{ marginBottom: 12 }}>{L("Câmbio", "Exchange rate")}</h2>
           <div className="row wrap" style={{ alignItems: "flex-end" }}>
-            <label className="field" style={{ width: 200 }}>Dólar (R$)
+            <label className="field" style={{ width: 200 }}>{L("Dólar (R$)", "US dollar (R$)")}
               <input type="number" step="0.01" min="0" value={settings.usdBrl} onChange={(e) => set({ usdBrl: Number(e.target.value) })} />
             </label>
-            <button className="btn" onClick={fetchFx}><RefreshCw size={15} /> Buscar cotação atual</button>
+            <button className="btn" onClick={fetchFx}><RefreshCw size={15} /> {L("Buscar cotação atual", "Fetch current rate")}</button>
             {fxMsg && <span className="muted small">{fxMsg}</span>}
           </div>
         </section>
 
         <section className="card">
-          <h2 style={{ marginBottom: 12 }}>Dados</h2>
-          <p className="muted small" style={{ marginBottom: 12 }}>Tudo fica salvo no arquivo <code>data/state.json</code> do projeto. Prints e arquivos não são armazenados — só vão para a IA escolhida na hora da leitura.</p>
+          <h2 style={{ marginBottom: 12 }}>{L("Dados", "Data")}</h2>
+          <p className="muted small" style={{ marginBottom: 12 }}>{L("Tudo fica salvo no arquivo", "Everything is saved in the project's")} <code>data/state.json</code> {L("do projeto. Prints e arquivos não são armazenados — só vão para a IA escolhida na hora da leitura.", "file. Screenshots and files are not stored — they only go to the chosen AI when being read.")}</p>
           <div className="row wrap">
-            <button className="btn" onClick={exportData}><Download size={15} /> Exportar backup</button>
-            <button className="btn" onClick={() => file.current?.click()}><Upload size={15} /> Restaurar backup</button>
+            <button className="btn" onClick={exportData}><Download size={15} /> {L("Exportar backup", "Export backup")}</button>
+            <button className="btn" onClick={() => file.current?.click()}><Upload size={15} /> {L("Restaurar backup", "Restore backup")}</button>
             <input ref={file} type="file" accept="application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void importData(f); e.target.value = ""; }} />
-            <button className="btn danger" onClick={() => { if (confirm("Apagar todas as posições e transações?")) update((s) => ({ ...s, positions: [], transactions: [] })); }}>
-              <Trash2 size={15} /> Apagar posições e transações
+            <button className="btn danger" onClick={() => { if (confirm(L("Apagar todas as posições e transações?", "Delete all positions and transactions?"))) update((s) => ({ ...s, positions: [], transactions: [] })); }}>
+              <Trash2 size={15} /> {L("Apagar posições e transações", "Delete positions and transactions")}
             </button>
           </div>
         </section>
@@ -207,14 +224,14 @@ function ModelPicker({ title, value, models, onChange, tip, showModel = true }: 
     <div className="stack">
       <h3>{title}</h3>
       {showModel && (
-        <label className="field">Modelo
+        <label className="field">{L("Modelo", "Model")}
           <select value={value.model} onChange={(e) => onChange({ ...value, model: e.target.value })}>
             {models.map((m) => <option key={m.id} value={m.id}>{m.label} — {m.tier}</option>)}
           </select>
           {current && <span className="hint">{current.hint}</span>}
         </label>
       )}
-      <label className="field">Esforço
+      <label className="field">{L("Esforço", "Effort")}
         <select value={value.effort} onChange={(e) => onChange({ ...value, effort: e.target.value as ModelSetting["effort"] })}>
           {EFFORTS.map((ef) => <option key={ef} value={ef}>{EFFORT_LABEL[ef]}</option>)}
         </select>

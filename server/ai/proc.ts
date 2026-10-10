@@ -1,5 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { AiError } from "./types";
+import { L } from "../../shared/i18n";
 
 /** Roda um processo, envia `stdin`, entrega cada linha do stdout e devolve código + fim do stderr. */
 export function runProcess(
@@ -37,7 +38,7 @@ export function runProcess(
     child.on("close", (code) => {
       opts.signal?.removeEventListener("abort", onAbort);
       if (buf.trim()) opts.onLine?.(buf.trim());
-      if (opts.signal?.aborted) reject(new AiError("Cancelado."));
+      if (opts.signal?.aborted) reject(new AiError(L("Cancelado.", "Cancelled.")));
       else resolve({ code, stdout, stderr });
     });
     if (opts.stdin != null) child.stdin.end(opts.stdin, "utf8");

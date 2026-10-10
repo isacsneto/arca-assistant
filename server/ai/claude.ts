@@ -6,6 +6,7 @@ import { z } from "zod";
 import { inlineTexts, stageFiles } from "./files";
 import { keyEnvVars } from "./secrets";
 import { AiError, type Engine } from "./types";
+import { L } from "../../shared/i18n";
 
 /*
  * Claude via Agent SDK (o binário do Claude Code vem embutido no pacote).
@@ -14,7 +15,11 @@ import { AiError, type Engine } from "./types";
  * Cada chamada é isolada: sem CLAUDE.md/hooks/MCP do usuário, sem sessão salva.
  */
 
-const LOGIN_HELP = "Claude Code não está logado. Rode `claude auth login` no terminal (ou use uma chave de API em Ajustes).";
+const loginHelp = () =>
+  L(
+    "Claude Code não está logado. Rode `claude auth login` no terminal (ou use uma chave de API em Ajustes).",
+    "Claude Code isn't logged in. Run `claude auth login` in the terminal (or use an API key in Settings).",
+  );
 
 /** O validador do CLI não conhece o meta-schema 2020-12 que o zod emite por padrão. */
 export function jsonSchema(schema: z.ZodType): Record<string, unknown> {
@@ -68,8 +73,8 @@ export const claudeEngine: Engine = async (req, { task, apiKey }) => {
 
     for await (const msg of query({ prompt: req.prompt + attachments, options })) {
       if (msg.type === "assistant") {
-        if (msg.error === "authentication_failed") throw new AiError(task.auth === "apiKey" ? "Chave da API Anthropic inválida." : LOGIN_HELP, 401);
-        if (msg.error === "rate_limit") throw new AiError("Limite de uso atingido. Aguarde o reset ou use um modelo/esforço menor.", 429);
+        if (msg.error === "authentication_failed") throw new AiError(task.auth === "apiKey" ? L("Chave da API Anthropic inválida.", "Invalid Anthropic API key.") : loginHelp(), 401);
+        if (msg.error === "rate_limit") throw new AiError(L("Limite de uso atingido. Aguarde o reset ou use um modelo/esforço menor.", "Usage limit reached. Wait for the reset or use a smaller model/effort."), 429);
         for (const block of msg.message.content as { type: string; name?: string; input?: { query?: string; url?: string } }[]) {
           if (block.type === "tool_use" && block.name === "WebSearch" && block.input?.query) {
             searches++;
@@ -77,26 +82,26 @@ export const claudeEngine: Engine = async (req, { task, apiKey }) => {
           } else if (block.type === "tool_use" && block.name === "WebFetch" && block.input?.url) {
             req.onProgress?.({ type: "fetch", url: block.input.url });
           } else if (block.type === "tool_use" && block.name === "Read") {
-            req.onProgress?.({ type: "status", text: "Lendo arquivos…" });
+            req.onProgress?.({ type: "status", text: L("Lendo arquivos…", "Reading files…") });
           } else if (block.type === "thinking") {
-            req.onProgress?.({ type: "status", text: "Analisando…" });
+            req.onProgress?.({ type: "status", text: L("Analisando…", "Analyzing…") });
           } else if (block.type === "text") {
-            req.onProgress?.({ type: "status", text: "Consolidando resultado…" });
+            req.onProgress?.({ type: "status", text: L("Consolidando resultado…", "Consolidating results…") });
           }
         }
       } else if (msg.type === "result") {
         if (msg.subtype !== "success") {
-          if (msg.subtype === "error_max_turns") throw new AiError("A análise passou do limite de passos. Tente de novo ou com esforço menor.");
-          throw new AiError(msg.errors?.join(" ") || `Falha na execução (${msg.subtype}).`);
+          if (msg.subtype === "error_max_turns") throw new AiError(L("A análise passou do limite de passos. Tente de novo ou com esforço menor.", "The analysis exceeded the step limit. Try again or with lower effort."));
+          throw new AiError(msg.errors?.join(" ") || L(`Falha na execução (${msg.subtype}).`, `Execution failed (${msg.subtype}).`));
         }
         if (msg.is_error) throw new Error(msg.result);
         const parsed = req.schema.safeParse(msg.structured_output);
-        if (!parsed.success) throw new AiError("Não foi possível interpretar a resposta do modelo. Tente novamente.");
+        if (!parsed.success) throw new AiError(L("Não foi possível interpretar a resposta do modelo. Tente novamente.", "Couldn't parse the model's response. Try again."));
         return { data: parsed.data, searches };
       }
     }
-    if (abortController.signal.aborted) throw new AiError("Cancelado.");
-    throw new AiError("O Claude não retornou resultado.");
+    if (abortController.signal.aborted) throw new AiError(L("Cancelado.", "Cancelled."));
+    throw new AiError(L("O Claude não retornou resultado.", "Claude returned no result."));
   } finally {
     await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }

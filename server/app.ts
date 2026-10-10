@@ -17,6 +17,7 @@ import { PluggyError, fetchConnections, type PluggyClient, type PluggyCredential
 import { openFinanceSettings, toImport, type PluggyItem } from "../shared/openFinance";
 import { VideoError, type VideoSample } from "./video";
 import { VIDEO_SAMPLE_STEP } from "../shared/videoFrames";
+import { L, setLang } from "../shared/i18n";
 
 export { mapPool };
 
@@ -55,7 +56,7 @@ async function awesomeApiFx(): Promise<number> {
   const r = await fetch("https://economia.awesomeapi.com.br/last/USD-BRL", { signal: AbortSignal.timeout(6000) });
   const j = (await r.json()) as { USDBRL?: { bid?: string } };
   const bid = Number(j.USDBRL?.bid);
-  if (!Number.isFinite(bid) || bid <= 0) throw new Error("resposta inesperada");
+  if (!Number.isFinite(bid) || bid <= 0) throw new Error(L("resposta inesperada", "unexpected response"));
   return bid;
 }
 
@@ -92,6 +93,8 @@ export function createApp(deps: Deps) {
   app.use(express.json({ limit: "80mb" }));
 
   let state = store.load();
+  // Mensagens e textos gerados pelo servidor seguem o idioma escolhido nos ajustes.
+  setLang(state.settings.language);
   const attachmentsDir = deps.attachmentsDir ?? attachmentsRoot();
 
   app.get("/api/state", (_req, res) => {
@@ -102,7 +105,7 @@ export function createApp(deps: Deps) {
   app.put("/api/state", (req, res) => {
     const body = req.body as Partial<AppState>;
     if (!Array.isArray(body.positions) || !Array.isArray(body.transactions) || !body.settings || typeof body.settings !== "object") {
-      res.status(400).json({ error: "Estado inválido." });
+      res.status(400).json({ error: L("Estado inválido.", "Invalid state.") });
       return;
     }
     state = {
@@ -113,6 +116,7 @@ export function createApp(deps: Deps) {
       // Cliente antigo sem "assets" não apaga os bens já salvos.
       ...(body.assets !== undefined && { assets: sanitizeAssets(body.assets) }),
     };
+    setLang(state.settings.language);
     store.save(state);
     res.json({ ok: true });
     // Anexos de bens apagados (ou removidos) saem do disco depois de um tempo.
@@ -125,7 +129,7 @@ export function createApp(deps: Deps) {
     const s = status[ai.provider];
     res.json({
       hasCredentials: isAiReady(ai, status),
-      account: ai.auth === "apiKey" ? "chave de API" : s?.account,
+      account: ai.auth === "apiKey" ? L("chave de API", "API key") : s?.account,
       provider: ai.provider,
       auth: ai.auth,
       aiStatus: status,
@@ -137,11 +141,11 @@ export function createApp(deps: Deps) {
   app.put("/api/ai/key", (req, res) => {
     const { provider, key } = (req.body ?? {}) as { provider?: string; key?: string | null };
     if (!provider || !(PROVIDER_IDS as string[]).includes(provider)) {
-      res.status(400).json({ error: "Provedor inválido." });
+      res.status(400).json({ error: L("Provedor inválido.", "Invalid provider.") });
       return;
     }
     if (key != null && (typeof key !== "string" || key.trim().length < 8 || key.length > 400)) {
-      res.status(400).json({ error: "Chave inválida." });
+      res.status(400).json({ error: L("Chave inválida.", "Invalid key.") });
       return;
     }
     deps.setApiKey(provider as ProviderId, key?.trim() || null);
@@ -153,14 +157,14 @@ export function createApp(deps: Deps) {
     try {
       res.json({ usdBrl: await (deps.fetchFx ?? awesomeApiFx)() });
     } catch {
-      res.status(502).json({ error: "Não foi possível obter a cotação agora." });
+      res.status(502).json({ error: L("Não foi possível obter a cotação agora.", "Couldn't fetch the exchange rate right now.") });
     }
   });
 
   app.post("/api/import", async (req, res) => {
     const files = (req.body?.files ?? []) as UploadFile[];
     if (!Array.isArray(files) || !files.length) {
-      res.status(400).json({ error: "Nenhum arquivo enviado." });
+      res.status(400).json({ error: L("Nenhum arquivo enviado.", "No files sent.") });
       return;
     }
     const ctrl = new AbortController();
@@ -181,11 +185,11 @@ export function createApp(deps: Deps) {
     const text = typeof body.text === "string" ? body.text.trim() : "";
     const files = Array.isArray(body.files) ? body.files.filter((f) => f && typeof f.name === "string" && typeof f.data === "string") : [];
     if ((!text && !files.length) || text.length > 4000) {
-      res.status(400).json({ error: "Escreva o que mudou (até 4000 caracteres) ou anexe um comprovante." });
+      res.status(400).json({ error: L("Escreva o que mudou (até 4000 caracteres) ou anexe um comprovante.", "Describe what changed (up to 4000 characters) or attach a receipt.") });
       return;
     }
     if (files.length > 10) {
-      res.status(400).json({ error: "Envie no máximo 10 anexos por vez." });
+      res.status(400).json({ error: L("Envie no máximo 10 anexos por vez.", "Send at most 10 attachments at a time.") });
       return;
     }
     const answers = Array.isArray(body.answers)
@@ -207,7 +211,7 @@ export function createApp(deps: Deps) {
   app.post("/api/import/refine", async (req, res) => {
     const body = req.body as Partial<RefineRequest>;
     if (!Array.isArray(body.items) || !Array.isArray(body.files) || !Array.isArray(body.answers) || !body.answers.length) {
-      res.status(400).json({ error: "Envie os itens, a leitura dos arquivos e ao menos uma resposta." });
+      res.status(400).json({ error: L("Envie os itens, a leitura dos arquivos e ao menos uma resposta.", "Send the items, the file readings and at least one answer.") });
       return;
     }
     const ctrl = new AbortController();
@@ -226,11 +230,11 @@ export function createApp(deps: Deps) {
   app.post("/api/video/frames", express.raw({ type: () => true, limit: "1gb" }), async (req, res) => {
     const bytes = req.body as Buffer;
     if (!deps.sampleVideo) {
-      res.status(501).json({ error: "Extração de vídeo indisponível." });
+      res.status(501).json({ error: L("Extração de vídeo indisponível.", "Video extraction unavailable.") });
       return;
     }
     if (!Buffer.isBuffer(bytes) || !bytes.length) {
-      res.status(400).json({ error: "Envie o vídeo." });
+      res.status(400).json({ error: L("Envie o vídeo.", "Send the video.") });
       return;
     }
     const ctrl = new AbortController();
@@ -241,17 +245,17 @@ export function createApp(deps: Deps) {
       res.json({ samples: await deps.sampleVideo(bytes, { step: VIDEO_SAMPLE_STEP, signal: ctrl.signal }) });
     } catch (err) {
       if (ctrl.signal.aborted) return;
-      res.status(err instanceof VideoError ? err.status : 500).json({ error: err instanceof VideoError ? err.message : "Falha ao processar o vídeo." });
+      res.status(err instanceof VideoError ? err.status : 500).json({ error: err instanceof VideoError ? err.message : L("Falha ao processar o vídeo.", "Failed to process the video.") });
     }
   });
 
   /* ---------------- Open Finance (Meu Pluggy) ---------------- */
   const pluggyFail = (res: express.Response, err: unknown) => {
-    const e = err instanceof PluggyError ? err : new PluggyError(err instanceof Error ? err.message : "Erro no Open Finance.", 500);
+    const e = err instanceof PluggyError ? err : new PluggyError(err instanceof Error ? err.message : L("Erro no Open Finance.", "Open Finance error."), 500);
     if (!res.headersSent) res.status(e.status).json({ error: e.message });
   };
   const noPluggy = (res: express.Response) => {
-    res.status(501).json({ error: "Open Finance indisponível." });
+    res.status(501).json({ error: L("Open Finance indisponível.", "Open Finance unavailable.") });
   };
 
   app.get("/api/openfinance", (_req, res) => {
@@ -271,7 +275,7 @@ export function createApp(deps: Deps) {
     const id = typeof clientId === "string" ? clientId.trim() : "";
     const secret = typeof clientSecret === "string" ? clientSecret.trim() : "";
     if (!/^[0-9a-f-]{20,64}$/i.test(id) || secret.length < 8 || secret.length > 400) {
-      res.status(400).json({ error: "Confira o Client ID (formato UUID) e o Client Secret." });
+      res.status(400).json({ error: L("Confira o Client ID (formato UUID) e o Client Secret.", "Check the Client ID (UUID format) and the Client Secret.") });
       return;
     }
     const previous = deps.pluggy.credentials.get();
@@ -313,7 +317,7 @@ export function createApp(deps: Deps) {
     if (!deps.pluggy) return noPluggy(res);
     const of = openFinanceSettings(state.settings.openFinance);
     if (!of.connections.length) {
-      res.status(400).json({ error: "Adicione ao menos uma conexão em Ajustes → Open Finance." });
+      res.status(400).json({ error: L("Adicione ao menos uma conexão em Ajustes → Open Finance.", "Add at least one connection in Settings → Open Finance.") });
       return;
     }
     const ctrl = new AbortController();
@@ -334,7 +338,7 @@ export function createApp(deps: Deps) {
       (ARCA_CLASSES as readonly string[]).includes(c),
     );
     if (!requested.length) {
-      res.status(400).json({ error: "Escolha ao menos uma categoria." });
+      res.status(400).json({ error: L("Escolha ao menos uma categoria.", "Choose at least one category.") });
       return;
     }
     const sse = openSse<ScanEvent>(res);
@@ -365,7 +369,7 @@ export function createApp(deps: Deps) {
   ) {
     app.post(route, async (_req, res) => {
       if (!state.positions.length) {
-        res.status(400).json({ error: "A carteira está vazia." });
+        res.status(400).json({ error: L("A carteira está vazia.", "The portfolio is empty.") });
         return;
       }
       const sse = openSse<JobEvent<R>>(res);
@@ -384,13 +388,13 @@ export function createApp(deps: Deps) {
   // Anexos dos bens: fotos, nota fiscal, documentos.
   const attachmentFail = (res: express.Response, err: unknown) => {
     const status = err instanceof AttachmentError ? err.status : 500;
-    res.status(status).json({ error: err instanceof Error ? err.message : "Erro ao salvar o anexo." });
+    res.status(status).json({ error: err instanceof Error ? err.message : L("Erro ao salvar o anexo.", "Error saving the attachment.") });
   };
 
   app.post("/api/assets/:id/attachments", async (req, res) => {
     const asset = state.assets.find((a) => a.id === req.params.id);
     if (!asset) {
-      res.status(404).json({ error: "Bem não encontrado. Salve o bem antes de anexar arquivos." });
+      res.status(404).json({ error: L("Bem não encontrado. Salve o bem antes de anexar arquivos.", "Asset not found. Save the asset before attaching files.") });
       return;
     }
     const files = (Array.isArray(req.body?.files) ? req.body.files : []).filter(
@@ -428,7 +432,7 @@ export function createApp(deps: Deps) {
   app.post("/api/assets/estimate", async (req, res) => {
     const [asset] = sanitizeAssets([req.body?.asset]);
     if (!asset || !asset.name.trim()) {
-      res.status(400).json({ error: "Informe o bem a estimar." });
+      res.status(400).json({ error: L("Informe o bem a estimar.", "Specify the asset to estimate.") });
       return;
     }
     const sse = openSse<JobEvent<AssetEstimate>>(res);
@@ -466,10 +470,10 @@ export function createApp(deps: Deps) {
     const badJson = (err as { type?: string })?.type === "entity.parse.failed";
     res.status(tooBig ? 413 : badJson ? 400 : (e?.status ?? 500)).json({
       error: tooBig
-        ? "Arquivos grandes demais. Envie menos arquivos por vez."
+        ? L("Arquivos grandes demais. Envie menos arquivos por vez.", "Files too large. Send fewer files at a time.")
         : badJson
-          ? "JSON inválido."
-          : (e?.message ?? "Erro interno."),
+          ? L("JSON inválido.", "Invalid JSON.")
+          : (e?.message ?? L("Erro interno.", "Internal error.")),
     });
   });
 

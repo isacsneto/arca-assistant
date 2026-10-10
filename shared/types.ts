@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { PhysicalAsset } from "./assets";
 import { DEFAULT_AI, type AiSettings } from "./ai";
 import { DEFAULT_OPEN_FINANCE, type OpenFinanceSettings } from "./openFinance";
+import { DEFAULT_LANG, L, type Lang } from "./i18n";
 
 /* ------------------------------------------------------------------ */
 /* Classes da Arca (Primo Rico / Thiago Nigro)                         */
@@ -17,29 +18,29 @@ export const CLASS_META: Record<
   { label: string; color: string; desc: string }
 > = {
   acoes: {
-    label: "Ações",
+    get label() { return L("Ações", "Stocks"); },
     color: "#3b82f6",
-    desc: "Ações brasileiras, units, fundos de ações e ETFs de Brasil (ex.: BOVA11).",
+    get desc() { return L("Ações brasileiras, units, fundos de ações e ETFs de Brasil (ex.: BOVA11).", "Brazilian stocks, units, stock funds and Brazilian ETFs (e.g. BOVA11)."); },
   },
   fiis: {
-    label: "Imóveis (FIIs)",
+    get label() { return L("Imóveis (FIIs)", "Real estate (FIIs)"); },
     color: "#f59e0b",
-    desc: "Fundos imobiliários e Fiagros.",
+    get desc() { return L("Fundos imobiliários e Fiagros.", "Real estate investment funds (FIIs) and Fiagros."); },
   },
   caixa: {
-    label: "Caixa / Renda Fixa",
+    get label() { return L("Caixa / Renda Fixa", "Cash / Fixed income"); },
     color: "#10b981",
-    desc: "Conta corrente, poupança, Tesouro, CDB, LCI/LCA, debêntures, fundos DI.",
+    get desc() { return L("Conta corrente, poupança, Tesouro, CDB, LCI/LCA, debêntures, fundos DI.", "Checking and savings accounts, Tesouro, CDB, LCI/LCA, debentures, DI funds."); },
   },
   internacional: {
-    label: "Internacional",
+    get label() { return L("Internacional", "International"); },
     color: "#8b5cf6",
-    desc: "Ações e ETFs no exterior, BDRs, contas em dólar.",
+    get desc() { return L("Ações e ETFs no exterior, BDRs, contas em dólar.", "Stocks and ETFs abroad, BDRs, dollar accounts."); },
   },
   outros: {
-    label: "Fora da Arca",
+    get label() { return L("Fora da Arca", "Outside the Arca"); },
     color: "#94a3b8",
-    desc: "Cripto, ouro, multimercado, previdência, imóveis físicos etc. Não entram no rebalanceamento.",
+    get desc() { return L("Cripto, ouro, multimercado, previdência, imóveis físicos etc. Não entram no rebalanceamento.", "Crypto, gold, multimarket funds, pension plans, physical real estate, etc. Not included in rebalancing."); },
   },
 };
 
@@ -54,12 +55,12 @@ export const DEFAULT_TARGETS: Record<ArcaClass, number> = {
 export const METHODOLOGIES = {
   arca: {
     label: "Arca — Primo Rico",
-    desc: "Divisão igual entre as quatro classes (25% cada), como no método Arca de Thiago Nigro.",
+    get desc() { return L("Divisão igual entre as quatro classes (25% cada), como no método Arca de Thiago Nigro.", "Equal split across the four classes (25% each), as in Thiago Nigro's Arca method."); },
     targets: { acoes: 25, fiis: 25, caixa: 25, internacional: 25 },
   },
   grao: {
     label: "Arca Grão",
-    desc: "Alocação do fundo Arca Grão: 30% ações, 10% imóveis, 40% caixa/renda fixa e 20% internacional.",
+    get desc() { return L("Alocação do fundo Arca Grão: 30% ações, 10% imóveis, 40% caixa/renda fixa e 20% internacional.", "Allocation of the Arca Grão fund: 30% stocks, 10% real estate, 40% cash/fixed income and 20% international."); },
     targets: { acoes: 30, fiis: 10, caixa: 40, internacional: 20 },
   },
 } as const satisfies Record<string, { label: string; desc: string; targets: Record<ArcaClass, number> }>;
@@ -80,18 +81,18 @@ export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 export type Effort = (typeof EFFORTS)[number];
 
 export const MODEL_OPTIONS = [
-  { id: "claude-opus-5-5", label: "Opus 5.5", tier: "uso moderado do plano", hint: "Melhor para o scan (pesquisa e análise profunda)" },
-  { id: "claude-sonnet-5-5", label: "Sonnet 5.5", tier: "uso baixo do plano", hint: "Ótimo custo-benefício para ler prints" },
-  { id: "claude-haiku-5-5", label: "Haiku 5.5", tier: "uso mínimo do plano", hint: "Mais rápido; ok para prints simples" },
-  { id: "claude-fable-5-1", label: "Fable 5.1", tier: "uso alto do plano", hint: "Mais capaz; depende de estar disponível no seu plano" },
+  { id: "claude-opus-5-5", label: "Opus 5.5", get tier() { return L("uso moderado do plano", "moderate plan usage"); }, get hint() { return L("Melhor para o scan (pesquisa e análise profunda)", "Best for the scan (deep research and analysis)"); } },
+  { id: "claude-sonnet-5-5", label: "Sonnet 5.5", get tier() { return L("uso baixo do plano", "low plan usage"); }, get hint() { return L("Ótimo custo-benefício para ler prints", "Great value for reading screenshots"); } },
+  { id: "claude-haiku-5-5", label: "Haiku 5.5", get tier() { return L("uso mínimo do plano", "minimal plan usage"); }, get hint() { return L("Mais rápido; ok para prints simples", "Fastest; fine for simple screenshots"); } },
+  { id: "claude-fable-5-1", label: "Fable 5.1", get tier() { return L("uso alto do plano", "high plan usage"); }, get hint() { return L("Mais capaz; depende de estar disponível no seu plano", "Most capable; depends on availability in your plan"); } },
 ] as const;
 
 export const EFFORT_LABEL: Record<Effort, string> = {
-  low: "Baixo",
-  medium: "Médio",
-  high: "Alto",
-  xhigh: "Muito alto",
-  max: "Máximo",
+  get low() { return L("Baixo", "Low"); },
+  get medium() { return L("Médio", "Medium"); },
+  get high() { return L("Alto", "High"); },
+  get xhigh() { return L("Muito alto", "Very high"); },
+  get max() { return L("Máximo", "Max"); },
 };
 
 /* ------------------------------------------------------------------ */
@@ -292,6 +293,8 @@ export interface Settings {
   /** Conexões do Meu Pluggy (Open Finance). As credenciais ficam só no servidor. */
   openFinance: OpenFinanceSettings;
   investorProfile: string;
+  /** Idioma da interface e dos textos gerados pela IA. */
+  language: Lang;
   /** Instituições (por titular) marcadas como desatualizadas — pedem atualização ao abrir o app. */
   staleInstitutions: StaleMark[];
   /** A cada quantos dias perguntar "está tudo atualizado?" (0 = nunca). */
@@ -320,6 +323,7 @@ export const DEFAULT_SETTINGS: Settings = {
   staleInstitutions: [],
   reviewIntervalDays: 14,
   lastReviewAt: null,
+  language: DEFAULT_LANG,
   investorProfile:
     "Investidor brasileiro de longo prazo (10+ anos), foco em construir patrimônio e renda passiva, tolerância moderada a volatilidade.",
 };

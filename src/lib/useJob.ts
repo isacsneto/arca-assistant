@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { JobEvent } from "../../shared/types";
 import { streamEvents } from "../api";
+import { L } from "../../shared/i18n";
 
 export interface JobState<R> {
   running: boolean;
@@ -33,16 +34,16 @@ export function useJob<R>(url: string, onResult?: (r: R) => void): Job<R> {
     abort.current?.abort();
     const ctrl = new AbortController();
     abort.current = ctrl;
-    setS({ ...idle<R>(), running: true, status: "Iniciando…" });
+    setS({ ...idle<R>(), running: true, status: L("Iniciando…", "Starting…") });
 
     const onEvent = (e: JobEvent<R>) => {
       if (e.type === "result") onResultRef.current?.(e.result);
       setS((p) => {
         switch (e.type) {
           case "status": return { ...p, status: e.text };
-          case "search": return { ...p, status: "Pesquisando na web…", searches: p.searches + 1, feed: [...p.feed, `🔎 ${e.query}`].slice(-6) };
-          case "fetch": return { ...p, status: "Lendo página…", feed: [...p.feed, `📄 ${e.url}`].slice(-6) };
-          case "result": return { ...p, result: e.result, status: "Concluído" };
+          case "search": return { ...p, status: L("Pesquisando na web…", "Searching the web…"), searches: p.searches + 1, feed: [...p.feed, `🔎 ${e.query}`].slice(-6) };
+          case "fetch": return { ...p, status: L("Lendo página…", "Reading page…"), feed: [...p.feed, `📄 ${e.url}`].slice(-6) };
+          case "result": return { ...p, result: e.result, status: L("Concluído", "Done") };
           case "error": return { ...p, error: e.message };
           case "done": return p;
         }

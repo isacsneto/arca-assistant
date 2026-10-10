@@ -9,18 +9,20 @@ import { api } from "../api";
 import { useStore } from "../store";
 import { money, uid } from "../lib/format";
 import { Banner } from "./ui";
+import { L } from "../../shared/i18n";
 
-const EXAMPLES = [
-  "17000.30 adicionados à caixinha cdb do inter pj",
-  "resgatei 5 mil do cdb do itaú",
-  "comprei 100 PETR4 a 38,50 no btg ontem",
-  "o saldo do nubank agora é 53.200",
+const examples = () => [
+  L("17000.30 adicionados à caixinha cdb do inter pj", "17000.30 added to the cdb box at inter pj"),
+  L("resgatei 5 mil do cdb do itaú", "withdrew 5k from the itaú cdb"),
+  L("comprei 100 PETR4 a 38,50 no btg ontem", "bought 100 PETR4 at 38.50 at btg yesterday"),
+  L("o saldo do nubank agora é 53.200", "the nubank balance is now 53,200"),
 ];
 
-const TX_LABEL: Record<string, string> = {
-  deposito: "depósito", saque: "saque", compra: "compra", venda: "venda", dividendo: "dividendo",
-  juros: "juros", taxa: "taxa", transferencia: "transferência", outro: "lançamento",
-};
+const txLabel = (): Record<string, string> => ({
+  deposito: L("depósito", "deposit"), saque: L("saque", "withdrawal"), compra: L("compra", "purchase"), venda: L("venda", "sale"),
+  dividendo: L("dividendo", "dividend"), juros: L("juros", "interest"), taxa: L("taxa", "fee"),
+  transferencia: L("transferência", "transfer"), outro: L("lançamento", "entry"),
+});
 
 /** Import por texto: descreva o que mudou e a IA propõe as operações. */
 export function PromptImport({ done }: { done: () => void }) {
@@ -109,11 +111,11 @@ export function PromptImport({ done }: { done: () => void }) {
         onDrop={(e) => { e.preventDefault(); setOver(false); void uploads.addFiles([...e.dataTransfer.files]); }}
       >
         <label className="field">
-          <span>Descreva o que mudou na sua carteira</span>
+          <span>{L("Descreva o que mudou na sua carteira", "Describe what changed in your portfolio")}</span>
           <textarea
             rows={3}
             value={text}
-            placeholder="Ex.: 17000.30 adicionados à caixinha cdb do inter pj"
+            placeholder={L("Ex.: 17000.30 adicionados à caixinha cdb do inter pj", "E.g.: 17000.30 added to the cdb box at inter pj")}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && canInterpret) start();
@@ -126,21 +128,21 @@ export function PromptImport({ done }: { done: () => void }) {
               }
             }}
           />
-          <span className="hint">Aportes, resgates, compras, vendas, novos saldos ou ativos novos — pode escrever várias coisas de uma vez. Ctrl+Enter para enviar. Anexe comprovantes, notas ou extratos para dar contexto (arraste, cole com Ctrl+V ou use o clipe).</span>
+          <span className="hint">{L("Aportes, resgates, compras, vendas, novos saldos ou ativos novos — pode escrever várias coisas de uma vez. Ctrl+Enter para enviar. Anexe comprovantes, notas ou extratos para dar contexto (arraste, cole com Ctrl+V ou use o clipe).", "Contributions, withdrawals, purchases, sales, new balances or new assets — you can write several things at once. Ctrl+Enter to send. Attach receipts, brokerage notes or statements for context (drag, paste with Ctrl+V or use the paperclip).")}</span>
         </label>
 
         <div className="row wrap" style={{ gap: 8, marginTop: 10 }}>
           <button type="button" className="btn sm" onClick={() => fileInput.current?.click()}>
-            <Paperclip size={14} /> Anexar arquivo
+            <Paperclip size={14} /> {L("Anexar arquivo", "Attach file")}
           </button>
           <input ref={fileInput} type="file" hidden multiple accept="image/*,video/*,.mov,.mkv,.pdf,.csv,.tsv,.txt,.xlsx,.xls,.xlsm,.ods,.ofx"
             onChange={(e) => { void uploads.addFiles([...(e.target.files ?? [])]); e.target.value = ""; }} />
           {uploads.files.map((f) => (
-            <span key={f.id} className={"attach" + (f.looksLike ? " dup" : "")} title={f.looksLike ? `Parece igual a ${f.looksLike}` : f.name}>
+            <span key={f.id} className={"attach" + (f.looksLike ? " dup" : "")} title={f.looksLike ? L(`Parece igual a ${f.looksLike}`, `Looks the same as ${f.looksLike}`) : f.name}>
               {f.preview ? <img src={f.preview} alt="" /> : f.kind === "pdf" ? <FileText size={14} /> : <FileSpreadsheet size={14} />}
               <span className="attach-name">{f.name}</span>
               {f.looksLike && <Copy size={12} />}
-              <button type="button" className="btn ghost icon sm" onClick={() => uploads.remove(f.id)} aria-label={`Remover ${f.name}`}><X size={12} /></button>
+              <button type="button" className="btn ghost icon sm" onClick={() => uploads.remove(f.id)} aria-label={L(`Remover ${f.name}`, `Remove ${f.name}`)}><X size={12} /></button>
             </span>
           ))}
         </div>
@@ -148,17 +150,17 @@ export function PromptImport({ done }: { done: () => void }) {
         {uploads.error && <p className="small" style={{ color: "var(--bad)", marginTop: 6 }}>{uploads.error}</p>}
         {uploads.notice.length > 0 && <p className="small" style={{ color: "var(--warn)", marginTop: 6 }}>{uploads.notice.join(" ")}</p>}
         <div className="row wrap" style={{ gap: 6, marginTop: 10 }}>
-          {EXAMPLES.map((ex) => (
+          {examples().map((ex) => (
             <button key={ex} type="button" className="btn sm ghost example" onClick={() => setText(ex)}>{ex}</button>
           ))}
         </div>
         <div className="row" style={{ marginTop: 14 }}>
           <button className="btn primary" disabled={!canInterpret} onClick={start}>
             {busy
-              ? <><Loader2 size={16} className="spin" /> {uploads.files.length ? "Lendo anexos e interpretando…" : "Interpretando…"}</>
-              : <><Sparkles size={16} /> Interpretar com {aiName}{uploads.files.length ? ` (+${uploads.files.length} anexo${uploads.files.length > 1 ? "s" : ""})` : ""}</>}
+              ? <><Loader2 size={16} className="spin" /> {uploads.files.length ? L("Lendo anexos e interpretando…", "Reading attachments and interpreting…") : L("Interpretando…", "Interpreting…")}</>
+              : <><Sparkles size={16} /> {L(`Interpretar com ${aiName}`, `Interpret with ${aiName}`)}{uploads.files.length ? L(` (+${uploads.files.length} anexo${uploads.files.length > 1 ? "s" : ""})`, ` (+${uploads.files.length} attachment${uploads.files.length > 1 ? "s" : ""})`) : ""}</>}
           </button>
-          {busy && <button className="btn" onClick={() => abort.current?.abort()}>Cancelar</button>}
+          {busy && <button className="btn" onClick={() => abort.current?.abort()}>{L("Cancelar", "Cancel")}</button>}
         </div>
       </div>
 
@@ -166,7 +168,7 @@ export function PromptImport({ done }: { done: () => void }) {
 
       {plan && plan.questions.length > 0 && (
         <div className="card question-card">
-          <h2 className="row" style={{ marginBottom: 10 }}><HelpCircle size={18} /> {aiName} precisa saber</h2>
+          <h2 className="row" style={{ marginBottom: 10 }}><HelpCircle size={18} /> {L(`${aiName} precisa saber`, `${aiName} needs to know`)}</h2>
           <div className="stack">
             {plan.questions.map((q) => (
               <div className="question" key={q.id}>
@@ -176,7 +178,7 @@ export function PromptImport({ done }: { done: () => void }) {
                     <button key={o} type="button" className={"btn sm" + (answers[q.id] === o ? " primary" : "")}
                       onClick={() => setAnswers((a) => ({ ...a, [q.id]: o }))}>{o}</button>
                   ))}
-                  <input type="text" placeholder="Outra resposta…" style={{ maxWidth: 280 }}
+                  <input type="text" placeholder={L("Outra resposta…", "Other answer…")} style={{ maxWidth: 280 }}
                     value={q.options.includes(answers[q.id] ?? "") ? "" : (answers[q.id] ?? "")}
                     onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))} />
                 </div>
@@ -185,7 +187,7 @@ export function PromptImport({ done }: { done: () => void }) {
           </div>
           <div className="row" style={{ marginTop: 12, justifyContent: "flex-end" }}>
             <button className="btn primary" disabled={!answered || busy} onClick={sendAnswers}>
-              <Send size={15} /> Enviar resposta{answered === 1 ? "" : "s"}
+              <Send size={15} /> {L(`Enviar resposta${answered === 1 ? "" : "s"}`, `Send answer${answered === 1 ? "" : "s"}`)}
             </button>
           </div>
         </div>
@@ -198,25 +200,25 @@ export function PromptImport({ done }: { done: () => void }) {
       {plan && preview.length > 0 && (
         <div className="card">
           <div className="card-head">
-            <h2>Operações propostas</h2>
+            <h2>{L("Operações propostas", "Proposed operations")}</h2>
             <button className="btn primary" disabled={!validCount || plan.questions.length > 0 || busy} onClick={apply}
-              title={plan.questions.length ? "Responda às perguntas primeiro" : undefined}>
-              <Check size={15} /> Aplicar {validCount}
+              title={plan.questions.length ? L("Responda às perguntas primeiro", "Answer the questions first") : undefined}>
+              <Check size={15} /> {L("Aplicar", "Apply")} {validCount}
             </button>
           </div>
           <div className="table-wrap">
             <table className="mc t-ops">
-              <thead><tr><th /><th>O que será feito</th><th>Posição</th><th className="right">Antes</th><th /><th className="right">Depois</th></tr></thead>
+              <thead><tr><th /><th>{L("O que será feito", "What will be done")}</th><th>{L("Posição", "Position")}</th><th className="right">{L("Antes", "Before")}</th><th /><th className="right">{L("Depois", "After")}</th></tr></thead>
               <tbody>
                 {preview.map((r) => (
                   <tr key={r.index} style={{ opacity: r.error || !approved.has(r.index) ? 0.55 : 1 }}>
-                    <td className="ga-chk"><input type="checkbox" disabled={!!r.error} checked={approved.has(r.index) && !r.error} onChange={() => toggle(r.index)} aria-label="Aplicar" /></td>
+                    <td className="ga-chk"><input type="checkbox" disabled={!!r.error} checked={approved.has(r.index) && !r.error} onChange={() => toggle(r.index)} aria-label={L("Aplicar", "Apply")} /></td>
                     <td className="ga-main" style={{ minWidth: 220 }}>
                       {r.op.explanation}
                       <div className="small">
-                        {r.op.transaction && <span className="chip">registra {TX_LABEL[r.op.transaction.type] ?? r.op.transaction.type}</span>}{" "}
-                        {r.op.action === "criar" && <span className="chip ok">ativo novo</span>}{" "}
-                        {r.op.action === "remover" && <span className="chip bad">remove</span>}{" "}
+                        {r.op.transaction && <span className="chip">{L("registra", "records")} {txLabel()[r.op.transaction.type] ?? r.op.transaction.type}</span>}{" "}
+                        {r.op.action === "criar" && <span className="chip ok">{L("ativo novo", "new asset")}</span>}{" "}
+                        {r.op.action === "remover" && <span className="chip bad">{L("remove", "removes")}</span>}{" "}
                         {r.error && <span className="chip bad">{r.error}</span>}
                       </div>
                     </td>
@@ -226,7 +228,7 @@ export function PromptImport({ done }: { done: () => void }) {
                     </td>
                     <td className="right num muted mc-hide">{r.before == null ? "—" : money(r.before, r.currency)}</td>
                     <td className="muted mc-hide"><ArrowRight size={14} /></td>
-                    <td className="right num ga-val"><b>{r.after == null ? "—" : money(r.after, r.currency)}</b><div className="muted small m-only">antes {r.before == null ? "—" : money(r.before, r.currency)}</div></td>
+                    <td className="right num ga-val"><b>{r.after == null ? "—" : money(r.after, r.currency)}</b><div className="muted small m-only">{L("antes", "before")} {r.before == null ? "—" : money(r.before, r.currency)}</div></td>
                   </tr>
                 ))}
               </tbody>
@@ -236,7 +238,7 @@ export function PromptImport({ done }: { done: () => void }) {
       )}
 
       {plan && preview.length === 0 && plan.questions.length === 0 && (
-        <Banner kind="warn">A IA não encontrou nenhuma movimentação nesse texto. Tente descrever com valor, instituição e produto.</Banner>
+        <Banner kind="warn">{L("A IA não encontrou nenhuma movimentação nesse texto. Tente descrever com valor, instituição e produto.", "The AI didn't find any transaction in this text. Try describing it with the amount, institution and product.")}</Banner>
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { L } from "../shared/i18n";
 import type { ConnectionData, OpenFinanceConnection, PluggyAccount, PluggyInvestment, PluggyItem } from "../shared/openFinance";
 
 /*
@@ -72,7 +73,7 @@ export function pluggyClient(creds: () => PluggyCredentials | null, fetchImpl: F
 
   async function apiKey(signal?: AbortSignal, fresh = false): Promise<string> {
     const c = creds();
-    if (!c) throw new PluggyError("Configure o Client ID e o Client Secret do Meu Pluggy em Ajustes → Open Finance.", 400);
+    if (!c) throw new PluggyError(L("Configure o Client ID e o Client Secret do Meu Pluggy em Ajustes → Open Finance.", "Set up the Meu Pluggy Client ID and Client Secret in Settings → Open Finance."), 400);
     if (!fresh && cached && cached.clientId === c.clientId && Date.now() - cached.at < KEY_TTL_MS) return cached.key;
     const res = await fetchImpl(`${base}/auth`, {
       method: "POST",
@@ -80,12 +81,12 @@ export function pluggyClient(creds: () => PluggyCredentials | null, fetchImpl: F
       body: JSON.stringify({ clientId: c.clientId, clientSecret: c.clientSecret }),
       signal: signal ?? AbortSignal.timeout(20_000),
     }).catch((e: unknown) => {
-      throw new PluggyError(`Não foi possível falar com a Pluggy (${(e as Error).message}).`);
+      throw new PluggyError(L(`Não foi possível falar com a Pluggy (${(e as Error).message}).`, `Couldn't reach Pluggy (${(e as Error).message}).`));
     });
-    if (res.status === 401 || res.status === 403 || res.status === 400) throw new PluggyError("A Pluggy recusou o Client ID/Client Secret. Confira em meu.pluggy.ai.", 401);
-    if (!res.ok) throw new PluggyError(`A Pluggy respondeu com erro ${res.status} na autenticação.`);
+    if (res.status === 401 || res.status === 403 || res.status === 400) throw new PluggyError(L("A Pluggy recusou o Client ID/Client Secret. Confira em meu.pluggy.ai.", "Pluggy rejected the Client ID/Client Secret. Check them at meu.pluggy.ai."), 401);
+    if (!res.ok) throw new PluggyError(L(`A Pluggy respondeu com erro ${res.status} na autenticação.`, `Pluggy returned error ${res.status} during authentication.`));
     const body = (await res.json()) as { apiKey?: string };
-    if (!body.apiKey) throw new PluggyError("Resposta inesperada da Pluggy na autenticação.");
+    if (!body.apiKey) throw new PluggyError(L("Resposta inesperada da Pluggy na autenticação.", "Unexpected response from Pluggy during authentication."));
     cached = { key: body.apiKey, at: Date.now(), clientId: c.clientId };
     return body.apiKey;
   }
@@ -96,14 +97,14 @@ export function pluggyClient(creds: () => PluggyCredentials | null, fetchImpl: F
       headers: { "X-API-KEY": key, Accept: "application/json" },
       signal: signal ?? AbortSignal.timeout(30_000),
     }).catch((e: unknown) => {
-      throw new PluggyError(`Não foi possível falar com a Pluggy (${(e as Error).message}).`);
+      throw new PluggyError(L(`Não foi possível falar com a Pluggy (${(e as Error).message}).`, `Couldn't reach Pluggy (${(e as Error).message}).`));
     });
     if ((res.status === 401 || res.status === 403) && retry) {
       cached = null; // apiKey expirada: autentica de novo uma vez
       return get<T>(url, signal, false);
     }
-    if (res.status === 404) throw new PluggyError("Conexão não encontrada na Pluggy. Confira o itemId.", 404);
-    if (!res.ok) throw new PluggyError(`A Pluggy respondeu com erro ${res.status}.`);
+    if (res.status === 404) throw new PluggyError(L("Conexão não encontrada na Pluggy. Confira o itemId.", "Connection not found on Pluggy. Check the itemId."), 404);
+    if (!res.ok) throw new PluggyError(L(`A Pluggy respondeu com erro ${res.status}.`, `Pluggy returned error ${res.status}.`));
     return (await res.json()) as T;
   }
 
@@ -120,7 +121,7 @@ export function pluggyClient(creds: () => PluggyCredentials | null, fetchImpl: F
   }
 
   const id = (itemId: string) => {
-    if (!/^[0-9a-f-]{10,64}$/i.test(itemId)) throw new PluggyError("itemId inválido.", 400);
+    if (!/^[0-9a-f-]{10,64}$/i.test(itemId)) throw new PluggyError(L("itemId inválido.", "Invalid itemId."), 400);
     return encodeURIComponent(itemId);
   };
 

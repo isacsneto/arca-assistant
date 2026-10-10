@@ -8,6 +8,7 @@ import { runProcess, quickExec } from "./proc";
 import { keyEnvVars } from "./secrets";
 import { AiError, type Engine, type Progress } from "./types";
 import type { Effort } from "../../shared/types";
+import { L } from "../../shared/i18n";
 
 /*
  * Codex (OpenAI) via `codex exec` — o CLI vem como dependência (@openai/codex).
@@ -65,12 +66,12 @@ export function parseCodexEvent(line: string): { progress?: Progress; error?: st
     const q = (item.query as string) || ((item.action as { query?: string } | undefined)?.query ?? "");
     return q ? { progress: { type: "search", query: q } } : null;
   }
-  if (e.type === "item.started" && item?.type === "web_search") return { progress: { type: "status", text: "Pesquisando na web…" } };
-  if (e.type === "item.started" && item?.type === "reasoning") return { progress: { type: "status", text: "Analisando…" } };
-  if (e.type === "item.started" && item?.type === "command_execution") return { progress: { type: "status", text: "Lendo arquivos…" } };
-  if (e.type === "item.completed" && item?.type === "agent_message") return { progress: { type: "status", text: "Consolidando resultado…" } };
-  if (e.type === "turn.failed") return { error: e.error?.message || "O Codex não conseguiu concluir a tarefa." };
-  if (e.type === "error") return { error: e.message || "Erro no Codex." };
+  if (e.type === "item.started" && item?.type === "web_search") return { progress: { type: "status", text: L("Pesquisando na web…", "Searching the web…") } };
+  if (e.type === "item.started" && item?.type === "reasoning") return { progress: { type: "status", text: L("Analisando…", "Analyzing…") } };
+  if (e.type === "item.started" && item?.type === "command_execution") return { progress: { type: "status", text: L("Lendo arquivos…", "Reading files…") } };
+  if (e.type === "item.completed" && item?.type === "agent_message") return { progress: { type: "status", text: L("Consolidando resultado…", "Consolidating results…") } };
+  if (e.type === "turn.failed") return { error: e.error?.message || L("O Codex não conseguiu concluir a tarefa.", "Codex couldn't complete the task.") };
+  if (e.type === "error") return { error: e.message || L("Erro no Codex.", "Codex error.") };
   return null;
 }
 
@@ -106,7 +107,7 @@ export const codexEngine: Engine = async (req, { task, apiKey }) => {
       "\nResponda somente com o JSON final no schema exigido.",
     ].join("\n");
 
-    req.onProgress?.({ type: "status", text: "Codex trabalhando…" });
+    req.onProgress?.({ type: "status", text: L("Codex trabalhando…", "Codex working…") });
     const { code, stderr } = await runProcess(
       process.execPath,
       [codexEntry(), ...codexArgs({ dir, schemaPath, outPath, model: task.model, effort: task.effort, web: req.web, images: images.map((s) => s.path!) })],
@@ -131,20 +132,20 @@ export const codexEngine: Engine = async (req, { task, apiKey }) => {
       /* sem resposta */
     }
     if (!raw?.trim()) {
-      const why = failure || stderr.split("\n").filter(Boolean).slice(-3).join(" ") || `código ${code}`;
+      const why = failure || stderr.split("\n").filter(Boolean).slice(-3).join(" ") || L(`código ${code}`, `exit code ${code}`);
       if (/not logged in|login|unauthori[sz]ed|401|api key/i.test(why))
-        throw new AiError(task.auth === "apiKey" ? "Chave da API OpenAI inválida." : "Codex não está logado. Rode `npx codex login` na pasta do app (ou use uma chave de API em Ajustes).", 401);
-      if (/rate.?limit|usage limit|429|quota/i.test(why)) throw new AiError("Limite de uso do Codex/ChatGPT atingido. Aguarde o reset.", 429);
-      throw new AiError(`O Codex não retornou resultado: ${why}`);
+        throw new AiError(task.auth === "apiKey" ? L("Chave da API OpenAI inválida.", "Invalid OpenAI API key.") : L("Codex não está logado. Rode `npx codex login` na pasta do app (ou use uma chave de API em Ajustes).", "Codex isn't logged in. Run `npx codex login` in the app folder (or use an API key in Settings)."), 401);
+      if (/rate.?limit|usage limit|429|quota/i.test(why)) throw new AiError(L("Limite de uso do Codex/ChatGPT atingido. Aguarde o reset.", "Codex/ChatGPT usage limit reached. Wait for the reset."), 429);
+      throw new AiError(L(`O Codex não retornou resultado: ${why}`, `Codex returned no result: ${why}`));
     }
     let json: unknown;
     try {
       json = JSON.parse(raw);
     } catch {
-      throw new AiError("O Codex respondeu fora do formato esperado. Tente novamente.");
+      throw new AiError(L("O Codex respondeu fora do formato esperado. Tente novamente.", "Codex responded in an unexpected format. Try again."));
     }
     const parsed = req.schema.safeParse(json);
-    if (!parsed.success) throw new AiError("Não foi possível interpretar a resposta do Codex. Tente novamente.");
+    if (!parsed.success) throw new AiError(L("Não foi possível interpretar a resposta do Codex. Tente novamente.", "Couldn't parse Codex's response. Try again."));
     return { data: parsed.data, searches };
   } finally {
     await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
@@ -162,6 +163,6 @@ export async function codexStatus(): Promise<{ installed: boolean; loggedIn: boo
   const out = await quickExec(process.execPath, [entry, "login", "status"], false, env());
   if (out == null) return { installed: true, loggedIn: null };
   if (/not logged in/i.test(out)) return { installed: true, loggedIn: false };
-  if (/logged in/i.test(out)) return { installed: true, loggedIn: true, account: /chatgpt/i.test(out) ? "ChatGPT" : /api key/i.test(out) ? "chave salva no Codex" : undefined };
+  if (/logged in/i.test(out)) return { installed: true, loggedIn: true, account: /chatgpt/i.test(out) ? "ChatGPT" : /api key/i.test(out) ? L("chave salva no Codex", "key saved in Codex") : undefined };
   return { installed: true, loggedIn: null };
 }

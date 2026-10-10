@@ -1,6 +1,7 @@
 import type { AiStatus, ProviderId } from "../shared/ai";
 import type { OpenFinanceImport } from "../shared/openFinance";
 import type { AppState, ExtractionResult, PromptImportRequest, PromptPlan, RefineRequest, ScanEvent, UploadFile } from "../shared/types";
+import { L } from "../shared/i18n";
 
 export interface ModelOption {
   id: string;
@@ -33,7 +34,7 @@ export interface OpenFinanceItem {
 
 async function json<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Erro ${res.status}`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? L(`Erro ${res.status}`, `Error ${res.status}`));
   return body as T;
 }
 
@@ -99,7 +100,7 @@ export async function streamEvents<E>(url: string, body: unknown, onEvent: (e: E
   });
   if (!res.ok || !res.body) {
     const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error ?? `Erro ${res.status}`);
+    throw new Error((body as { error?: string }).error ?? L(`Erro ${res.status}`, `Error ${res.status}`));
   }
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   let buf = "";
