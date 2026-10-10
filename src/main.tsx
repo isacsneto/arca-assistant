@@ -3,7 +3,8 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { StoreProvider, useStore } from "./store";
 import { setLang, toLang } from "../shared/i18n";
-import { setDisplayCurrency } from "./lib/format";
+import { setDisplayCurrency, setValuesHidden } from "./lib/format";
+import { useHideValues } from "./lib/privacy";
 import { fxRates, toCurrency } from "../shared/currency";
 import "./styles.css";
 
@@ -16,6 +17,9 @@ function LangRoot() {
   // Moeda de exibição e cotações valem para todos os formatadores (amt/amt0).
   const currency = toCurrency(state?.settings.displayCurrency);
   setDisplayCurrency(currency, fxRates(state?.settings.fx));
+  // Olho: re-renderiza (sem remontar) para os formatadores aplicarem a máscara.
+  const [hidden] = useHideValues();
+  setValuesHidden(hidden);
   document.documentElement.lang = lang === "pt" ? "pt-BR" : "en";
   return <App key={`${lang}|${currency}`} />;
 }

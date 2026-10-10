@@ -23,14 +23,34 @@ export const toDisplay = (nBase: number) => convert(nBase, BASE_CURRENCY, displa
 /** Valor na moeda de exibição convertido de volta para a base (ex.: aporte digitado). */
 export const fromDisplay = (n: number) => convert(n, display, BASE_CURRENCY, displayFx);
 
+/* Modo privacidade (botão de olho): valores do patrimônio viram "R$ •••••". */
+let hidden = false;
+/** Chamado pelo app quando o olho muda. */
+export function setValuesHidden(h: boolean) {
+  hidden = h;
+}
+export const valuesHidden = () => hidden;
+export const MASK = "•••••";
+const NUMBER_PARTS = new Set(["integer", "group", "decimal", "fraction", "compact", "exponentInteger", "exponentSeparator", "exponentMinusSign"]);
+/** Formata ou, no modo privacidade, mantém só o símbolo da moeda (R$ ••••• / $•••••). */
+const fmt = (f: Intl.NumberFormat, n: number) => {
+  if (!hidden) return f.format(n);
+  let masked = false;
+  return f
+    .formatToParts(Math.abs(n))
+    .map((p) => (!NUMBER_PARTS.has(p.type) ? p.value : masked ? "" : ((masked = true), MASK)))
+    .join("")
+    .trim(); // sobra o espaço antes do "mi" do compacto
+};
+
 /** Valor em moeda base, formatado na moeda de exibição (R$ 1.234,50 / $250.12). */
-export const amt = (nBase: number) => nf(display, "2", {}).format(toDisplay(nBase));
+export const amt = (nBase: number) => fmt(nf(display, "2", {}), toDisplay(nBase));
 /** Idem, sem centavos. */
-export const amt0 = (nBase: number) => nf(display, "0", { maximumFractionDigits: 0 }).format(toDisplay(nBase));
+export const amt0 = (nBase: number) => fmt(nf(display, "0", { maximumFractionDigits: 0 }), toDisplay(nBase));
 /** Idem, compacto (R$ 1,2 mi / $1.2M) — eixos de gráfico, faixas de estimativa. */
-export const amtCompact = (nBase: number) => nf(display, "c", { notation: "compact", maximumFractionDigits: 1 }).format(toDisplay(nBase));
+export const amtCompact = (nBase: number) => fmt(nf(display, "c", { notation: "compact", maximumFractionDigits: 1 }), toDisplay(nBase));
 /** Valor na própria moeda (ex.: posição em USD continua em US$). */
-export const money = (n: number, currency: CurrencyCode) => nf(currency, "2", {}).format(n);
+export const money = (n: number, currency: CurrencyCode) => fmt(nf(currency, "2", {}), n);
 
 export const pct = (n: number, digits = 1) =>
   `${n.toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits })}%`;

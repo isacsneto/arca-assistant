@@ -17,7 +17,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 ![Claude](https://img.shields.io/badge/Claude-Agent%20SDK-d97757)
 ![Codex](https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white)
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
-![Testes](https://img.shields.io/badge/testes-168%20passando-2ea44f)
+![Testes](https://img.shields.io/badge/testes-169%20passando-2ea44f)
 ![Licença: MIT](https://img.shields.io/badge/licença-MIT-blue)
 
 <br/>
@@ -40,6 +40,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 | 🌐 **Inglês e português** | Interface nos dois idiomas (troque em Ajustes ou no rodapé do menu). A IA escreve scans, projeções e perguntas no idioma escolhido. |
 | 💱 **Real e dólar** | Cada posição fica na própria moeda (BRL ou USD); totais, gráficos, rebalanceamento e projeção podem ser mostrados em **reais ou dólares** (Ajustes → Moeda). As cotações se atualizam sozinhas, e o registro de moedas está pronto para outras (EUR, GBP…). |
 | 📱 **No celular** | Interface feita para iPhone e Android (barra de abas, folhas que sobem de baixo, campos sem zoom) e **instalável na tela inicial**. Acesso de fora de casa pelo Tailscale, sem expor nada na internet. |
+| 👁️ **Ocultar valores** | O olho ao lado de *Patrimônio total* esconde todos os valores (R$ •••••) no app inteiro. Porcentagens e gráficos continuam, para abrir em público sem expor nada. Lembrado por aparelho. |
 | 🧠 **Entende o nome do arquivo** | `itau-pf-cdb100cdi.png` → Itaú · pessoa física · CDB 100% do CDI. A IA confere a leitura. |
 | 🔁 **Detecta duplicados** | Arquivo idêntico (SHA-256), print quase igual (hash visual) e mesma tela em prints diferentes (a IA compara o conteúdo). |
 | 🏛️ **Carteira pela Arca** | Ações · Imóveis (FIIs) · Caixa/Renda Fixa · Internacional — Arca do Primo Rico (25/25/25/25), Arca Grão (30/10/40/20) ou sua própria divisão. Clique numa classe e veja os ativos. Cripto pode contar como **Internacional** ou ficar **Fora da Arca** (checkbox nos Ajustes). |
@@ -214,7 +215,7 @@ flowchart LR
 ## 🛠️ Desenvolvimento
 
 ```bash
-npm test             # 168 testes (node:test + tsx)
+npm test             # 169 testes (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # produção local em http://localhost:3001
 ```

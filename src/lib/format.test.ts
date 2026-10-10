@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { amt, amt0, fromDisplay, money, pct, safeUrl, setDisplayCurrency, signedPp } from "./format";
+import { amt, amt0, amtCompact, fromDisplay, MASK, money, pct, safeUrl, setDisplayCurrency, setValuesHidden, signedPp } from "./format";
 import { setLang } from "../../shared/i18n";
 
 const sp = (s: string) => s.replace(/\s/g, " ");
@@ -34,4 +34,20 @@ test("moeda de exibição: totais em BRL aparecem convertidos; posições ficam 
   setDisplayCurrency("BRL", { USD: 5 });
   assert.match(sp(amt(1000)), /^R\$ ?1,000\.00$/);
   setLang("pt");
+});
+
+test("olho de privacidade: esconde o valor (e o sinal) mas mantém a moeda; % continua visível", () => {
+  setLang("pt");
+  setDisplayCurrency("BRL", { USD: 5 });
+  setValuesHidden(true);
+  try {
+    assert.equal(sp(amt(1234.5)), `R$ ${MASK}`);
+    assert.equal(sp(amt0(-50_000)), `R$ ${MASK}`);
+    assert.equal(sp(amtCompact(1_200_000)), `R$ ${MASK}`, "sem o \"mi\" do compacto");
+    assert.equal(money(10, "USD").replace(/\s/g, ""), `US$${MASK}`);
+    assert.equal(pct(12.345), "12,3%");
+  } finally {
+    setValuesHidden(false);
+  }
+  assert.equal(sp(amt(1234.5)), "R$ 1.234,50");
 });

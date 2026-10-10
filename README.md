@@ -19,7 +19,7 @@ Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
 ![Open Finance](https://img.shields.io/badge/Open%20Finance-Pluggy-6c47ff)
 ![PWA](https://img.shields.io/badge/PWA-iOS%20%26%20Android-5a0fc8)
-![Tests](https://img.shields.io/badge/tests-168%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-169%20passing-2ea44f)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 <br/>
@@ -46,6 +46,7 @@ Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes
 | 🌐 **English and Portuguese** | The whole UI in both languages (switch in Settings or in the menu footer). The AI writes scans, projections and questions in the chosen language. |
 | 💱 **Real & US dollar** | Each position keeps its own currency (BRL or USD); totals, charts, rebalancing and projection can be shown in **reais or dollars** (Settings → Currency). Exchange rates refresh automatically, and the currency registry is ready for more (EUR, GBP…). |
 | 📱 **Mobile-first PWA** | Designed for iPhone and Android (tab bar, bottom sheets, no zoom on inputs) and **installable on the home screen**. Reach it away from home through Tailscale, without exposing anything to the internet. |
+| 👁️ **Hide values** | The eye next to *Net worth* masks every amount (R$ •••••) across the app. Percentages and the charts stay, so you can open it in public. Remembered per device. |
 | 🧠 **Understands file names** | `itau-pf-cdb100cdi.png` → Itaú · individual (PF) · CDB at 100% of CDI. The AI double-checks it. |
 | 🔁 **Duplicate detection** | Identical files (SHA-256), near-identical screenshots (perceptual hash) and the same screen in different screenshots (the AI compares the content). |
 | 🏛️ **Arca portfolio** | Stocks · Real estate (FIIs) · Cash / Fixed income · International — Arca (25/25/25/25), Arca Grão (30/10/40/20) or your own split. Click a class to see its assets. Crypto can count as **International** or stay **Outside the Arca** (a checkbox in Settings). |
@@ -223,7 +224,7 @@ flowchart LR
 ## 🛠️ Development
 
 ```bash
-npm test             # 168 tests (node:test + tsx)
+npm test             # 169 tests (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # local production at http://localhost:3001
 API_PORT=3101 npx vite       # front-end against another instance (e.g. the demo)

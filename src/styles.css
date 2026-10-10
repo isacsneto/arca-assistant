@@ -307,6 +307,11 @@ label.btn.disabled { opacity: 0.6; pointer-events: none; }
 .ok-text { color: var(--ok); }
 .warn-text { color: var(--warn); }
 .bad-text { color: var(--bad); }
+/* olho de privacidade */
+.eye-btn { display: inline-grid; place-items: center; border: 0; background: none; color: var(--muted); cursor: pointer; padding: 6px; margin: -6px; border-radius: 6px; }
+.eye-btn:hover { color: var(--text); background: var(--surface-2); }
+.eye-btn[aria-pressed="true"] { color: var(--accent); }
+.masked-value { padding: 4px 6px; letter-spacing: 0.05em; }
 .ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px; }
 
 /* ---------- ajuste com checkbox e explicação ---------- */

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { CURRENCIES, CURRENCY_CODES, fxSummary } from "../../shared/currency";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { ChevronRight, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { ChevronRight, Eye, EyeOff, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { ALL_CLASSES, ARCA_CLASSES, CLASS_META, OWNERS, type AssetClass, type Currency, type Owner, type Position, type RefreshResult } from "../../shared/types";
 import { VIEW_LABEL } from "../../shared/owner";
 import { ClassAssets } from "./ClassAssets";
@@ -11,7 +11,8 @@ import { summarizeAssets } from "../../shared/assets";
 import { classRows, computeAllocation, toBRL } from "../../shared/arca";
 import { useStore } from "../store";
 import { L, locale } from "../../shared/i18n";
-import { amt, amt0, pct, signedPp, uid, displayCurrency } from "../lib/format";
+import { amt, amt0, MASK, money, pct, signedPp, uid, displayCurrency } from "../lib/format";
+import { useHideValues } from "../lib/privacy";
 import { ClassDot, ClassLabel, ClassSelect, Empty, PageHead } from "./ui";
 
 const statusLabel = () => ({ ok: L("Em equilíbrio", "Balanced"), warn: L("Atenção", "Watch"), bad: L("Fora da meta", "Off target") }) as const;
@@ -37,6 +38,7 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
     setCollapsedSaved(next);
   };
   const [adding, setAdding] = useState(false);
+  const [hidden, toggleHidden] = useHideValues();
   const settings = state!.settings;
   const positions = visible;
   const assetSummary = useMemo(() => summarizeAssets(state!.assets, view), [state, view]);
@@ -109,7 +111,14 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
 
       <div className="grid kpis" style={{ marginBottom: 16 }}>
         <div className="card kpi">
-          <div className="label">{L("Patrimônio total", "Net worth")}</div>
+          <div className="label row spread">
+            {L("Patrimônio total", "Net worth")}
+            <button type="button" className="eye-btn" onClick={toggleHidden} aria-pressed={hidden}
+              title={hidden ? L("Mostrar valores", "Show values") : L("Ocultar valores", "Hide values")}
+              aria-label={hidden ? L("Mostrar valores", "Show values") : L("Ocultar valores", "Hide values")}>
+              {hidden ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
           <div className="value num">{amt0(alloc.grandTotal)}</div>
           <div className="sub">{L(`${positions.length} posições`, `${positions.length} position${positions.length === 1 ? "" : "s"}`)}{oldest ? L(` · valor mais antigo: ${oldest}`, ` · oldest value: ${oldest}`) : ""}</div>
         </div>
@@ -232,7 +241,7 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
                       <tr key={p.id}>
                         <td className="ga-main" style={{ minWidth: 200 }}>
                           <div><b>{p.ticker ? `${p.ticker} · ` : ""}{p.name}</b></div>
-                          <div className="muted small">{p.subtype}{p.quantity != null ? ` · ${p.quantity.toLocaleString(locale())} ${L("un.", "units")}` : ""}</div>
+                          <div className="muted small">{p.subtype}{p.quantity != null ? ` · ${hidden ? MASK : p.quantity.toLocaleString(locale())} ${L("un.", "units")}` : ""}</div>
                         </td>
                         <td className="muted ga-sub">
                           {p.institution}
@@ -247,15 +256,19 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
                           {ruled.has(p.id) && <div className="muted small" title={L("Altere em Ajustes → Metodologia de alocação", "Change it in Settings → Allocation method")}>{L("cripto como Internacional (Ajustes)", "crypto as International (Settings)")}</div>}
                         </td>
                         <td className="right ga-val" style={{ minWidth: 130 }}>
-                          <input
-                            className="cell num right"
-                            type="number"
-                            step="0.01"
-                            defaultValue={p.value.toFixed(2)}
-                            key={p.value}
-                            onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v !== p.value) patch(p.id, { value: v }); }}
-                            aria-label={L(`Valor de ${p.name} (${p.currency})`, `Value of ${p.name} (${p.currency})`)}
-                          />
+                          {hidden ? (
+                            <div className="num masked-value">{money(p.value, p.currency)}</div>
+                          ) : (
+                            <input
+                              className="cell num right"
+                              type="number"
+                              step="0.01"
+                              defaultValue={p.value.toFixed(2)}
+                              key={p.value}
+                              onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v !== p.value) patch(p.id, { value: v }); }}
+                              aria-label={L(`Valor de ${p.name} (${p.currency})`, `Value of ${p.name} (${p.currency})`)}
+                            />
+                          )}
                           {p.currency !== displayCurrency() && <div className="muted small num">{CURRENCIES[p.currency].symbol} · ≈ {amt(toBRL(p, settings.fx))}</div>}
                         </td>
                         <td className="right ga-act"><button className="btn ghost icon danger" title={L("Remover", "Remove")} onClick={() => remove(p.id)}><Trash2 size={16} /></button></td>

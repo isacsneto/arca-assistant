@@ -8,7 +8,7 @@ import { EstimateCell, EstimateDetails, type EstimateRun } from "./AssetEstimate
 import { inView, VIEW_LABEL } from "../../shared/owner";
 import { OWNERS, type Owner } from "../../shared/types";
 import { useStore } from "../store";
-import { amt, pct, uid } from "../lib/format";
+import { amt, pct, uid, valuesHidden } from "../lib/format";
 import { Empty, PageHead } from "./ui";
 import { L, getLang } from "../../shared/i18n";
 
@@ -171,8 +171,12 @@ export function AssetsView() {
                       </select>
                     </td>
                     <td className="right ga-val" style={{ minWidth: 120 }}>
-                      <input className="cell num right" type="number" step="0.01" min="0" defaultValue={a.value.toFixed(2)} key={a.value}
-                        onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v >= 0 && v !== a.value) patch(a.id, { value: v }); }} aria-label={L(`Valor de ${a.name}`, `Value of ${a.name}`)} />
+                      {valuesHidden() ? (
+                        <div className="num masked-value">{amt(a.value)}</div>
+                      ) : (
+                        <input className="cell num right" type="number" step="0.01" min="0" defaultValue={a.value.toFixed(2)} key={a.value}
+                          onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v >= 0 && v !== a.value) patch(a.id, { value: v }); }} aria-label={L(`Valor de ${a.name}`, `Value of ${a.name}`)} />
+                      )}
                     </td>
                     <td className="ga-c" data-l={L("Estimativa (IA)", "Estimate (AI)")} style={{ minWidth: 190 }}>
                       <EstimateCell
