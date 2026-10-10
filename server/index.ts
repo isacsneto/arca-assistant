@@ -1,7 +1,7 @@
 import { createApp } from "./app";
 import { fileStore } from "./store";
 import { aiStatus, setApiKey } from "./ai";
-import { estimateAsset, extractFromFiles, interpretPrompt, projectWithAi, refineImport, refreshWithAi, scanClass } from "./tasks";
+import { estimateAsset, extractFromFiles, interpretPrompt, projectWithAi, refineImport, refreshWithAi, researchAsset, scanClass } from "./tasks";
 import { refreshValues } from "./refresh";
 import { yahooQuote } from "./quotes";
 import { dataDir, secretsFile } from "./paths";
@@ -34,6 +34,7 @@ const app = createApp({
       },
     }, emit, signal),
   projectPortfolio: projectWithAi,
+  researchAsset,
   estimateAsset,
   pluggy: { credentials: pluggyCredentials, client: pluggy },
   sampleVideo,

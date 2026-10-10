@@ -6,6 +6,25 @@ import {
   type Settings,
 } from "./types";
 import { rate, type FxRates } from "./currency";
+import { isCrypto } from "./crypto";
+
+/** Regras de classificação que valem só na visão (a posição salva não muda). */
+export type ClassRules = Pick<Settings, "cryptoAsInternational">;
+
+/** Classe usada nos cálculos: cripto em "Fora da Arca" pode contar como Internacional. */
+export function effectiveClass(p: Pick<Position, "assetClass" | "name" | "subtype" | "ticker">, rules: ClassRules): AssetClass {
+  if (rules.cryptoAsInternational && p.assetClass === "outros" && isCrypto(p)) return "internacional";
+  return p.assetClass;
+}
+
+/** As posições com a classe efetiva (mesmo array se nada mudar). */
+export function withClassRules<T extends Position>(positions: T[], rules: ClassRules): T[] {
+  if (!rules.cryptoAsInternational) return positions;
+  return positions.map((p) => {
+    const c = effectiveClass(p, rules);
+    return c === p.assetClass ? p : { ...p, assetClass: c };
+  });
+}
 
 /** Valor da posição na moeda base (BRL), pelas cotações dos ajustes. */
 export function toBRL(p: Pick<Position, "value" | "currency">, fx: FxRates): number {

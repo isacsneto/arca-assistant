@@ -135,6 +135,24 @@ export function SettingsView() {
           <div style={{ marginTop: 12 }}>
             <span className={`chip ${Math.round(sum) === 100 ? "ok" : "bad"}`}>Total: {sum}% {Math.round(sum) === 100 ? "✓" : L("(deve somar 100%)", "(must add up to 100%)")}</span>
           </div>
+          <label className="check setting-check" style={{ marginTop: 16 }}>
+            <input type="checkbox" checked={settings.cryptoAsInternational} onChange={(e) => set({ cryptoAsInternational: e.target.checked })} />
+            <span>
+              <b>{L("Considerar cripto como Internacional", "Count crypto as International")}</b>
+              <span className="hint">
+                {settings.cryptoAsInternational
+                  ? L(
+                      "Ligado: Bitcoin, Ethereum, ETFs de cripto (HASH11, QBTC11…) e outras criptos entram na classe Internacional — contam na alocação, no rebalanceamento, no scan e na projeção.",
+                      "On: Bitcoin, Ethereum, crypto ETFs (HASH11, QBTC11…) and other crypto count in the International class — in allocation, rebalancing, scan and projection.",
+                    )
+                  : L(
+                      "Desligado: cripto fica em Fora da Arca e não entra no rebalanceamento.",
+                      "Off: crypto stays Outside the Arca and is not included in rebalancing.",
+                    )}{" "}
+                {L("A classe salva de cada posição não muda; dá para alternar quando quiser.", "Each position's saved class doesn't change; you can switch any time.")}
+              </span>
+            </span>
+          </label>
         </section>
 
         <section className="card">
@@ -157,6 +175,8 @@ export function SettingsView() {
               tip={L("Pesquisa anúncios de novos e usados (FIPE, OLX, Mercado Livre…): Sonnet 5.5 médio é suficiente.", "Searches new and used listings (FIPE, OLX, Mercado Livre…): Sonnet 5.5 medium is enough.")} />
             <ModelPicker showModel={isClaude} title={L("Projeção de cenários", "Scenario projection")} value={settings.projection} models={config!.models} onChange={(projection) => set({ projection })}
               tip={L("Pesquisa macro e de longo prazo para definir premissas: Opus 5.5 com esforço alto.", "Macro and long-term research to set assumptions: Opus 5.5 with high effort.")} />
+            <ModelPicker showModel={isClaude} title={L("Pesquisa de ativo (Mercado)", "Asset research (Market)")} value={settings.research} models={config!.models} onChange={(research) => set({ research })}
+              tip={L("Análise completa de um ativo (balanços, qualidade, macro e geopolítica, cenários): Opus 5.5 com esforço alto.", "Full analysis of one asset (financials, quality, macro and geopolitics, scenarios): Opus 5.5 with high effort.")} />
           </div>
         </section>
 

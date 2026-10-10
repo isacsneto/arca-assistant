@@ -27,6 +27,7 @@ export function withDefaults(raw: Partial<AppState>): AppState {
     assets: sanitizeAssets(raw.assets),
     scans: raw.scans ?? base.scans,
     projection: raw.projection,
+    research: Array.isArray(raw.research) ? raw.research : [],
     settings: {
       ...base.settings,
       ...withoutLegacy(raw.settings),
@@ -37,6 +38,8 @@ export function withDefaults(raw: Partial<AppState>): AppState {
       refresh: { ...base.settings.refresh, ...raw.settings?.refresh },
       projection: { ...base.settings.projection, ...raw.settings?.projection },
       estimate: { ...base.settings.estimate, ...raw.settings?.estimate },
+      research: { ...base.settings.research, ...raw.settings?.research },
+      cryptoAsInternational: raw.settings?.cryptoAsInternational === true,
       ai: aiSettings({ ai: raw.settings?.ai ?? base.settings.ai }),
       openFinance: openFinanceSettings(raw.settings?.openFinance),
       language: raw.settings?.language ? toLang(raw.settings.language) : base.settings.language,

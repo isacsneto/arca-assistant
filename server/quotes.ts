@@ -1,5 +1,6 @@
 import type { Position } from "../shared/types";
 import { BASE_CURRENCY, convert as convertCurrency, isCurrency, type CurrencyCode, type FxRates } from "../shared/currency";
+import { CRYPTO_BY_NAME } from "../shared/crypto";
 
 /*
  * Cotações via endpoint público do Yahoo Finance (sem chave).
@@ -19,12 +20,6 @@ export type FetchQuote = (symbol: string) => Promise<Quote | null>;
 const B3_TICKER = /^[A-Z]{4}\d{1,2}[A-Z]?$/;
 
 /** Símbolos candidatos no Yahoo para uma posição (vazio = sem cotação de mercado). */
-const CRYPTO_BY_NAME: [RegExp, string][] = [
-  [/\bbitcoin\b/i, "BTC-USD"],
-  [/\bethereum\b|\bether\b/i, "ETH-USD"],
-  [/\bsolana\b/i, "SOL-USD"],
-];
-
 export function yahooSymbols(p: Pick<Position, "ticker" | "currency" | "assetClass"> & { name?: string }): string[] {
   const t = p.ticker?.trim().toUpperCase().replace(/\.SA$/, "");
   if (!t && p.assetClass === "outros" && p.name) {

@@ -1,8 +1,14 @@
 import type { AiStatus, ProviderId } from "../shared/ai";
 import type { FxRates } from "../shared/currency";
 import type { OpenFinanceImport } from "../shared/openFinance";
-import type { AppState, ExtractionResult, PromptImportRequest, PromptPlan, RefineRequest, ScanEvent, UploadFile } from "../shared/types";
+import type {
+  AppState, DayQuote, ExtractionResult, MarketSnapshot, PromptImportRequest, PromptPlan, RefineRequest, ScanEvent, SearchHit, UploadFile, View,
+} from "../shared/types";
 import { L } from "../shared/i18n";
+
+export interface MarketData extends MarketSnapshot {
+  benchmarks: { symbol: string; label: string; quote: DayQuote | null }[];
+}
 
 export interface ModelOption {
   id: string;
@@ -77,6 +83,13 @@ export const api = {
   openFinanceItems: () => fetch("/api/openfinance/items").then((r) => json<{ items: OpenFinanceItem[] }>(r)),
   openFinanceSync: (signal?: AbortSignal) =>
     fetch("/api/openfinance/sync", { method: "POST", signal }).then((r) => json<OpenFinanceImport>(r)),
+  /** Mercado: variação do dia dos principais ativos da visão + referências (Ibovespa, S&P 500…). */
+  market: (view: View, signal?: AbortSignal) => fetch(`/api/market?view=${view}`, { signal }).then((r) => json<MarketData>(r)),
+  searchAssets: (q: string, signal?: AbortSignal) =>
+    fetch(`/api/market/search?q=${encodeURIComponent(q)}`, { signal }).then((r) => json<{ results: SearchHit[] }>(r)),
+  quote: (symbol: string, signal?: AbortSignal) =>
+    fetch(`/api/market/quote?symbol=${encodeURIComponent(symbol)}`, { signal }).then((r) => json<{ quote: DayQuote }>(r)),
+  deleteResearch: (id: string) => fetch(`/api/research/${encodeURIComponent(id)}`, { method: "DELETE" }).then((r) => json<{ ok: true }>(r)),
   refineImport: (body: RefineRequest, signal?: AbortSignal) =>
     fetch("/api/import/refine", {
       method: "POST",

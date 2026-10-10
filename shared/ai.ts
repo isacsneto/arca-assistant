@@ -57,7 +57,7 @@ export const DEFAULT_AI: AiSettings = {
   models: { codex: { strong: "", fast: "" }, cursor: { strong: "", fast: "" } },
 };
 
-export type AiTaskName = "extraction" | "refine" | "prompt" | "refresh" | "estimate" | "scan" | "projection";
+export type AiTaskName = "extraction" | "refine" | "prompt" | "refresh" | "estimate" | "scan" | "projection" | "research";
 
 /** Pesquisas longas usam o modelo "forte"; leitura e lookups usam o "rápido". */
 export const TASK_TIER: Record<AiTaskName, "strong" | "fast"> = {
@@ -68,6 +68,7 @@ export const TASK_TIER: Record<AiTaskName, "strong" | "fast"> = {
   estimate: "fast",
   scan: "strong",
   projection: "strong",
+  research: "strong",
 };
 
 /** Tudo que um motor precisa saber para rodar uma tarefa. */

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import {
-  ArrowLeftRight, Car, Ellipsis, Hexagon, Landmark, LineChart as LineChartIcon, Loader2, Radar, Scale,
+  Activity, ArrowLeftRight, Car, Ellipsis, Hexagon, Landmark, LineChart as LineChartIcon, Loader2, Radar, Scale,
   Settings as SettingsIcon, Upload, Wallet,
 } from "lucide-react";
-import type { ProjectionResult, RefreshResult } from "../shared/types";
+import type { ProjectionResult, RefreshResult, ResearchResult } from "../shared/types";
+import { MarketView } from "./components/MarketView";
 import { useStore } from "./store";
 import { useJob } from "./lib/useJob";
 import { Banner } from "./components/ui";
@@ -24,6 +25,7 @@ import { L, LANGS, getLang, type Lang } from "../shared/i18n";
 // Rótulos são getters: L() só é avaliado na renderização (no idioma atual).
 const TABS = [
   { id: "portfolio", get label() { return L("Carteira", "Portfolio"); }, icon: Wallet },
+  { id: "market", get label() { return L("Mercado", "Market"); }, icon: Activity },
   { id: "rebalance", get label() { return L("Rebalancear", "Rebalance"); }, icon: Scale },
   { id: "projection", get label() { return L("Projeção", "Projection"); }, icon: LineChartIcon },
   { id: "institutions", get label() { return L("Instituições", "Institutions"); }, icon: Landmark },
@@ -39,7 +41,7 @@ const PRIMARY: TabId[] = ["portfolio", "rebalance", "import", "projection"];
 const SHORT = (): Partial<Record<TabId, string>> => ({ rebalance: L("Rebalancear", "Rebalance"), scan: "Scan" });
 
 export function App() {
-  const { state, config, loadError, saveError, setProjection, view, setView, update } = useStore();
+  const { state, config, loadError, saveError, setProjection, setResearch, view, setView, update } = useStore();
   const [importTarget, setImportTarget] = useState<{ institution: string; owner: Owner } | null>(null);
 
   // Primeiro uso: começa a contar o prazo da revisão periódica a partir de hoje.
@@ -61,6 +63,7 @@ export function App() {
   // Tarefas longas ficam aqui para continuarem rodando ao trocar de aba.
   const refreshJob = useJob<RefreshResult>("/api/refresh");
   const projectionJob = useJob<ProjectionResult>("/api/projection", setProjection);
+  const researchJob = useJob<ResearchResult>("/api/research", setResearch);
 
   if (loadError)
     return (
@@ -78,7 +81,7 @@ export function App() {
     );
 
   const aiConf = aiSettings(state.settings);
-  const busy: Partial<Record<TabId, boolean>> = { portfolio: refreshJob.running, projection: projectionJob.running };
+  const busy: Partial<Record<TabId, boolean>> = { portfolio: refreshJob.running, projection: projectionJob.running, market: researchJob.running };
   const viewSwitch = (
     <div className="seg view-switch" role="group" aria-label={L("Visão da carteira", "Portfolio view")}>
       {(["all", "PF", "PJ"] as View[]).map((v) => (
@@ -149,6 +152,7 @@ export function App() {
         )}
         {saveError && <Banner kind="bad">{L("Falha ao salvar no servidor", "Failed to save to the server")}: {saveError}</Banner>}
         {tab === "portfolio" && <Portfolio goImport={() => setTab("import")} goAssets={() => setTab("assets")} refreshJob={refreshJob} />}
+        {tab === "market" && <MarketView job={researchJob} />}
         {tab === "rebalance" && <Rebalance goScan={() => setTab("scan")} />}
         {tab === "projection" && <ProjectionView job={projectionJob} />}
         {tab === "institutions" && <InstitutionsView />}

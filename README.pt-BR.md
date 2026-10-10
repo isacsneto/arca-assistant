@@ -17,7 +17,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 ![Claude](https://img.shields.io/badge/Claude-Agent%20SDK-d97757)
 ![Codex](https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white)
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
-![Testes](https://img.shields.io/badge/testes-153%20passando-2ea44f)
+![Testes](https://img.shields.io/badge/testes-168%20passando-2ea44f)
 ![Licença: MIT](https://img.shields.io/badge/licença-MIT-blue)
 
 <br/>
@@ -42,9 +42,10 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 | 📱 **No celular** | Interface feita para iPhone e Android (barra de abas, folhas que sobem de baixo, campos sem zoom) e **instalável na tela inicial**. Acesso de fora de casa pelo Tailscale, sem expor nada na internet. |
 | 🧠 **Entende o nome do arquivo** | `itau-pf-cdb100cdi.png` → Itaú · pessoa física · CDB 100% do CDI. A IA confere a leitura. |
 | 🔁 **Detecta duplicados** | Arquivo idêntico (SHA-256), print quase igual (hash visual) e mesma tela em prints diferentes (a IA compara o conteúdo). |
-| 🏛️ **Carteira pela Arca** | Ações · Imóveis (FIIs) · Caixa/Renda Fixa · Internacional — Arca do Primo Rico (25/25/25/25), Arca Grão (30/10/40/20) ou sua própria divisão. Clique numa classe e veja os ativos. |
+| 🏛️ **Carteira pela Arca** | Ações · Imóveis (FIIs) · Caixa/Renda Fixa · Internacional — Arca do Primo Rico (25/25/25/25), Arca Grão (30/10/40/20) ou sua própria divisão. Clique numa classe e veja os ativos. Cripto pode contar como **Internacional** ou ficar **Fora da Arca** (checkbox nos Ajustes). |
 | 👥 **PF e PJ** | Visão consolidada ou separada por titular em todas as telas, inclusive na projeção. |
 | ⚖️ **Rebalanceamento** | Diz quanto aportar em cada classe (ou quanto vender) para voltar às metas, e onde colocar o dinheiro. |
+| 📊 **Mercado** | Como estão **hoje** os principais ativos da sua carteira (preço, variação do dia, gráfico do dia, impacto estimado no patrimônio), ao lado de Ibovespa, IFIX, S&P 500, dólar e Bitcoin, com botão de atualizar. **Pesquise qualquer ativo** (B3, EUA, ETFs, cripto) e peça uma **pesquisa completa à IA**: balanços, nota de qualidade, expectativa de alta ou queda, macro e geopolítica, cenários positivos e negativos e recomendação (comprar, acumular, manter, reduzir, evitar) com base **na sua carteira e na Arca**. As pesquisas ficam salvas. |
 | 🔎 **Scan de ativos** | A IA pesquisa balanços, relatórios de FIIs, a situação fiscal do governo e ETFs, e devolve um ranking com tese, métricas, riscos e fontes. |
 | 🔄 **Atualizar valores** | Ações, FIIs, ETFs, dólar e cripto pela cotação de mercado; renda fixa estimada pela IA acumulando CDI/Selic/IPCA; instituições conectadas ao Open Finance, direto do banco. Você revisa antes de aplicar. |
 | 📈 **Projeção 5–30 anos** | Cenário mais provável e pior caso plausível, com premissas pesquisadas (Focus, juros, fiscal, valuation) e a conta feita pelo app — nominal e em reais de hoje. |
@@ -213,7 +214,7 @@ flowchart LR
 ## 🛠️ Desenvolvimento
 
 ```bash
-npm test             # 153 testes (node:test + tsx)
+npm test             # 168 testes (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # produção local em http://localhost:3001
 ```

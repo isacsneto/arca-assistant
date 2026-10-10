@@ -292,6 +292,10 @@ export interface Settings {
   projection: ModelSetting;
   /** Estimativa de valor dos bens (pesquisa de anúncios). */
   estimate: ModelSetting;
+  /** Pesquisa completa de um ativo (aba Mercado). */
+  research: ModelSetting;
+  /** Cripto (em "Fora da Arca") conta como Internacional na alocação e no rebalanceamento. */
+  cryptoAsInternational: boolean;
   /** Provedor de IA (Claude, Codex, Cursor) e modo de acesso (login local ou chave de API). */
   ai: AiSettings;
   /** Conexões do Meu Pluggy (Open Finance). As credenciais ficam só no servidor. */
@@ -323,6 +327,8 @@ export const DEFAULT_SETTINGS: Settings = {
   refresh: { model: "claude-sonnet-5-5", effort: "medium" },
   projection: { model: "claude-opus-5-5", effort: "high" },
   estimate: { model: "claude-sonnet-5-5", effort: "medium" },
+  research: { model: "claude-opus-5-5", effort: "high" },
+  cryptoAsInternational: false,
   ai: DEFAULT_AI,
   openFinance: DEFAULT_OPEN_FINANCE,
   staleInstitutions: [],
@@ -376,6 +382,8 @@ export interface AppState {
   settings: Settings;
   scans: Partial<Record<ArcaClass, ScanResult>>;
   projection?: ProjectionResult;
+  /** Pesquisas de ativos feitas na aba Mercado (mais recente primeiro). */
+  research?: ResearchResult[];
 }
 
 export type ScanEvent =
@@ -483,4 +491,130 @@ export interface ProjectionResult extends ProjectionAssumptions {
   searches: number;
   /** Patrimônio (R$) no momento da pesquisa, para avisar se a carteira mudou desde então. */
   baseTotal: number;
+}
+
+/* ------------------------------------------------------------------ */
+/* Mercado: variação do dia e pesquisa de ativos                       */
+/* ------------------------------------------------------------------ */
+
+/** Cotação do dia (Yahoo Finance). */
+export interface DayQuote {
+  symbol: string;
+  name: string | null;
+  /** Moeda da cotação, como o Yahoo informa ("BRL", "USD", "GBp"…). */
+  currency: string;
+  price: number;
+  previousClose: number | null;
+  change: number | null;
+  changePct: number | null;
+  dayHigh: number | null;
+  dayLow: number | null;
+  high52: number | null;
+  low52: number | null;
+  /** Horário da última cotação (ISO). */
+  marketTime: string | null;
+  exchange: string | null;
+  /** EQUITY, ETF, CRYPTOCURRENCY, MUTUALFUND… */
+  type: string | null;
+  /** Preços do dia (para o mini gráfico). */
+  spark: number[];
+}
+
+/** Um ativo da carteira na aba Mercado (posições do mesmo ticker somadas). */
+export interface MarketRow {
+  key: string;
+  ticker: string | null;
+  name: string;
+  assetClass: AssetClass;
+  /** Valor total na moeda base (BRL). */
+  value: number;
+  /** % do patrimônio da visão. */
+  weightPct: number;
+  positions: number;
+  quote: DayQuote | null;
+  /** Quanto a posição variou hoje, na moeda base (valor atual × variação do dia). */
+  dayChange: number | null;
+}
+
+export interface MarketSnapshot {
+  at: string;
+  rows: MarketRow[];
+  /** Total da visão (BRL), para calcular o peso dos ativos. */
+  total: number;
+}
+
+export interface SearchHit {
+  symbol: string;
+  name: string;
+  exchange: string | null;
+  type: string | null;
+}
+
+const Likelihood = z.enum(["alta", "media", "baixa"]);
+
+export const ResearchReportSchema = z.object({
+  ticker: z.string(),
+  name: z.string(),
+  /** Tipo legível: "Ação (B3)", "FII de logística", "ETF (EUA)", "Criptomoeda"… */
+  assetType: z.string(),
+  /** Classe da Arca em que o ativo entraria. */
+  arcaClass: z.enum(["acoes", "fiis", "caixa", "internacional", "outros"]),
+  dataAsOf: z.string(),
+  /** O que é o ativo e como ganha dinheiro. */
+  overview: z.string(),
+  keyMetrics: z.array(z.object({ label: z.string(), value: z.string() })),
+  quality: z.object({
+    /** 0 a 10. */
+    score: z.number(),
+    summary: z.string(),
+    strengths: z.array(z.string()),
+    weaknesses: z.array(z.string()),
+  }),
+  outlook: z.object({
+    direction: z.enum(["alta", "neutra", "queda"]),
+    horizon: z.string(),
+    confidence: Likelihood,
+    rationale: z.string(),
+    /** Faixa de preço esperada no horizonte, se houver base (ex.: "R$ 52–60"). */
+    priceRange: z.string().nullable(),
+  }),
+  /** Macro, setor e geopolítica que afetam o ativo hoje. */
+  macroGeopolitics: z.string(),
+  scenarios: z.array(
+    z.object({
+      kind: z.enum(["positivo", "negativo"]),
+      title: z.string(),
+      description: z.string(),
+      probability: Likelihood,
+      impact: z.string(),
+    }),
+  ),
+  recommendation: z.object({
+    verdict: z.enum(["comprar", "acumular", "manter", "reduzir", "evitar"]),
+    /** Como o ativo se encaixa na carteira e na estratégia (Arca, metas, concentração). */
+    fitWithPortfolio: z.string(),
+    suggestedAction: z.string(),
+    rationale: z.string(),
+  }),
+  sources: z.array(z.object({ title: z.string(), url: z.string() })),
+});
+export type ResearchReport = z.infer<typeof ResearchReportSchema>;
+
+export interface ResearchRequest {
+  /** O que o usuário digitou (ticker ou nome). */
+  query: string;
+  /** Símbolo do Yahoo escolhido na busca, se houver. */
+  symbol?: string | null;
+  name?: string | null;
+}
+
+export interface ResearchResult extends ResearchReport {
+  id: string;
+  query: string;
+  symbol: string | null;
+  quote: DayQuote | null;
+  runAt: string;
+  model: string;
+  effort: Effort;
+  searches: number;
 }

@@ -1,13 +1,18 @@
 import type { FxRates } from "../shared/currency";
+import { randomUUID } from "node:crypto";
 import {
   ClaudeRefreshSchema,
   ExtractionResultSchema,
   ProjectionAssumptionsSchema,
   PromptPlanSchema,
+  ResearchReportSchema,
   ScanReportSchema,
   type AppState,
   type ArcaClass,
   type ClaudeRefresh,
+  type DayQuote,
+  type ResearchRequest,
+  type ResearchResult,
   type ExtractionResult,
   type JobEvent,
   type Position,
@@ -20,13 +25,14 @@ import {
   type UploadFile,
 } from "../shared/types";
 import { aiFor, aiLabel, type AiTask } from "../shared/ai";
-import { computeAllocation, toBRL } from "../shared/arca";
+import { computeAllocation, toBRL, withClassRules } from "../shared/arca";
 import { finalizeExtraction } from "../shared/importReview";
 import { ASSET_TYPES, AssetEstimateSchema, normalizeEstimate, type AssetEstimate, type PhysicalAsset } from "../shared/assets";
 import {
-  ASSET_ESTIMATE_SYSTEM, EXTRACTION_SYSTEM, PROJECTION_SYSTEM, PROMPT_IMPORT_SYSTEM, REFINE_SYSTEM, REFRESH_SYSTEM,
-  assetEstimatePrompt, projectionPrompt, promptImportPrompt, refinePrompt, refreshPrompt, scanPrompt, scanSystem,
+  ASSET_ESTIMATE_SYSTEM, EXTRACTION_SYSTEM, PROJECTION_SYSTEM, PROMPT_IMPORT_SYSTEM, REFINE_SYSTEM, REFRESH_SYSTEM, RESEARCH_SYSTEM,
+  assetEstimatePrompt, projectionPrompt, promptImportPrompt, refinePrompt, refreshPrompt, researchPrompt, scanPrompt, scanSystem,
 } from "./prompts";
+import { normalizeResearch } from "../shared/research";
 import { AiError, runAi, type Progress } from "./ai";
 import { L } from "../shared/i18n";
 
@@ -94,7 +100,8 @@ export async function refineImport(req: RefineRequest, ai: AiTask, signal?: Abor
 }
 
 export async function scanClass(assetClass: ArcaClass, state: AppState, emit: (e: ScanEvent) => void, signal: AbortSignal): Promise<ScanResult> {
-  const { settings, positions } = state;
+  const { settings } = state;
+  const positions = withClassRules(state.positions, settings);
   const ai = aiFor(settings, "scan");
   emit({ type: "status", assetClass, text: L("Iniciando pesquisa…", "Starting research…") });
   const { data, searches } = await runAi(ai, {
@@ -128,7 +135,8 @@ export async function refreshWithAi(
 }
 
 export async function projectWithAi(state: AppState, emit: (e: JobEvent<ProjectionResult>) => void, signal: AbortSignal): Promise<ProjectionResult> {
-  const { settings, positions } = state;
+  const { settings } = state;
+  const positions = withClassRules(state.positions, settings);
   const ai = aiFor(settings, "projection");
   const baseTotal = positions.reduce((s, p) => s + toBRL(p, settings.fx), 0);
   emit({ type: "status", text: L("Iniciando pesquisa de cenários…", "Starting scenario research…") });
@@ -142,6 +150,49 @@ export async function projectWithAi(state: AppState, emit: (e: JobEvent<Projecti
     onProgress: emit,
   });
   return { ...data, runAt: new Date().toISOString(), model: aiLabel(ai), effort: ai.effort, searches, baseTotal };
+}
+
+/** Pesquisa completa de um ativo, com recomendação pensada para a carteira do usuário. */
+export async function researchAsset(
+  req: ResearchRequest,
+  state: AppState,
+  quote: DayQuote | null,
+  emit: (e: JobEvent<ResearchResult>) => void,
+  signal: AbortSignal,
+): Promise<ResearchResult> {
+  const { settings } = state;
+  const positions = withClassRules(state.positions, settings);
+  const ai = aiFor(settings, "research");
+  emit({ type: "status", text: L(`Pesquisando ${req.symbol ?? req.query}…`, `Researching ${req.symbol ?? req.query}…`) });
+  const { data, searches } = await runAi(ai, {
+    system: RESEARCH_SYSTEM,
+    prompt: researchPrompt({
+      query: req.query,
+      symbol: req.symbol ?? null,
+      name: req.name ?? null,
+      quote,
+      today: todayFull(),
+      settings,
+      positions,
+      allocation: computeAllocation(positions, settings.fx),
+    }),
+    schema: ResearchReportSchema,
+    web: true,
+    maxTurns: 80,
+    signal,
+    onProgress: emit,
+  });
+  return {
+    ...normalizeResearch(data),
+    id: randomUUID(),
+    query: req.query,
+    symbol: req.symbol ?? quote?.symbol ?? null,
+    quote,
+    runAt: new Date().toISOString(),
+    model: aiLabel(ai),
+    effort: ai.effort,
+    searches,
+  };
 }
 
 /** Estima o valor de um bem físico pesquisando anúncios de novos e usados. */

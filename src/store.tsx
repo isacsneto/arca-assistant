@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { DEFAULT_SETTINGS, type AppState, type Position, type ProjectionResult, type ScanResult, type View } from "../shared/types";
+import { DEFAULT_SETTINGS, type AppState, type Position, type ProjectionResult, type ResearchResult, type ScanResult, type View } from "../shared/types";
 import { inView } from "../shared/owner";
+import { withClassRules } from "../shared/arca";
+import { addResearch } from "../shared/research";
 import { aiSettings, isAiReady } from "../shared/ai";
 import { api, type Config } from "./api";
 
@@ -12,6 +14,9 @@ interface Ctx {
   update: (mutate: (s: AppState) => AppState) => void;
   setScan: (r: ScanResult) => void;
   setProjection: (r: ProjectionResult) => void;
+  /** Pesquisa de ativo concluída (o servidor já salvou). */
+  setResearch: (r: ResearchResult) => void;
+  removeResearch: (id: string) => void;
   /** Visão atual: consolidado, só PF ou só PJ. */
   view: View;
   setView: (v: View) => void;
@@ -94,7 +99,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState(latest.current); // o servidor já persistiu a projeção
   }, []);
 
-  const visible = useMemo(() => (state ? inView(state.positions, view) : []), [state, view]);
+  // Classe efetiva (ex.: cripto como Internacional); edições continuam indo para a posição salva, pelo id.
+  const setResearch = useCallback((r: ResearchResult) => {
+    if (!latest.current) return;
+    latest.current = { ...latest.current, research: addResearch(latest.current.research, r) };
+    setState(latest.current); // o servidor já persistiu a pesquisa
+  }, []);
+
+  const removeResearch = useCallback((id: string) => {
+    if (!latest.current) return;
+    latest.current = { ...latest.current, research: (latest.current.research ?? []).filter((r) => r.id !== id) };
+    setState(latest.current);
+    void api.deleteResearch(id).catch((e) => setSaveError(e instanceof Error ? e.message : String(e)));
+  }, []);
+
+  const visible = useMemo(() => (state ? inView(withClassRules(state.positions, state.settings), view) : []), [state, view]);
 
   // "IA pronta" é calculado aqui, com os ajustes atuais (trocar de provedor reflete na hora).
   const effectiveConfig = useMemo(
@@ -106,7 +125,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <StoreCtx.Provider value={{ state, config: effectiveConfig, loadError, saveError, update, setScan, setProjection, view, setView, visible, refreshConfig }}>
+    <StoreCtx.Provider value={{ state, config: effectiveConfig, loadError, saveError, update, setScan, setProjection, setResearch, removeResearch, view, setView, visible, refreshConfig }}>
       {children}
     </StoreCtx.Provider>
   );

@@ -1,4 +1,4 @@
-import { CLASS_META, type ArcaClass, type Position, type Settings } from "../shared/types";
+import { ARCA_CLASSES, CLASS_META, type ArcaClass, type DayQuote, type Position, type Settings } from "../shared/types";
 import { CURRENCIES, CURRENCY_CODES, FX_CODES, rate, type FxRates } from "../shared/currency";
 import { toBRL, type Allocation } from "../shared/arca";
 
@@ -277,6 +277,87 @@ ${args.text || "(sem texto — use os anexos)"}
 """${args.attachments ? `\n\nAnexos enviados pelo usuário:${args.attachments}` : ""}${qa}
 
 Responda somente com o resultado estruturado.`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pesquisa de ativo (aba Mercado)                                     */
+/* ------------------------------------------------------------------ */
+
+export const RESEARCH_SYSTEM = `Você é um analista de investimentos sênior (equity research + macro) que faz a análise COMPLETA de um único ativo para um investidor brasileiro que segue a filosofia "Arca" (Primo Rico / Thiago Nigro): patrimônio dividido em Ações (Brasil), Imóveis (FIIs), Caixa/Renda Fixa e Internacional, rebalanceado para as metas de cada classe; o que não se encaixa fica "Fora da Arca".
+
+Como pesquisar (WebSearch e WebFetch; muitas buscas, dados primários primeiro):
+- Empresa/ação/BDR: RI da empresa, últimos resultados trimestrais e anuais (receita, lucro, margens, ROE/ROIC, dívida líquida/EBITDA, geração de caixa, payout, dividend yield), guidance, valuation (P/L, EV/EBITDA, P/VP vs. histórico e pares), governança, alocação de capital, notícias e fatos relevantes recentes, consenso de analistas quando houver.
+- FII/Fiagro: relatório gerencial recente, P/VP, dividend yield (12m e atual), vacância, contratos (prazo, indexador, revisional), carteira de CRIs (LTV, devedores, inadimplência), alavancagem, liquidez, gestora e emissões.
+- ETF/fundo: índice replicado, taxa, patrimônio, liquidez, composição e concentração, tracking error, tributação para residente no Brasil (estate tax em ativos dos EUA, come-cotas etc.).
+- Cripto: tese, adoção, fluxo de ETFs, oferta (halving/emissão), regulação, correlação com juros/liquidez global, riscos de custódia.
+- Sempre: cenário macro do Brasil (Selic, inflação, fiscal, câmbio) e global (Fed, juros americanos, dólar, crescimento da China) e GEOPOLÍTICA que afete o ativo (guerras e conflitos, sanções, tarifas e guerra comercial, eleições, preço de commodities como petróleo e minério, cadeias de suprimento, regulação setorial).
+
+Regras:
+- Nunca invente números. Cada métrica deve vir de uma fonte consultada, com período (ex.: "ROE 2T26: 18%"). Sem o dado, escreva "n/d".
+- Seja cético e equilibrado: mostre o que pode dar errado tanto quanto a tese. Não extrapole altas recentes.
+- outlook: direção esperada (alta, neutra ou queda) para o horizonte que você indicar (ex.: "12 meses"), com confiança e justificativa baseada nos dados da empresa e no cenário macro/geopolítico. priceRange só se houver base (consenso, valuation); senão null.
+- scenarios: 3 a 6 cenários, com pelo menos um "positivo" e um "negativo" — incluindo os geopolíticos e macro relevantes —, cada um com probabilidade e o impacto esperado no ativo.
+- quality.score: nota de 0 a 10 para a qualidade do ativo (negócio, balanço, governança, histórico), não para o preço.
+- recommendation: veredito (comprar, acumular, manter, reduzir, evitar) considerando a QUALIDADE e o PREÇO do ativo E a carteira do investidor — classe da Arca em que ele entraria e se essa classe está abaixo ou acima da meta, se o investidor já tem o ativo (concentração), sobreposição com o que ele já tem, perfil e horizonte. Em fitWithPortfolio explique esse encaixe com números da carteira; em suggestedAction diga o que fazer na prática (ex.: "aportar aos poucos até ~5% da classe Ações", "não aumentar: já é 12% da carteira").
+- arcaClass: classe da Arca em que o ativo entraria (acoes, fiis, caixa, internacional, outros).
+- Registre as fontes consultadas com URL. Isto é análise informativa, não recomendação personalizada de investimento.`;
+
+export function researchPrompt(args: {
+  query: string;
+  symbol: string | null;
+  name: string | null;
+  quote: DayQuote | null;
+  today: string;
+  settings: Settings;
+  /** Posições com a classe efetiva (regras dos ajustes aplicadas). */
+  positions: Position[];
+  allocation: Allocation;
+}): string {
+  const { query, symbol, name, quote, today, settings, positions, allocation } = args;
+  const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+  const num = (n: number | null | undefined, d = 2) => (n == null ? "n/d" : n.toLocaleString("pt-BR", { maximumFractionDigits: d }));
+  const total = allocation.grandTotal;
+  const w = (v: number) => (total > 0 ? ((v / total) * 100).toFixed(1) : "0");
+
+  const bare = (s: string) => s.toUpperCase().replace(/\.SA$/, "");
+  const keys = [symbol, query].filter(Boolean).map((s) => bare(s!.trim()));
+  const held = positions.filter((p) => p.ticker && keys.includes(bare(p.ticker)));
+  const heldValue = held.reduce((s, p) => s + toBRL(p, settings.fx), 0);
+
+  const classes = [...ARCA_CLASSES].map((c) => {
+    const v = allocation.byClass[c];
+    const pct = allocation.arcaTotal > 0 ? (v / allocation.arcaTotal) * 100 : 0;
+    return `- ${CLASS_META[c].label} (${c}): ${pct.toFixed(1)}% da base Arca (meta ${settings.targets[c]}%) — ${fmt(v)}`;
+  });
+  const top = [...positions]
+    .sort((a, b) => toBRL(b, settings.fx) - toBRL(a, settings.fx))
+    .slice(0, 20)
+    .map((p) => `- ${p.ticker ? p.ticker + " · " : ""}${p.name} (${p.subtype}, classe ${p.assetClass}) — ${fmt(toBRL(p, settings.fx))} (${w(toBRL(p, settings.fx))}%)`);
+
+  const q = quote
+    ? `Cotação agora (${quote.symbol}, ${quote.exchange ?? "bolsa n/d"}): ${num(quote.price)} ${quote.currency} · dia ${quote.changePct == null ? "n/d" : `${quote.changePct >= 0 ? "+" : ""}${quote.changePct.toFixed(2)}%`} · 52 semanas ${num(quote.low52)}–${num(quote.high52)} ${quote.currency}`
+    : "Cotação: não obtida automaticamente — pesquise.";
+
+  return `Data de hoje: ${today}. Câmbio: ${fxLine(settings.fx)}.
+
+## Ativo a analisar
+Pedido do usuário: "${query}"${symbol ? `\nSímbolo (Yahoo Finance): ${symbol}` : ""}${name ? `\nNome: ${name}` : ""}
+${q}
+Se o pedido for ambíguo, analise o ativo mais provável para um investidor brasileiro e diga qual escolheu em "name"/"ticker".
+
+## Carteira e estratégia do investidor
+Perfil: ${settings.investorProfile}
+Patrimônio investido: ${fmt(total)} (base Arca ${fmt(allocation.arcaTotal)}; fora da Arca ${fmt(allocation.outrosTotal)}).${settings.cryptoAsInternational ? "\nCripto conta como Internacional nesta carteira." : ""}
+Alocação atual × meta:
+${classes.join("\n")}
+${held.length ? `O investidor JÁ TEM este ativo: ${fmt(heldValue)} (${w(heldValue)}% do patrimônio) em ${held.length} posição(ões).` : "O investidor ainda não tem este ativo (pelo ticker)."}
+Maiores posições:
+${top.join("\n") || "(carteira vazia)"}
+
+## Como trabalhar
+1. ANTES de responder, pesquise na web (WebSearch) — é obrigatório: no mínimo 6 buscas cobrindo resultados/balanços recentes, valuation, notícias e fatos relevantes, setor, macro do Brasil e global, e geopolítica que afete o ativo. Abra com WebFetch as fontes primárias (RI, relatório gerencial, página do ETF) quando precisar do número.
+2. Não responda só com o seu conhecimento prévio: os dados precisam ser de hoje, com fonte.
+3. Ao terminar, responda SOMENTE com o resultado estruturado.`;
 }
 
 /* ------------------------------------------------------------------ */

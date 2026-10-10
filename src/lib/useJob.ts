@@ -14,7 +14,8 @@ export interface JobState<R> {
 }
 
 export interface Job<R> extends JobState<R> {
-  start: () => void;
+  /** Inicia a tarefa; `body` vai no POST (ex.: o ativo a pesquisar). */
+  start: (body?: unknown) => void;
   cancel: () => void;
   clear: () => void;
 }
@@ -30,7 +31,7 @@ export function useJob<R>(url: string, onResult?: (r: R) => void): Job<R> {
 
   useEffect(() => () => abort.current?.abort(), []);
 
-  const start = useCallback(() => {
+  const start = useCallback((body?: unknown) => {
     abort.current?.abort();
     const ctrl = new AbortController();
     abort.current = ctrl;
@@ -50,7 +51,7 @@ export function useJob<R>(url: string, onResult?: (r: R) => void): Job<R> {
       });
     };
 
-    streamEvents<JobEvent<R>>(url, {}, onEvent, ctrl.signal)
+    streamEvents<JobEvent<R>>(url, body ?? {}, onEvent, ctrl.signal)
       .catch((err: Error) => {
         if (err.name !== "AbortError") setS((p) => ({ ...p, error: err.message }));
       })

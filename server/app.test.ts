@@ -16,7 +16,9 @@ const readyStatus = (o: Partial<AiStatus["claude"]> = {}): AiStatus => ({
 });
 import { withDefaults } from "./store";
 import type { AssetEstimate } from "../shared/assets";
-import type { AppState, ArcaClass, ExtractionResult, JobEvent, ProjectionResult, RefreshResult, ScanEvent, ScanResult } from "../shared/types";
+import type {
+  AppState, ArcaClass, DayQuote, ExtractionResult, JobEvent, Position, ProjectionResult, RefreshResult, ResearchRequest, ResearchResult, ScanEvent, ScanResult,
+} from "../shared/types";
 
 function memStore(initial: Partial<AppState> = {}) {
   let saved: AppState | null = null;
@@ -523,4 +525,100 @@ test("vídeo: o corpo bruto vai para o ffmpeg e volta como amostras", async () =
       assert.equal(empty.status, 400);
     },
   );
+});
+
+/* ---------------- Mercado e pesquisa de ativos ---------------- */
+
+const dayQuote = (symbol: string, changePct: number): DayQuote => ({
+  symbol, name: symbol, currency: "BRL", price: 10, previousClose: 10, change: 0, changePct, dayHigh: null, dayLow: null,
+  high52: null, low52: null, marketTime: null, exchange: null, type: "EQUITY", spark: [],
+});
+
+const fakeMarket = {
+  fetchDayQuote: async (s: string) => dayQuote(s, s === "PETR4.SA" ? 1 : 0),
+  search: async (q: string) => [{ symbol: `${q.toUpperCase()}.SA`, name: q, exchange: "São Paulo", type: "EQUITY" }],
+};
+
+const pos = (o: Partial<Position>): Position => ({
+  id: Math.random().toString(36).slice(2), name: "X", institution: "XP", owner: "PF", assetClass: "acoes", subtype: "Ação",
+  currency: "BRL", value: 100, updatedAt: "", source: "", ...o,
+});
+
+test("GET /api/market: só a visão pedida, com as referências do dia", async () => {
+  await withServer({ market: fakeMarket }, async (base) => {
+    const all = await (await fetch(`${base}/api/market`)).json();
+    assert.deepEqual(all.rows.map((r: { key: string }) => r.key), ["VALE3", "PETR4"]);
+    assert.equal(all.rows[1].dayChange, 10);
+    assert.ok(all.benchmarks.some((b: { symbol: string; quote: unknown }) => b.symbol === "^BVSP" && b.quote));
+    const pj = await (await fetch(`${base}/api/market?view=PJ`)).json();
+    assert.deepEqual(pj.rows.map((r: { key: string }) => r.key), ["VALE3"]);
+  }, { positions: [pos({ ticker: "PETR4", value: 1000 }), pos({ ticker: "VALE3", value: 2000, owner: "PJ" })] });
+});
+
+test("busca e cotação validam a entrada", async () => {
+  await withServer({ market: { ...fakeMarket, fetchDayQuote: async (s) => (s === "PETR4.SA" ? dayQuote(s, 1) : null) } }, async (base) => {
+    assert.equal((await fetch(`${base}/api/market/search?q=`)).status, 400);
+    const { results } = await (await fetch(`${base}/api/market/search?q=petr4`)).json();
+    assert.equal(results[0].symbol, "PETR4.SA");
+    assert.equal((await fetch(`${base}/api/market/quote?symbol=${encodeURIComponent("a b")}`)).status, 400);
+    assert.equal((await fetch(`${base}/api/market/quote?symbol=NADA3.SA`)).status, 404);
+    assert.equal((await (await fetch(`${base}/api/market/quote?symbol=PETR4.SA`)).json()).quote.symbol, "PETR4.SA");
+  });
+});
+
+test("POST /api/research: busca a cotação, salva a pesquisa (substituindo a anterior) e DELETE apaga", async () => {
+  let got: { req?: ResearchRequest; quote?: DayQuote | null; cryptoRule?: boolean } = {};
+  const result = (id: string): ResearchResult => ({
+    id, query: "PETR4", symbol: "PETR4.SA", quote: null, runAt: "2026-10-10T12:00:00Z", model: "m", effort: "high", searches: 2,
+    ticker: "PETR4", name: "Petrobras", assetType: "Ação", arcaClass: "acoes", dataAsOf: "2T26", overview: "o", keyMetrics: [],
+    quality: { score: 7, summary: "", strengths: [], weaknesses: [] },
+    outlook: { direction: "alta", horizon: "12m", confidence: "media", rationale: "", priceRange: null },
+    macroGeopolitics: "", scenarios: [], recommendation: { verdict: "acumular", fitWithPortfolio: "", suggestedAction: "", rationale: "" }, sources: [],
+  });
+  let n = 0;
+  await withServer(
+    {
+      market: fakeMarket,
+      researchAsset: async (req, state, quote, emit) => {
+        got = { req, quote, cryptoRule: state.settings.cryptoAsInternational };
+        emit({ type: "search", query: "petrobras resultados 2T26" });
+        return result(`r${++n}`);
+      },
+    },
+    async (base, store) => {
+      assert.equal((await fetch(`${base}/api/research`, json({ query: "" }))).status, 400);
+
+      const events = parseSse<JobEvent<ResearchResult>>(await (await fetch(`${base}/api/research`, json({ query: "petr4", symbol: "PETR4.SA", name: "Petrobras" }))).text());
+      assert.deepEqual(events.map((e) => e.type), ["status", "search", "result", "done"]);
+      assert.deepEqual(got.req, { query: "petr4", symbol: "PETR4.SA", name: "Petrobras" });
+      assert.equal(got.quote?.symbol, "PETR4.SA");
+      assert.equal(got.cryptoRule, true);
+      assert.deepEqual(store.saved!.research!.map((r) => r.id), ["r1", "old"]);
+
+      // Mesmo ativo de novo: substitui a anterior. Símbolo inválido é ignorado (pesquisa só pelo texto).
+      await (await fetch(`${base}/api/research`, json({ query: "PETR4", symbol: "<script>" }))).text();
+      assert.equal(got.req?.symbol, null);
+      assert.equal(got.quote, null);
+      assert.deepEqual(store.saved!.research!.map((r) => r.id), ["r2", "old"]);
+
+      // O cliente não sobrescreve as pesquisas pelo PUT /api/state.
+      const state = await (await fetch(`${base}/api/state`)).json();
+      await fetch(`${base}/api/state`, { ...json({ ...state, research: [] }), method: "PUT" });
+      assert.equal(store.saved!.research!.length, 2);
+
+      assert.equal((await fetch(`${base}/api/research/r2`, { method: "DELETE" })).status, 200);
+      assert.deepEqual(store.saved!.research!.map((r) => r.id), ["old"]);
+    },
+    {
+      research: [{ ...result("old"), symbol: "VALE3.SA", ticker: "VALE3" }],
+      settings: { cryptoAsInternational: true },
+    } as unknown as Partial<AppState>,
+  );
+});
+
+test("withDefaults: ajustes novos têm padrão e pesquisas antigas são preservadas", () => {
+  const s = withDefaults({ settings: { research: { effort: "max" } } } as unknown as Partial<AppState>);
+  assert.equal(s.settings.cryptoAsInternational, false);
+  assert.deepEqual(s.settings.research, { model: "claude-opus-5-5", effort: "max" });
+  assert.deepEqual(s.research, []);
 });

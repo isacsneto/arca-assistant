@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { scanPrompt } from "./prompts";
+import { researchPrompt, scanPrompt } from "./prompts";
 import { computeAllocation } from "../shared/arca";
 import { DEFAULT_SETTINGS, type Position } from "../shared/types";
 
@@ -39,4 +39,28 @@ test("scanPrompt com classe vazia avisa que não há posições", () => {
   });
   assert.match(out, /\(nenhuma ainda\)/);
   assert.match(out, /Atual: 0/);
+});
+
+test("researchPrompt leva a cotação, a alocação × meta e se o investidor já tem o ativo", () => {
+  const positions = [
+    p({ ticker: "PETR4", name: "Petrobras", assetClass: "acoes", value: 3000 }),
+    p({ ticker: "PETR4", name: "Petrobras", assetClass: "acoes", value: 1000, institution: "BTG" }),
+    p({ name: "Tesouro Selic", assetClass: "caixa", value: 6000 }),
+  ];
+  const settings = { ...DEFAULT_SETTINGS, fx: { USD: 5 }, cryptoAsInternational: true };
+  const out = researchPrompt({
+    query: "petr4", symbol: "PETR4.SA", name: "Petrobras", today: "10 de outubro de 2026", settings, positions,
+    allocation: computeAllocation(positions, settings.fx),
+    quote: {
+      symbol: "PETR4.SA", name: "Petrobras", currency: "BRL", price: 56, previousClose: 55, change: 1, changePct: 1.82,
+      dayHigh: null, dayLow: null, high52: 57, low52: 30, marketTime: null, exchange: "São Paulo", type: "EQUITY", spark: [],
+    },
+  });
+  assert.match(out, /Símbolo \(Yahoo Finance\): PETR4\.SA/);
+  assert.match(out, /dia \+1\.82%/);
+  assert.match(out, /JÁ TEM este ativo: R\$\s?4\.000 \(40\.0%/);
+  assert.match(out, /\(acoes\): 40\.0% da base Arca \(meta 25%\)/);
+  assert.match(out, /Cripto conta como Internacional/);
+  assert.match(out, new RegExp(DEFAULT_SETTINGS.investorProfile.slice(0, 30)));
+  assert.match(researchPrompt({ ...{ query: "xyz", symbol: null, name: null, quote: null, today: "hoje", settings: DEFAULT_SETTINGS, positions: [], allocation: computeAllocation([], {}) } }), /ainda não tem este ativo/);
 });

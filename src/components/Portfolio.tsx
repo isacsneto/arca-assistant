@@ -41,6 +41,11 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
   const positions = visible;
   const assetSummary = useMemo(() => summarizeAssets(state!.assets, view), [state, view]);
   const showOwner = view === "all";
+  // Posições cuja classe mostrada vem da regra de cripto (a salva continua "Fora da Arca").
+  const ruled = useMemo(() => {
+    const saved = new Map(state!.positions.map((p) => [p.id, p.assetClass]));
+    return new Set(positions.filter((p) => saved.get(p.id) !== p.assetClass).map((p) => p.id));
+  }, [state, positions]);
 
   const alloc = useMemo(() => computeAllocation(positions, settings.fx), [positions, settings.fx]);
   const rows = useMemo(() => classRows(alloc, settings.targets), [alloc, settings.targets]);
@@ -88,7 +93,7 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
           <>
             <button
               className="btn"
-              onClick={refreshJob.start}
+              onClick={() => refreshJob.start()}
               disabled={refreshJob.running || !config!.hasCredentials}
               title={L("Busca cotações de mercado e estima a renda fixa até hoje", "Fetches market quotes and estimates fixed income up to today")}
             >
@@ -109,7 +114,7 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
           <div className="sub">{L(`${positions.length} posições`, `${positions.length} position${positions.length === 1 ? "" : "s"}`)}{oldest ? L(` · valor mais antigo: ${oldest}`, ` · oldest value: ${oldest}`) : ""}</div>
         </div>
         <div className="card kpi"><div className="label">{L("Base Arca", "Arca base")}</div><div className="value num">{amt0(alloc.arcaTotal)}</div><div className="sub">{L("4 classes rebalanceáveis", "4 rebalanceable classes")}</div></div>
-        <div className="card kpi"><div className="label">{L("Fora da Arca", "Outside the Arca")}</div><div className="value num">{amt0(alloc.outrosTotal)}</div><div className="sub">{L("cripto, ouro, etc.", "crypto, gold, etc.")}</div></div>
+        <div className="card kpi"><div className="label">{L("Fora da Arca", "Outside the Arca")}</div><div className="value num">{amt0(alloc.outrosTotal)}</div><div className="sub">{settings.cryptoAsInternational ? L("ouro, multimercado, etc.", "gold, multimarket, etc.") : L("cripto, ouro, etc.", "crypto, gold, etc.")}</div></div>
         <button type="button" className="card kpi kpi-link assets-kpi" onClick={goAssets} title={L("Patrimônio físico — não somado aos investimentos", "Physical assets — not added to investments")}>
           <div className="label">{L("Bens físicos", "Physical assets")}</div>
           <div className="value num">{amt0(assetSummary.total)}</div>
@@ -237,7 +242,10 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
                             </select>
                           </div>
                         </td>
-                        <td className="ga-a" style={{ minWidth: 175 }}><ClassSelect value={p.assetClass} onChange={(assetClass) => patch(p.id, { assetClass })} /></td>
+                        <td className="ga-a" style={{ minWidth: 175 }}>
+                          <ClassSelect value={p.assetClass} onChange={(assetClass) => patch(p.id, { assetClass })} />
+                          {ruled.has(p.id) && <div className="muted small" title={L("Altere em Ajustes → Metodologia de alocação", "Change it in Settings → Allocation method")}>{L("cripto como Internacional (Ajustes)", "crypto as International (Settings)")}</div>}
+                        </td>
                         <td className="right ga-val" style={{ minWidth: 130 }}>
                           <input
                             className="cell num right"

@@ -39,7 +39,7 @@ export function ProjectionView({ job }: { job: Job<ProjectionResult> }) {
   );
 
   const runButton = (
-    <button className="btn primary" disabled={job.running || !positions.length || !config!.hasCredentials} onClick={job.start}>
+    <button className="btn primary" disabled={job.running || !positions.length || !config!.hasCredentials} onClick={() => job.start()}>
       <RefreshCw size={15} className={job.running ? "spin" : ""} /> {projection ? L("Atualizar projeção", "Update projection") : L("Gerar projeção", "Generate projection")}
     </button>
   );

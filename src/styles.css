@@ -306,6 +306,64 @@ label.btn.disabled { opacity: 0.6; pointer-events: none; }
 .provider-detail .seg button { display: inline-flex; align-items: center; gap: 5px; }
 .ok-text { color: var(--ok); }
 .warn-text { color: var(--warn); }
+.bad-text { color: var(--bad); }
+.ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px; }
+
+/* ---------- ajuste com checkbox e explicação ---------- */
+.check.setting-check { align-items: flex-start; }
+.check.setting-check input { margin-top: 2px; flex: none; }
+.setting-check .hint { display: block; font-weight: 400; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+/* ---------- mercado ---------- */
+.chg { display: inline-flex; align-items: center; gap: 2px; padding: 2px 7px; border-radius: 6px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; background: var(--surface-2); color: var(--muted); }
+.chg.up { background: var(--ok-soft); color: var(--ok); }
+.chg.down { background: var(--bad-soft); color: var(--bad); }
+.spark { display: block; flex: none; }
+.spark-base { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.6; }
+.bench-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.card.bench { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.bench-price { font-size: 17px; font-weight: 700; }
+@media (max-width: 1000px) { .bench-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.search-card { position: relative; margin-bottom: 16px; padding: 10px 14px; z-index: 5; }
+.search-input { display: flex; align-items: center; gap: 10px; }
+.search-input input { border: 0; box-shadow: none !important; padding: 8px 0; font-size: 15px; background: transparent; }
+.search-list { position: absolute; left: 0; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18); padding: 6px; max-height: 420px; overflow: auto; }
+.search-opt { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; border-radius: 8px; background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.search-opt.active { background: var(--surface-2); }
+.search-opt:disabled { opacity: 0.5; cursor: not-allowed; }
+.search-opt > b { min-width: 70px; }
+
+.picked { margin-bottom: 16px; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.picked-body { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; margin-top: 12px; }
+.picked-price { font-size: 28px; font-weight: 700; letter-spacing: -0.01em; }
+.picked-ranges { display: grid; gap: 10px; min-width: 220px; flex: 1; max-width: 360px; }
+.range-track { position: relative; height: 6px; border-radius: 99px; background: var(--border); margin: 6px 0 3px; }
+.range-dot { position: absolute; top: 50%; width: 12px; height: 12px; margin-left: -6px; transform: translateY(-50%); border-radius: 50%; background: var(--text); border: 2px solid var(--surface); }
+
+.research-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+.research-pill { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font: inherit; color: inherit; cursor: pointer; white-space: nowrap; flex: none; }
+.research-pill:hover { background: var(--surface-2); }
+.research-pill.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.report-ticker { font-size: 22px; }
+.verdict-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.verdict { padding: 12px 14px; border-radius: 10px; background: var(--surface-2); display: flex; flex-direction: column; gap: 4px; }
+.verdict .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+.verdict-value { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.verdict.ok, .verdict.up { background: var(--ok-soft); color: var(--ok); }
+.verdict.warn { background: var(--warn-soft); color: var(--warn); }
+.verdict.bad, .verdict.down { background: var(--bad-soft); color: var(--bad); }
+.verdict.ok .label, .verdict.up .label, .verdict.warn .label, .verdict.bad .label, .verdict.down .label { color: inherit; opacity: 0.8; }
+.score-bar { height: 6px; border-radius: 99px; background: var(--border); overflow: hidden; margin-top: 4px; }
+.score-bar > div { height: 100%; border-radius: 99px; }
+.score-bar.ok > div { background: var(--ok); }
+.score-bar.warn > div { background: var(--warn); }
+.score-bar.bad > div { background: var(--bad); }
+.action-box { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); }
+.scenarios { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.scenario { padding: 12px 14px; border: 1px solid var(--border); border-left-width: 4px; border-radius: 10px; }
+.scenario.pos { border-left-color: var(--ok); }
+.scenario.neg { border-left-color: var(--bad); }
 
 /* ======================================================================
    Mobile (iPhone 16 Pro Max = 440×956 pt; vale para qualquer tela ≤ 760 px)
@@ -448,6 +506,19 @@ label.btn.disabled { opacity: 0.6; pointer-events: none; }
   table.t-horiz tr { grid-template-columns: 70px 1fr 1fr; grid-template-areas: "main a b"; }
   table.t-prem tr { grid-template-columns: 1fr; grid-template-areas: "main" "a" "b"; }
   table.t-of tr { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "main main main" "a b act"; }
+  table.t-mkt tr { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "main val act" "b a side"; }
+
+  /* mercado */
+  .bench-strip { display: flex; overflow-x: auto; gap: 10px; margin: 0 -16px; padding: 0 16px 2px; scrollbar-width: none; }
+  .bench-strip::-webkit-scrollbar { display: none; }
+  .card.bench { flex: 0 0 132px; }
+  .search-input input { font-size: 16px; }
+  .search-opt { padding: 12px 10px; }
+  .search-opt > .muted.small { display: none; }
+  .picked-body { gap: 14px; }
+  .picked-ranges { max-width: none; }
+  .verdict-grid { grid-template-columns: 1fr; }
+  .ellipsis { max-width: 100%; }
 }
 
 /* Só aparece no celular (ex.: data e tipo dentro do cartão da transação). */

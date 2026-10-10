@@ -4,8 +4,9 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   ARCA_CLASSES, MODEL_OPTIONS,
-  type AppState, type ArcaClass, type ExtractionResult, type JobEvent,
-  type ProjectionResult, type PromptImportRequest, type PromptPlan, type RefineRequest, type RefreshResult, type ScanEvent, type ScanResult, type UploadFile,
+  type AppState, type ArcaClass, type DayQuote, type ExtractionResult, type JobEvent,
+  type ProjectionResult, type PromptImportRequest, type PromptPlan, type RefineRequest, type RefreshResult, type ResearchRequest, type ResearchResult,
+  type ScanEvent, type ScanResult, type UploadFile, type View,
 } from "../shared/types";
 import type { Store } from "./store";
 import { AiError, explainError } from "./ai";
@@ -19,6 +20,9 @@ import { openFinanceSettings, toImport, type PluggyItem } from "../shared/openFi
 import { VideoError, type VideoSample } from "./video";
 import { VIDEO_SAMPLE_STEP } from "../shared/videoFrames";
 import { L, setLang } from "../shared/i18n";
+import { BENCHMARKS, SYMBOL_RE, marketSnapshot, yahooDayQuote, yahooSearch, type FetchDayQuote, type SearchAssets } from "./market";
+import { inView } from "../shared/owner";
+import { addResearch } from "../shared/research";
 
 export { mapPool };
 
@@ -50,6 +54,16 @@ export interface Deps {
   pluggy?: { credentials: PluggyCredentialStore; client: PluggyClient };
   /** Amostras de um vídeo via ffmpeg (quando o navegador não decodifica o formato). */
   sampleVideo?: (bytes: Buffer, opts: { step: number; signal?: AbortSignal }) => Promise<VideoSample[]>;
+  /** Aba Mercado: cotação do dia e busca de ativos (padrão: Yahoo Finance). */
+  market?: { fetchDayQuote: FetchDayQuote; search: SearchAssets };
+  /** Pesquisa completa de um ativo com IA. */
+  researchAsset?: (
+    req: ResearchRequest,
+    state: AppState,
+    quote: DayQuote | null,
+    emit: (e: JobEvent<ResearchResult>) => void,
+    signal: AbortSignal,
+  ) => Promise<ResearchResult>;
   distDir?: string;
   scanConcurrency?: number;
 }
@@ -454,6 +468,78 @@ export function createApp(deps: Deps) {
     } finally {
       sse.end();
     }
+  });
+
+  /* ---------------- Mercado ---------------- */
+  const market = deps.market ?? { fetchDayQuote: yahooDayQuote, search: yahooSearch };
+
+  // Variação do dia dos principais ativos da carteira (na visão PF/PJ pedida) + referências.
+  app.get("/api/market", async (req, res) => {
+    const view: View = req.query.view === "PF" || req.query.view === "PJ" ? req.query.view : "all";
+    const [snapshot, benchmarks] = await Promise.all([
+      marketSnapshot(inView(state.positions, view), state.settings, market.fetchDayQuote),
+      Promise.all(BENCHMARKS.map(async (b) => ({ ...b, quote: await market.fetchDayQuote(b.symbol).catch(() => null) }))),
+    ]);
+    res.json({ ...snapshot, benchmarks });
+  });
+
+  app.get("/api/market/search", async (req, res) => {
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    if (!q || q.length > 60) {
+      res.status(400).json({ error: L("Digite um ticker ou nome (até 60 caracteres).", "Type a ticker or name (up to 60 characters).") });
+      return;
+    }
+    try {
+      res.json({ results: await market.search(q) });
+    } catch {
+      res.status(502).json({ error: L("A busca não respondeu agora. Tente de novo.", "Search didn't respond right now. Try again.") });
+    }
+  });
+
+  app.get("/api/market/quote", async (req, res) => {
+    const symbol = typeof req.query.symbol === "string" ? req.query.symbol.trim() : "";
+    if (!SYMBOL_RE.test(symbol)) {
+      res.status(400).json({ error: L("Símbolo inválido.", "Invalid symbol.") });
+      return;
+    }
+    const quote = await market.fetchDayQuote(symbol).catch(() => null);
+    if (!quote) res.status(404).json({ error: L("Cotação não encontrada.", "Quote not found.") });
+    else res.json({ quote });
+  });
+
+  // Pesquisa completa de um ativo com IA (progresso via SSE). O resultado fica salvo.
+  app.post("/api/research", async (req, res) => {
+    const body = (req.body ?? {}) as Partial<ResearchRequest>;
+    const query = typeof body.query === "string" ? body.query.trim() : "";
+    const symbol = typeof body.symbol === "string" && SYMBOL_RE.test(body.symbol.trim()) ? body.symbol.trim() : null;
+    const name = typeof body.name === "string" ? body.name.trim().slice(0, 120) : null;
+    if (!query || query.length > 80) {
+      res.status(400).json({ error: L("Digite o ativo a pesquisar (até 80 caracteres).", "Type the asset to research (up to 80 characters).") });
+      return;
+    }
+    if (!deps.researchAsset) {
+      res.status(501).json({ error: L("Pesquisa indisponível.", "Research unavailable.") });
+      return;
+    }
+    const sse = openSse<JobEvent<ResearchResult>>(res);
+    try {
+      sse.send({ type: "status", text: L("Buscando a cotação…", "Fetching the quote…") });
+      const quote = symbol ? await market.fetchDayQuote(symbol).catch(() => null) : null;
+      const result = await deps.researchAsset({ query, symbol, name }, structuredClone(state), quote, sse.send, sse.signal);
+      state = { ...state, research: addResearch(state.research, result) };
+      store.save(state);
+      sse.send({ type: "result", result });
+    } catch (err) {
+      if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });
+    } finally {
+      sse.end();
+    }
+  });
+
+  app.delete("/api/research/:id", (req, res) => {
+    state = { ...state, research: (state.research ?? []).filter((r) => r.id !== req.params.id) };
+    store.save(state);
+    res.json({ ok: true });
   });
 
   // Atualizar valores: só propõe; o cliente revisa e aplica pelo PUT /api/state.
