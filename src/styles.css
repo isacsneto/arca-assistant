@@ -121,7 +121,7 @@ a { color: var(--accent); }
 .btn.sm { padding: 4px 8px; font-size: 12px; }
 .btn.icon { padding: 6px; }
 
-input[type="text"], input[type="number"], select, textarea {
+input[type="text"], input[type="password"], input[type="number"], select, textarea {
   width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border);
   background: var(--surface); outline: none;
 }
@@ -129,6 +129,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 input.cell, select.cell { padding: 4px 6px; border-color: transparent; background: transparent; }
 input.cell:hover, select.cell:hover { border-color: var(--border); }
 textarea { resize: vertical; min-height: 70px; }
+ol.steps { margin: 4px 0 14px; padding-left: 20px; display: grid; gap: 3px; }
 label.field { display: flex; flex-direction: column; gap: 5px; font-weight: 500; }
 label.field > span.hint { font-weight: 400; color: var(--muted); font-size: 12px; }
 .check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }

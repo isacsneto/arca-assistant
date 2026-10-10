@@ -7,6 +7,7 @@ import {
 import { targetsSum } from "../../shared/arca";
 import { api } from "../api";
 import { AiProviderSettings } from "./AiProviderSettings";
+import { OpenFinanceSettings } from "./OpenFinanceSettings";
 import { aiSettings } from "../../shared/ai";
 import { useStore } from "../store";
 import { Banner, ClassDot, PageHead } from "./ui";
@@ -64,6 +65,8 @@ export function SettingsView() {
       {msg && <Banner kind={msg.kind}>{msg.text}</Banner>}
       <div className="stack-lg">
         <AiProviderSettings />
+
+        <OpenFinanceSettings />
 
         <section className="card">
           <div className="card-head">

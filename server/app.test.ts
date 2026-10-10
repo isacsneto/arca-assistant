@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { createApp, mapPool, type Deps } from "./app";
 import { AiError as ClaudeError } from "./ai";
+import { PluggyError } from "./pluggy";
 import type { AiStatus, ProviderId } from "../shared/ai";
 
 const readyStatus = (o: Partial<AiStatus["claude"]> = {}): AiStatus => ({
@@ -15,7 +16,7 @@ const readyStatus = (o: Partial<AiStatus["claude"]> = {}): AiStatus => ({
 });
 import { withDefaults } from "./store";
 import type { AssetEstimate } from "../shared/assets";
-import type { AppState, ArcaClass, JobEvent, ProjectionResult, RefreshResult, ScanEvent, ScanResult } from "../shared/types";
+import type { AppState, ArcaClass, ExtractionResult, JobEvent, ProjectionResult, RefreshResult, ScanEvent, ScanResult } from "../shared/types";
 
 function memStore(initial: Partial<AppState> = {}) {
   let saved: AppState | null = null;
@@ -441,5 +442,85 @@ test("as tarefas recebem o provedor/modelo do Codex quando ele está escolhido",
       assert.deepEqual(seen, { task: "extraction", provider: "codex", auth: "local", model: "gpt-5.5", effort: "medium" });
     },
     { settings: { ai: { provider: "codex", auth: "local", models: { codex: { strong: "gpt-6-astra", fast: "gpt-5.5" }, cursor: { strong: "", fast: "" } } } } } as Partial<AppState>,
+  );
+});
+
+/* ---------------- Open Finance e vídeo ---------------- */
+
+function fakePluggy(opts: { valid?: boolean } = {}) {
+  let creds: { clientId: string; clientSecret: string } | null = null;
+  const client: NonNullable<Deps["pluggy"]>["client"] = {
+    check: async () => {
+      if (opts.valid === false) throw new PluggyError("A Pluggy recusou o Client ID/Client Secret.", 401);
+    },
+    listItems: async () => [{ id: "aaaaaaaaaa", status: "UPDATED", connector: { name: "Banco BTG Pactual" } }],
+    getItem: async (id) => ({ id, status: "UPDATED", connector: { name: "Banco BTG Pactual" } }),
+    investments: async () => [{ id: "1", name: "CDB BTG", type: "FIXED_INCOME", subtype: "CDB", balance: 1000 }],
+    accounts: async () => [],
+  };
+  return { credentials: { get: () => creds, set: (c: typeof creds) => void (creds = c) }, client };
+}
+
+test("Open Finance: credenciais validadas, nunca devolvidas, e recusadas não ficam salvas", async () => {
+  const ok = fakePluggy();
+  await withServer({ pluggy: ok }, async (base) => {
+    assert.deepEqual(await (await fetch(`${base}/api/openfinance`)).json(), { available: true, configured: false, clientIdHint: null });
+    const bad = await fetch(`${base}/api/openfinance/credentials`, { ...json({ clientId: "x", clientSecret: "y" }), method: "PUT" });
+    assert.equal(bad.status, 400);
+    const res = await fetch(`${base}/api/openfinance/credentials`, { ...json({ clientId: "11111111-2222-3333-4444-555555555555", clientSecret: "segredo-123" }), method: "PUT" });
+    assert.equal(res.status, 200);
+    const status = await (await fetch(`${base}/api/openfinance`)).json();
+    assert.deepEqual(status, { available: true, configured: true, clientIdHint: "…5555" });
+    assert.ok(!JSON.stringify(status).includes("segredo"));
+  });
+  const refused = fakePluggy({ valid: false });
+  await withServer({ pluggy: refused }, async (base) => {
+    const res = await fetch(`${base}/api/openfinance/credentials`, { ...json({ clientId: "11111111-2222-3333-4444-555555555555", clientSecret: "segredo-123" }), method: "PUT" });
+    assert.equal(res.status, 401);
+    assert.equal(refused.credentials.get(), null);
+  });
+});
+
+test("Open Finance: sincronizar exige conexões e devolve itens para revisão (sem salvar)", async () => {
+  await withServer({ pluggy: fakePluggy() }, async (base) => {
+    const res = await fetch(`${base}/api/openfinance/sync`, { method: "POST" });
+    assert.equal(res.status, 400);
+  });
+  await withServer(
+    { pluggy: fakePluggy() },
+    async (base, store) => {
+      const items = await (await fetch(`${base}/api/openfinance/items`)).json();
+      assert.deepEqual(items.items.map((i: { id: string }) => i.id), ["aaaaaaaaaa", "bbbbbbbbbb"]);
+      const r = (await (await fetch(`${base}/api/openfinance/sync`, { method: "POST" })).json()) as ExtractionResult;
+      assert.equal(r.items.length, 2);
+      assert.equal(r.items[0].institution, "BTG Pactual");
+      assert.equal(r.items[0].owner, "PF");
+      assert.equal(r.items[1].owner, "PJ");
+      assert.equal(store.saved, null, "o cliente aplica depois da revisão");
+    },
+    {
+      positions: [{ id: "p", name: "x", institution: "BTG Pactual", owner: "PF", assetClass: "caixa", subtype: "CDB", currency: "BRL", value: 1, updatedAt: "", source: "" }],
+      settings: { openFinance: { connections: [{ itemId: "aaaaaaaaaa", owner: "PF" }, { itemId: "bbbbbbbbbb", owner: "PJ" }], includeAccounts: true, lastSyncAt: null } },
+    } as unknown as Partial<AppState>,
+  );
+});
+
+test("vídeo: o corpo bruto vai para o ffmpeg e volta como amostras", async () => {
+  let got = 0;
+  await withServer(
+    {
+      sampleVideo: async (bytes, { step }) => {
+        got = bytes.length;
+        assert.equal(step, 0.5);
+        return [{ t: 0, data: "AAAA" }];
+      },
+    },
+    async (base) => {
+      const res = await fetch(`${base}/api/video/frames`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: new Uint8Array(1234) });
+      assert.deepEqual(await res.json(), { samples: [{ t: 0, data: "AAAA" }] });
+      assert.equal(got, 1234);
+      const empty = await fetch(`${base}/api/video/frames`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: new Uint8Array(0) });
+      assert.equal(empty.status, 400);
+    },
   );
 });

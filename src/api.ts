@@ -17,6 +17,19 @@ export interface Config {
   models: ModelOption[];
 }
 
+export interface OpenFinanceStatus {
+  available: boolean;
+  configured: boolean;
+  /** Fim do Client ID, para o usuário reconhecer qual está salvo. */
+  clientIdHint: string | null;
+}
+export interface OpenFinanceItem {
+  id: string;
+  name: string | null;
+  status: string | null;
+  lastUpdatedAt: string | null;
+}
+
 async function json<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((body as { error?: string }).error ?? `Erro ${res.status}`);
@@ -50,6 +63,17 @@ export const api = {
       body: JSON.stringify(body),
       signal,
     }).then((r) => json<PromptPlan>(r)),
+  /** Open Finance (Meu Pluggy): status das credenciais (o segredo nunca volta ao navegador). */
+  openFinanceStatus: () => fetch("/api/openfinance").then((r) => json<OpenFinanceStatus>(r)),
+  setOpenFinanceCredentials: (creds: { clientId: string; clientSecret: string } | null) =>
+    fetch("/api/openfinance/credentials", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(creds ?? { clientId: null }),
+    }).then((r) => json<{ ok: true }>(r)),
+  openFinanceItems: () => fetch("/api/openfinance/items").then((r) => json<{ items: OpenFinanceItem[] }>(r)),
+  openFinanceSync: (signal?: AbortSignal) =>
+    fetch("/api/openfinance/sync", { method: "POST", signal }).then((r) => json<ExtractionResult>(r)),
   refineImport: (body: RefineRequest, signal?: AbortSignal) =>
     fetch("/api/import/refine", {
       method: "POST",

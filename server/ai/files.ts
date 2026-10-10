@@ -31,7 +31,7 @@ export async function pdfToText(data: Uint8Array): Promise<string> {
 export async function stageFiles(files: UploadFile[], dir: string, opts: { pdfAsText?: boolean } = {}): Promise<StagedFile[]> {
   const out: StagedFile[] = [];
   for (const [i, f] of files.entries()) {
-    const base = { index: i + 1, original: f.name, note: fileNameNote(f.name, f.looksLike), kind: f.kind };
+    const base = { index: i + 1, original: f.name, note: fileNameNote(f.name, f.looksLike, f.video), kind: f.kind };
     if (f.kind === "text") {
       out.push({ ...base, text: f.data });
       continue;

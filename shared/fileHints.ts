@@ -54,7 +54,7 @@ export interface FileHint {
 const OWNER_TOKENS: Record<string, Owner> = { pf: "PF", pj: "PJ" };
 
 /** Pedaços do nome que não dizem nada sobre o produto: versões e cópias. Números soltos ficam ("lci 95 cdi", "ipca 2029"). */
-const NOISE = /^(v\d+|copia|cópia|copy|final|novo|nova|new|\(\d+\)|\d{6,})$/i;
+const NOISE = /^(v\d+|copia|cópia|copy|final|novo|nova|new|\(\d+\)|\d{6,}|quadro\d+)$/i;
 /** Datas completas e "(2)" de cópia, removidas antes de quebrar o nome em partes. */
 const DATES = /\b(\d{4}[-_.]\d{2}[-_.]\d{2}|\d{2}[-_.]\d{2}[-_.]\d{4})\b|\(\d+\)/g;
 

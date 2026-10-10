@@ -13,6 +13,10 @@ import { mapPool } from "./pool";
 import { attachmentsRoot } from "./paths";
 import { sanitizeAssets, type AssetEstimate, type PhysicalAsset } from "../shared/assets";
 import { AttachmentError, collectGarbage, deleteAttachment, loadForClaude, readAttachment, saveAttachments } from "./attachments";
+import { PluggyError, fetchConnections, type PluggyClient, type PluggyCredentialStore } from "./pluggy";
+import { openFinanceSettings, toImport, type PluggyItem } from "../shared/openFinance";
+import { VideoError, type VideoSample } from "./video";
+import { VIDEO_SAMPLE_STEP } from "../shared/videoFrames";
 
 export { mapPool };
 
@@ -39,6 +43,10 @@ export interface Deps {
   refreshValues: (state: AppState, emit: (e: JobEvent<RefreshResult>) => void, signal: AbortSignal) => Promise<RefreshResult>;
   projectPortfolio: (state: AppState, emit: (e: JobEvent<ProjectionResult>) => void, signal: AbortSignal) => Promise<ProjectionResult>;
   fetchFx?: () => Promise<number>;
+  /** Open Finance (Meu Pluggy): credenciais no servidor + cliente da API. */
+  pluggy?: { credentials: PluggyCredentialStore; client: PluggyClient };
+  /** Amostras de um vídeo via ffmpeg (quando o navegador não decodifica o formato). */
+  sampleVideo?: (bytes: Buffer, opts: { step: number; signal?: AbortSignal }) => Promise<VideoSample[]>;
   distDir?: string;
   scanConcurrency?: number;
 }
@@ -211,6 +219,112 @@ export function createApp(deps: Deps) {
     } catch (err) {
       const e = explainError(err);
       if (!res.headersSent) res.status(e.status).json({ error: e.message });
+    }
+  });
+
+  // Vídeo que o navegador não conseguiu abrir: o ffmpeg tira amostras e o navegador escolhe os quadros.
+  app.post("/api/video/frames", express.raw({ type: () => true, limit: "1gb" }), async (req, res) => {
+    const bytes = req.body as Buffer;
+    if (!deps.sampleVideo) {
+      res.status(501).json({ error: "Extração de vídeo indisponível." });
+      return;
+    }
+    if (!Buffer.isBuffer(bytes) || !bytes.length) {
+      res.status(400).json({ error: "Envie o vídeo." });
+      return;
+    }
+    const ctrl = new AbortController();
+    res.on("close", () => {
+      if (!res.writableEnded) ctrl.abort();
+    });
+    try {
+      res.json({ samples: await deps.sampleVideo(bytes, { step: VIDEO_SAMPLE_STEP, signal: ctrl.signal }) });
+    } catch (err) {
+      if (ctrl.signal.aborted) return;
+      res.status(err instanceof VideoError ? err.status : 500).json({ error: err instanceof VideoError ? err.message : "Falha ao processar o vídeo." });
+    }
+  });
+
+  /* ---------------- Open Finance (Meu Pluggy) ---------------- */
+  const pluggyFail = (res: express.Response, err: unknown) => {
+    const e = err instanceof PluggyError ? err : new PluggyError(err instanceof Error ? err.message : "Erro no Open Finance.", 500);
+    if (!res.headersSent) res.status(e.status).json({ error: e.message });
+  };
+  const noPluggy = (res: express.Response) => {
+    res.status(501).json({ error: "Open Finance indisponível." });
+  };
+
+  app.get("/api/openfinance", (_req, res) => {
+    const creds = deps.pluggy?.credentials.get();
+    res.json({ available: Boolean(deps.pluggy), configured: Boolean(creds), clientIdHint: creds ? `…${creds.clientId.slice(-4)}` : null });
+  });
+
+  // Credenciais só entram (ou saem); nunca voltam ao navegador.
+  app.put("/api/openfinance/credentials", async (req, res) => {
+    if (!deps.pluggy) return noPluggy(res);
+    const { clientId, clientSecret } = (req.body ?? {}) as { clientId?: unknown; clientSecret?: unknown };
+    if (clientId === null) {
+      deps.pluggy.credentials.set(null);
+      res.json({ ok: true });
+      return;
+    }
+    const id = typeof clientId === "string" ? clientId.trim() : "";
+    const secret = typeof clientSecret === "string" ? clientSecret.trim() : "";
+    if (!/^[0-9a-f-]{20,64}$/i.test(id) || secret.length < 8 || secret.length > 400) {
+      res.status(400).json({ error: "Confira o Client ID (formato UUID) e o Client Secret." });
+      return;
+    }
+    const previous = deps.pluggy.credentials.get();
+    deps.pluggy.credentials.set({ clientId: id, clientSecret: secret });
+    try {
+      await deps.pluggy.client.check();
+      res.json({ ok: true });
+    } catch (err) {
+      // Credencial recusada não fica salva; falha de rede mantém (dá para verificar depois).
+      if (err instanceof PluggyError && err.status === 401) deps.pluggy.credentials.set(previous);
+      pluggyFail(res, err);
+    }
+  });
+
+  // Conexões encontradas na conta (quando a API permite listar) + as já configuradas.
+  app.get("/api/openfinance/items", async (_req, res) => {
+    if (!deps.pluggy) return noPluggy(res);
+    try {
+      const { client } = deps.pluggy;
+      const listed = await client.listItems();
+      const configured = openFinanceSettings(state.settings.openFinance).connections.map((c) => c.itemId);
+      const missing = configured.filter((id) => !listed.some((i) => i.id === id));
+      const resolved = await Promise.all(missing.map((id) => client.getItem(id).catch(() => ({ id, status: "NOT_FOUND" }) as PluggyItem)));
+      res.json({
+        items: [...listed, ...resolved].map((i) => ({
+          id: i.id,
+          name: i.connector?.name ?? null,
+          status: i.status ?? null,
+          lastUpdatedAt: i.lastUpdatedAt ?? null,
+        })),
+      });
+    } catch (err) {
+      pluggyFail(res, err);
+    }
+  });
+
+  // Busca investimentos (e contas) de todas as conexões → itens para a tela de revisão.
+  app.post("/api/openfinance/sync", async (_req, res) => {
+    if (!deps.pluggy) return noPluggy(res);
+    const of = openFinanceSettings(state.settings.openFinance);
+    if (!of.connections.length) {
+      res.status(400).json({ error: "Adicione ao menos uma conexão em Ajustes → Open Finance." });
+      return;
+    }
+    const ctrl = new AbortController();
+    res.on("close", () => {
+      if (!res.writableEnded) ctrl.abort();
+    });
+    try {
+      const data = await fetchConnections(deps.pluggy.client, of.connections, { includeAccounts: of.includeAccounts, signal: ctrl.signal });
+      res.json(toImport(data, state.positions, { includeAccounts: of.includeAccounts }));
+    } catch (err) {
+      if (!ctrl.signal.aborted) pluggyFail(res, err);
     }
   });
 

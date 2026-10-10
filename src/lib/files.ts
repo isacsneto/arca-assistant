@@ -18,31 +18,36 @@ async function sha256(file: Blob): Promise<string> {
 
 const HASH = 16; // grade 16×16 = 256 bits
 
+let hashCanvas: HTMLCanvasElement | null = null;
+
 /** dHash: reduz a 17×16 em tons de cinza e compara cada pixel com o vizinho da direita. */
+export function dhashOf(source: CanvasImageSource): string {
+  hashCanvas ??= Object.assign(document.createElement("canvas"), { width: HASH + 1, height: HASH });
+  const ctx = hashCanvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.drawImage(source, 0, 0, HASH + 1, HASH);
+  const px = ctx.getImageData(0, 0, HASH + 1, HASH).data;
+  const gray = (x: number, y: number) => {
+    const i = (y * (HASH + 1) + x) * 4;
+    return px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+  };
+  let hex = "";
+  for (let y = 0; y < HASH; y += 1) {
+    for (let x = 0; x < HASH; x += 4) {
+      let nibble = 0;
+      for (let k = 0; k < 4; k += 1) nibble = (nibble << 1) | (gray(x + k, y) > gray(x + k + 1, y) ? 1 : 0);
+      hex += nibble.toString(16);
+    }
+  }
+  return hex;
+}
+
 async function visualHash(file: Blob): Promise<{ dhash?: string; aspect?: number }> {
   try {
     const bmp = await createImageBitmap(file);
     const aspect = bmp.width / bmp.height;
-    const canvas = document.createElement("canvas");
-    canvas.width = HASH + 1;
-    canvas.height = HASH;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-    ctx.drawImage(bmp, 0, 0, HASH + 1, HASH);
+    const dhash = dhashOf(bmp);
     bmp.close();
-    const px = ctx.getImageData(0, 0, HASH + 1, HASH).data;
-    const gray = (x: number, y: number) => {
-      const i = (y * (HASH + 1) + x) * 4;
-      return px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
-    };
-    let hex = "";
-    for (let y = 0; y < HASH; y += 1) {
-      for (let x = 0; x < HASH; x += 4) {
-        let nibble = 0;
-        for (let k = 0; k < 4; k += 1) nibble = (nibble << 1) | (gray(x + k, y) > gray(x + k + 1, y) ? 1 : 0);
-        hex += nibble.toString(16);
-      }
-    }
-    return { dhash: hex, aspect };
+    return { dhash, aspect };
   } catch {
     return {};
   }
@@ -116,5 +121,5 @@ export async function prepareFile(file: File): Promise<PreparedFile> {
   if (/\.(csv|tsv|txt|ofx|json)$/.test(lower) || file.type.startsWith("text/")) {
     return { id, name, kind: "text", size: file.size, sha: await sha256(file), data: await decodeText(file) };
   }
-  throw new Error(`${name}: formato não suportado (use imagem, PDF, CSV ou XLSX).`);
+  throw new Error(`${name}: formato não suportado (use imagem, vídeo, PDF, CSV ou XLSX).`);
 }

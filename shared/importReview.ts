@@ -1,5 +1,6 @@
 import { applyFileReadings, describeHint, parseFileName } from "./fileHints";
 import type { ExtractionResult, FileReading, ImportQuestion } from "./types";
+import { clock } from "./videoFrames";
 
 const MAX_QUESTIONS = 6;
 
@@ -39,10 +40,13 @@ export function finalizeExtraction(data: ExtractionResult, fileNames: string[]):
 }
 
 /** Linha do prompt com a leitura automática do nome, para o Claude confirmar ou corrigir. */
-export function fileNameNote(name: string, looksLike?: string): string {
+export function fileNameNote(name: string, looksLike?: string, video?: { source: string; at: number }): string {
   const d = describeHint(parseFileName(name));
   const parts = [
     d ? `leitura automática do nome: ${d}` : "nome sem a convenção banco-pf/pj",
+    video
+      ? `quadro do vídeo "${video.source}" em ${clock(video.at)} — quadros seguidos do mesmo vídeo mostram a mesma tela rolada e se sobrepõem: conte cada ativo uma vez só e não marque duplicateOf só por sobreposição parcial`
+      : null,
     looksLike ? `visualmente quase idêntico a "${looksLike}" — confira se é duplicado` : null,
   ].filter(Boolean);
   return ` [${parts.join("; ")}]`;

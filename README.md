@@ -15,7 +15,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 ![Claude](https://img.shields.io/badge/Claude-Agent%20SDK-d97757)
 ![Codex](https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white)
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
-![Testes](https://img.shields.io/badge/testes-120%20passando-2ea44f)
+![Testes](https://img.shields.io/badge/testes-143%20passando-2ea44f)
 
 <br/>
 
@@ -32,6 +32,8 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 | | |
 |---|---|
 | 📸 **Importa qualquer coisa** | Prints do app do banco, PDFs, CSV/XLSX (BTG, XP, Nubank, Itaú, Inter…) ou uma frase: *"17000.30 adicionados à caixinha cdb do inter pj"*. A IA extrai, classifica e **pergunta quando não tem certeza**. |
+| 🎬 **Vídeo de tela** | Grave a tela rolando o app do banco em vez de tirar dez prints. O app escolhe **um quadro por tela** (descarta o borrão da rolagem e as repetições) e a IA lê como prints. MP4, MOV, WEBM… |
+| 🏦 **Open Finance** | Conecte seus bancos pelo [Meu Pluggy](https://meu.pluggy.ai) (grátis para uso pessoal) e puxe os investimentos direto da fonte — renda fixa, ações, FIIs, ETFs, fundos, previdência — já classificados na Arca e revisados por você antes de salvar. |
 | 🧠 **Entende o nome do arquivo** | `itau-pf-cdb100cdi.png` → Itaú · pessoa física · CDB 100% do CDI. A IA confere a leitura. |
 | 🔁 **Detecta duplicados** | Arquivo idêntico (SHA-256), print quase igual (hash visual) e mesma tela em prints diferentes (a IA compara o conteúdo). |
 | 🏛️ **Carteira pela Arca** | Ações · Imóveis (FIIs) · Caixa/Renda Fixa · Internacional — Arca do Primo Rico (25/25/25/25), Arca Grão (30/10/40/20) ou sua própria divisão. Clique numa classe e veja os ativos. |
@@ -84,6 +86,15 @@ Em **Ajustes → Provedor de IA** você escolhe o provedor e o modo de acesso. O
 - No Claude você escolhe o modelo de cada tarefa (Opus para pesquisas longas, Sonnet para leitura…). No Codex e no Cursor, um modelo **forte** (scan e projeção) e um **rápido** (o resto) — em branco usa o padrão do CLI.
 - O esforço de raciocínio é ajustável por tarefa em todos.
 
+### 🏦 Open Finance (opcional)
+
+1. Crie a conta em [meu.pluggy.ai](https://meu.pluggy.ai) e conecte seus bancos (a autorização é feita no app de cada banco).
+2. Em **Ajustes → Open Finance**, cole o **Client ID** e o **Client Secret** da sua aplicação (o app confere com a Pluggy antes de salvar).
+3. Clique em **Buscar conexões** (ou cole o `itemId` de cada banco) e marque se cada uma é PF ou PJ.
+4. **Importar → Open Finance → Buscar investimentos**: revise e salve.
+
+O plano gratuito do Meu Pluggy cobre até 5 conexões do mesmo titular, atualizadas a cada 24 h. Corretoras de fora do Brasil não fazem parte do Open Finance — para elas, use print, vídeo ou texto. As credenciais ficam só no servidor (`data/secrets.json` ou `PLUGGY_CLIENT_ID` / `PLUGGY_CLIENT_SECRET`).
+
 ---
 
 ## 🧩 Como funciona
@@ -97,6 +108,7 @@ flowchart LR
   runAi --> X["Codex<br/>codex exec --output-schema"]
   runAi --> K["Cursor<br/>agent -p --output-format json"]
   API --> Q["Yahoo Finance<br/>(cotações)"]
+  API --> P["Pluggy<br/>(Open Finance)"]
   API --> D[("data/<br/>state.json · anexos · chaves")]
 ```
 
@@ -123,7 +135,7 @@ flowchart LR
 ## 🛠️ Desenvolvimento
 
 ```bash
-npm test             # 120 testes (node:test + tsx)
+npm test             # 143 testes (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # produção local em http://localhost:3001
 ```

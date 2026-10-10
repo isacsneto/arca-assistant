@@ -133,7 +133,7 @@ export function PromptImport({ done }: { done: () => void }) {
           <button type="button" className="btn sm" onClick={() => fileInput.current?.click()}>
             <Paperclip size={14} /> Anexar arquivo
           </button>
-          <input ref={fileInput} type="file" hidden multiple accept="image/*,.pdf,.csv,.tsv,.txt,.xlsx,.xls,.xlsm,.ods,.ofx"
+          <input ref={fileInput} type="file" hidden multiple accept="image/*,video/*,.mov,.mkv,.pdf,.csv,.tsv,.txt,.xlsx,.xls,.xlsm,.ods,.ofx"
             onChange={(e) => { void uploads.addFiles([...(e.target.files ?? [])]); e.target.value = ""; }} />
           {uploads.files.map((f) => (
             <span key={f.id} className={"attach" + (f.looksLike ? " dup" : "")} title={f.looksLike ? `Parece igual a ${f.looksLike}` : f.name}>
@@ -144,6 +144,7 @@ export function PromptImport({ done }: { done: () => void }) {
             </span>
           ))}
         </div>
+        {uploads.progress && <p className="small muted row" style={{ marginTop: 6 }}><Loader2 size={13} className="spin" /> {uploads.progress}</p>}
         {uploads.error && <p className="small" style={{ color: "var(--bad)", marginTop: 6 }}>{uploads.error}</p>}
         {uploads.notice.length > 0 && <p className="small" style={{ color: "var(--warn)", marginTop: 6 }}>{uploads.notice.join(" ")}</p>}
         <div className="row wrap" style={{ gap: 6, marginTop: 10 }}>

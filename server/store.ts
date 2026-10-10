@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS, methodologyOf, type AppState } from "../shared/types"
 import { withOwner } from "../shared/owner";
 import { sanitizeAssets } from "../shared/assets";
 import { aiSettings } from "../shared/ai";
+import { openFinanceSettings } from "../shared/openFinance";
 import { stateFile } from "./paths";
 
 export interface Store {
@@ -35,6 +36,7 @@ export function withDefaults(raw: Partial<AppState>): AppState {
       projection: { ...base.settings.projection, ...raw.settings?.projection },
       estimate: { ...base.settings.estimate, ...raw.settings?.estimate },
       ai: aiSettings({ ai: raw.settings?.ai ?? base.settings.ai }),
+      openFinance: openFinanceSettings(raw.settings?.openFinance),
     },
   };
 }

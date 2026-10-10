@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Copy, FileSpreadsheet, FileText, HelpCircle, Image as ImageIcon, Loader2, MessageSquare, Send, Sparkles, Upload, X,
+  Copy, FileSpreadsheet, FileText, HelpCircle, Image as ImageIcon, Loader2, MessageSquare, Send, Sparkles, Upload, Video, X,
 } from "lucide-react";
 import type { ExtractedItem, ExtractionResult, FileReading, ImportAnswer, ImportQuestion } from "../../shared/types";
 import { CLASS_META, OWNERS, type Owner } from "../../shared/types";
@@ -15,6 +15,8 @@ import { money, uid } from "../lib/format";
 import { Banner, ClassSelect, PageHead } from "./ui";
 import { PromptImport } from "./PromptImport";
 import { clearStaleFor } from "../../shared/reminders";
+import { clock } from "../../shared/videoFrames";
+import { OpenFinanceImport } from "./OpenFinanceImport";
 
 interface Draft extends ExtractedItem {
   _id: string;
@@ -22,6 +24,8 @@ interface Draft extends ExtractedItem {
 }
 
 interface Review {
+  /** De onde vieram os itens: arquivos lidos pela IA ou Open Finance. */
+  source: "files" | "openfinance";
   drafts: Draft[];
   files: FileReading[];
   questions: ImportQuestion[];
@@ -31,10 +35,11 @@ interface Review {
 const toItem = ({ _id: _i, include: _c, ...item }: Draft): ExtractedItem => item;
 
 /** Converte a resposta da IA em rascunhos editáveis. */
-function toReview(res: ExtractionResult, previous?: Draft[]): Review {
+function toReview(res: ExtractionResult, previous?: Draft[], source: Review["source"] = "files"): Review {
   const asked = new Set(res.questions.flatMap((q) => q.itemIndexes));
   const sameShape = previous && previous.length === res.items.length;
   return {
+    source,
     drafts: res.items.map((it, i) => ({
       ...it,
       _id: sameShape ? previous[i]._id : uid(),
@@ -47,12 +52,12 @@ function toReview(res: ExtractionResult, previous?: Draft[]): Review {
   };
 }
 
-export function ImportView({ done, target }: { done: () => void; target?: { institution: string; owner: Owner } | null }) {
+export function ImportView({ done, target, goSettings }: { done: () => void; target?: { institution: string; owner: Owner } | null; goSettings?: () => void }) {
   const { state, update, config, view } = useStore();
   const ai = useAi();
   const aiName = ai.name;
-  const { files, setFiles, addFiles, toUpload, error, setError, notice } = useUploads();
-  const [mode, setMode] = useState<"files" | "text">("files");
+  const { files, setFiles, addFiles, toUpload, error, setError, notice, progress } = useUploads();
+  const [mode, setMode] = useState<"files" | "text" | "openfinance">("files");
   const [busy, setBusy] = useState<string | null>(null);
   const [review, setReview] = useState<Review | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -105,7 +110,7 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
         .filter((q) => answers[q.id]?.trim())
         .map((q) => ({ questionId: q.id, question: q.question, answer: answers[q.id].trim(), itemIndexes: q.itemIndexes }));
       const res = await api.refineImport({ items: review.drafts.map(toItem), files: review.files, answers: payload }, signal);
-      setReview(toReview(res, review.drafts));
+      setReview(toReview(res, review.drafts, review.source));
       setAnswers({});
     });
 
@@ -137,7 +142,11 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
       ...s,
       ...mergeImport(s, chosen, { removeStale, now: new Date().toISOString(), newId: uid, defaultOwner: fallbackOwner }),
       // Importou dados da instituição: ela deixa de estar desatualizada.
-      settings: { ...s.settings, staleInstitutions: clearStaleFor(s.settings.staleInstitutions, touched) },
+      settings: {
+        ...s.settings,
+        staleInstitutions: clearStaleFor(s.settings.staleInstitutions, touched),
+        ...(review.source === "openfinance" && { openFinance: { ...s.settings.openFinance, lastSyncAt: new Date().toISOString() } }),
+      },
     }));
     done();
   };
@@ -161,7 +170,9 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
       <>
         <PageHead
           title="Revisar importação"
-          subtitle="Confira como a IA entendeu cada arquivo, responda às perguntas dela e ajuste o que precisar antes de salvar."
+          subtitle={review.source === "openfinance"
+            ? "Dados do Open Finance (valores líquidos). Confira a classe de cada investimento e ajuste o que precisar antes de salvar."
+            : "Confira como a IA entendeu cada arquivo, responda às perguntas dela e ajuste o que precisar antes de salvar."}
           actions={
             <>
               <button className="btn" onClick={() => setReview(null)} disabled={!!busy}>Voltar</button>
@@ -232,12 +243,12 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
         {/* -------- leitura dos arquivos -------- */}
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-head">
-            <h2 className="row"><MessageSquare size={17} /> Como a IA entendeu cada arquivo</h2>
-            <span className="muted small">mudar instituição/titular aqui vale para todos os itens do arquivo</span>
+            <h2 className="row"><MessageSquare size={17} /> {review.source === "openfinance" ? "O que veio de cada conexão" : "Como a IA entendeu cada arquivo"}</h2>
+            <span className="muted small">mudar instituição/titular aqui vale para todos os itens {review.source === "openfinance" ? "da conexão" : "do arquivo"}</span>
           </div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Arquivo</th><th>Instituição</th><th>Titular</th><th>Produto (nome do arquivo)</th><th>O que mostra</th></tr></thead>
+              <thead><tr><th>{review.source === "openfinance" ? "Conexão" : "Arquivo"}</th><th>Instituição</th><th>Titular</th><th>{review.source === "openfinance" ? "Conector" : "Produto (nome do arquivo)"}</th><th>O que mostra</th></tr></thead>
               <tbody>
                 {review.files.map((f) => (
                   <tr key={f.file}>
@@ -264,13 +275,13 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
           </div>
         </div>
 
-        {drafts.length === 0 && <Banner kind="warn">Nenhum dado financeiro foi encontrado nos arquivos.</Banner>}
+        {drafts.length === 0 && <Banner kind="warn">{review.source === "openfinance" ? "Nenhum investimento com saldo veio do Open Finance." : "Nenhum dado financeiro foi encontrado nos arquivos."}</Banner>}
 
         {positions.length > 0 && (
           <div className="card" style={{ marginBottom: 16 }}>
             <div className="card-head">
               <h2>Posições ({positions.length})</h2>
-              <label className="check small" title="Útil quando o print mostra a carteira inteira daquela instituição">
+              <label className="check small" title={review.source === "openfinance" ? "O Open Finance traz a carteira inteira de cada instituição; itens antigos com nome diferente seriam duplicados" : "Útil quando o print mostra a carteira inteira daquela instituição"}>
                 <input type="checkbox" checked={removeStale} onChange={(e) => setRemoveStale(e.target.checked)} />
                 Remover posições antigas dessas instituições que não vieram aqui
               </label>
@@ -351,12 +362,15 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
       <PageHead
         title="Importar"
         subtitle={mode === "files"
-          ? "Prints do app do banco/corretora, PDFs, CSV ou XLSX (BTG, XP, Nubank, Inter…). A IA lê, confere os nomes dos arquivos e pergunta o que não souber classificar."
-          : "Escreva o que mudou — aportes, resgates, compras, novos saldos. A IA encontra a posição certa, pergunta se tiver dúvida e você confere antes de aplicar."}
+          ? "Prints ou vídeos de tela do app do banco/corretora, PDFs, CSV ou XLSX (BTG, XP, Nubank, Inter…). A IA lê, confere os nomes dos arquivos e pergunta o que não souber classificar."
+          : mode === "text"
+            ? "Escreva o que mudou — aportes, resgates, compras, novos saldos. A IA encontra a posição certa, pergunta se tiver dúvida e você confere antes de aplicar."
+            : "Busca seus investimentos direto dos bancos pelo Open Finance (Meu Pluggy). Você confere tudo antes de salvar."}
         actions={
           <div className="seg" role="tablist" aria-label="Tipo de importação">
             <button role="tab" aria-selected={mode === "files"} className={mode === "files" ? "active" : ""} onClick={() => setMode("files")}>Arquivos</button>
             <button role="tab" aria-selected={mode === "text"} className={mode === "text" ? "active" : ""} onClick={() => setMode("text")}>Texto</button>
+            <button role="tab" aria-selected={mode === "openfinance"} className={mode === "openfinance" ? "active" : ""} onClick={() => setMode("openfinance")}>Open Finance</button>
           </div>
         }
       />
@@ -366,8 +380,11 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
           <code>{fileSlug(target.institution)}-{target.owner.toLowerCase()}.png</code>, ou descreva a mudança na aba Texto. Ao salvar, a marcação de desatualizada sai sozinha.
         </Banner>
       )}
-      {mode === "text" ? <PromptImport done={done} /> : <>
+      {mode === "openfinance" ? (
+        <OpenFinanceImport goSettings={goSettings} onResult={(res) => { setReview(toReview(res, undefined, "openfinance")); setRemoveStale(true); setAnswers({}); setSkipQuestions(false); }} />
+      ) : mode === "text" ? <PromptImport done={done} /> : <>
       {error && <Banner kind="bad">{error}</Banner>}
+      {progress && <Banner><span className="row"><Loader2 size={16} className="spin" /> {progress}</span></Banner>}
       {notice.length > 0 && <Banner kind="warn">{notice.join(" ")}</Banner>}
       <div
         className={`dropzone ${over ? "over" : ""}`}
@@ -381,8 +398,8 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
       >
         <Upload size={30} />
         <div className="big">Arraste arquivos, clique para escolher ou cole um print (Ctrl+V)</div>
-        <div className="muted small">PNG, JPG, WEBP, PDF, CSV, XLSX</div>
-        <input ref={input} type="file" hidden multiple accept="image/*,.pdf,.csv,.tsv,.txt,.xlsx,.xls,.xlsm,.ods,.ofx"
+        <div className="muted small">PNG, JPG, WEBP, vídeo de tela (MP4, MOV, WEBM), PDF, CSV, XLSX</div>
+        <input ref={input} type="file" hidden multiple accept="image/*,video/*,.mov,.mkv,.pdf,.csv,.tsv,.txt,.xlsx,.xls,.xlsm,.ods,.ofx"
           onChange={(e) => { void addFiles([...(e.target.files ?? [])]); e.target.value = ""; }} />
       </div>
 
@@ -399,13 +416,14 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
                 {f.preview ? <img src={f.preview} alt={f.name} /> : <div className="ph">{icon(f)}</div>}
                 <div className="cap" title={f.name}>{f.name}</div>
                 <FileHintChips name={f.name} />
+                {f.video && <div className="cap"><span className="chip" title={"Quadro do vídeo " + f.video.source}><Video size={11} /> vídeo {clock(f.video.at)}</span></div>}
                 {f.looksLike && <div className="cap"><span className="chip warn" title="Hash visual quase igual"><Copy size={11} /> parece {f.looksLike}</span></div>}
                 <button className="btn icon sm x" title="Remover" onClick={() => setFiles((fs) => fs.filter((x) => x.id !== f.id))}><X size={14} /></button>
               </div>
             ))}
           </div>
           <div className="row" style={{ marginTop: 18 }}>
-            <button className="btn primary" disabled={!!busy || !config!.hasCredentials} onClick={processFiles}>
+            <button className="btn primary" disabled={!!busy || !!progress || !config!.hasCredentials} onClick={processFiles}>
               {busy ? <><Loader2 className="spin" size={16} /> {busy}</> : <><Sparkles size={16} /> Processar {files.length} arquivo{files.length > 1 ? "s" : ""}</>}
             </button>
             {busy && <button className="btn" onClick={() => abort.current?.abort()}>Cancelar</button>}
@@ -414,7 +432,7 @@ export function ImportView({ done, target }: { done: () => void; target?: { inst
         </>
       )}
       <p className="muted small" style={{ marginTop: 22 }}>
-        Dica: para registrar um aporte ou resgate sem print, use a aba <b>Texto</b>. Nomeie os arquivos como <b>banco-pf</b> ou <b>banco-pj-dica</b> (ex.: <code>vest-pf.png</code>, <code>itau-pf-cdb100cdi.png</code>) para já definir instituição, titular e o produto — a IA confere essa leitura. Arquivos idênticos são ignorados automaticamente e prints repetidos são contados uma vez só. Classes: {Object.values(CLASS_META).map((m) => m.label).join(" · ")}.
+        Dica: para registrar um aporte ou resgate sem print, use a aba <b>Texto</b>. Em vez de vários prints, dá para gravar a tela rolando o app do banco (pause um instante em cada parte): o app escolhe um quadro por tela. Nomeie os arquivos como <b>banco-pf</b> ou <b>banco-pj-dica</b> (ex.: <code>vest-pf.png</code>, <code>itau-pf-cdb100cdi.png</code>) para já definir instituição, titular e o produto — a IA confere essa leitura. Arquivos idênticos são ignorados automaticamente e prints repetidos são contados uma vez só. Classes: {Object.values(CLASS_META).map((m) => m.label).join(" · ")}.
       </p>
       </>}
     </>

@@ -118,7 +118,7 @@ export function App() {
         {tab === "projection" && <ProjectionView job={projectionJob} />}
         {tab === "institutions" && <InstitutionsView />}
         {tab === "assets" && <AssetsView />}
-        {tab === "import" && <ImportView done={() => { setImportTarget(null); setTab("portfolio"); }} target={importTarget} />}
+        {tab === "import" && <ImportView done={() => { setImportTarget(null); setTab("portfolio"); }} target={importTarget} goSettings={() => setTab("settings")} />}
         {/* Fica montado para o scan continuar mostrando progresso se você trocar de aba. */}
         <div hidden={tab !== "scan"}>
           <ScanView />

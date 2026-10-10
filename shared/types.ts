@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { PhysicalAsset } from "./assets";
 import { DEFAULT_AI, type AiSettings } from "./ai";
+import { DEFAULT_OPEN_FINANCE, type OpenFinanceSettings } from "./openFinance";
 
 /* ------------------------------------------------------------------ */
 /* Classes da Arca (Primo Rico / Thiago Nigro)                         */
@@ -224,6 +225,8 @@ export interface UploadFile {
   data: string; // base64 (image/pdf) ou texto puro
   /** Outro arquivo do lote que é visualmente quase idêntico (hash de imagem). */
   looksLike?: string;
+  /** Quadro tirado de um vídeo: nome do vídeo e segundo do quadro. */
+  video?: { source: string; at: number };
 }
 
 /* ------------------------------------------------------------------ */
@@ -286,6 +289,8 @@ export interface Settings {
   estimate: ModelSetting;
   /** Provedor de IA (Claude, Codex, Cursor) e modo de acesso (login local ou chave de API). */
   ai: AiSettings;
+  /** Conexões do Meu Pluggy (Open Finance). As credenciais ficam só no servidor. */
+  openFinance: OpenFinanceSettings;
   investorProfile: string;
   /** Instituições (por titular) marcadas como desatualizadas — pedem atualização ao abrir o app. */
   staleInstitutions: StaleMark[];
@@ -311,6 +316,7 @@ export const DEFAULT_SETTINGS: Settings = {
   projection: { model: "claude-opus-5-5", effort: "high" },
   estimate: { model: "claude-sonnet-5-5", effort: "medium" },
   ai: DEFAULT_AI,
+  openFinance: DEFAULT_OPEN_FINANCE,
   staleInstitutions: [],
   reviewIntervalDays: 14,
   lastReviewAt: null,
