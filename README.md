@@ -58,7 +58,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 **Requisitos:** Node.js 20+ e **uma** das IAs abaixo.
 
 ```bash
-git clone https://github.com/<seu-usuario>/arca-assistant.git
+git clone https://github.com/isacsneto/arca-assistant.git
 cd arca-assistant
 npm install
 npm run dev          # abre em http://localhost:5173
