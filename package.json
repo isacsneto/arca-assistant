@@ -23,6 +23,8 @@
     "pwa",
     "tailscale"
   ],
+  "license": "MIT",
+  "author": "Isac Santos",
   "repository": {
     "type": "git",
     "url": "https://github.com/isacsneto/arca-assistant.git"

@@ -20,6 +20,7 @@ Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes
 ![Open Finance](https://img.shields.io/badge/Open%20Finance-Pluggy-6c47ff)
 ![PWA](https://img.shields.io/badge/PWA-iOS%20%26%20Android-5a0fc8)
 ![Tests](https://img.shields.io/badge/tests-147%20passing-2ea44f)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 <br/>
 
@@ -234,6 +235,14 @@ scripts/  demo with a fictional portfolio, local.mjs (always on) and per-OS serv
 ```
 
 `ARCA_DATA_DIR` points to another data folder (that's how the demo runs without touching your data). UI strings are written in both languages in place: `L("Carteira", "Portfolio")` (see `shared/i18n.ts`).
+
+---
+
+## 📄 License
+
+[MIT](LICENSE) © 2026 Isac Santos — use, modify and share freely, keeping the copyright notice. The software is provided "as is", without warranty.
+
+Dependencies keep their own licenses: `ffmpeg-static` (GPL-3.0, downloaded by npm at install time, used only to read videos the browser can't open) and the Claude Agent SDK (Anthropic's terms, which each user accepts when using Claude).
 
 ---
 

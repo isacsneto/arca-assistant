@@ -18,6 +18,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 ![Codex](https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white)
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
 ![Testes](https://img.shields.io/badge/testes-147%20passando-2ea44f)
+![Licença: MIT](https://img.shields.io/badge/licença-MIT-blue)
 
 <br/>
 
@@ -224,6 +225,14 @@ scripts/  demo com carteira fictícia, local.mjs (rodar sempre) e serviços por 
 ```
 
 `ARCA_DATA_DIR` aponta para outra pasta de dados (é assim que a demo roda sem tocar nos seus dados).
+
+---
+
+## 📄 Licença
+
+[MIT](LICENSE) © 2026 Isac Santos — use, modifique e compartilhe à vontade, mantendo o aviso de copyright. O software é fornecido "como está", sem garantia.
+
+As dependências mantêm as próprias licenças: `ffmpeg-static` (GPL-3.0, baixado pelo npm na instalação e usado só para ler vídeos que o navegador não abre) e o Claude Agent SDK (termos da Anthropic, aceitos por cada usuário ao usar o Claude).
 
 ---
 
