@@ -4,6 +4,7 @@ import { FX_CODES, fxRates, type FxRates } from "../shared/currency";
 import { mapPool } from "./pool";
 import { priceTesouro, tesouroType, type TesouroPrices } from "./tesouro";
 import { accrue, brDate, parseIndexer, type IndexSeries } from "./indexers";
+import { fundProxy, priceByProxy } from "./fundProxy";
 import { L, locale } from "../shared/i18n";
 import { openFinanceRefresh, openFinanceSettings, type ConnectionData } from "../shared/openFinance";
 
@@ -148,18 +149,26 @@ export async function refreshValues(
 
   // Renda fixa indexada (CDI, IPCA, TR, pré): conta exata com as taxas do Banco Central.
   const indexed = pending.map((p) => [p, parseIndexer(p)] as const).filter((x): x is [Position, NonNullable<ReturnType<typeof parseIndexer>>] => x[1] != null);
+  const funds = pending.map((p) => [p, fundProxy(p)] as const).filter((x): x is [Position, NonNullable<ReturnType<typeof fundProxy>>] => x[1] != null);
   let series: IndexSeries | null = null;
-  if (deps.indexSeries && indexed.length && !signal.aborted) {
+  const today = brDate(now);
+  if (deps.indexSeries && (indexed.length || funds.some(([, f]) => f.kind === "cdi")) && !signal.aborted) {
     emit({ type: "status", text: L("Buscando CDI, IPCA e TR no Banco Central…", "Fetching CDI, IPCA and TR from the Central Bank…") });
-    const today = brDate(now);
     // Pelo menos 15 dias de histórico: a API recusa intervalo sem nenhum dia útil.
-    const from = [...indexed.map(([p]) => brDate(new Date(p.updatedAt))), brDate(new Date(now.getTime() - 15 * DAY))].sort()[0];
+    const from = [...[...indexed, ...funds].map(([p]) => brDate(new Date(p.updatedAt))), brDate(new Date(now.getTime() - 15 * DAY))].sort()[0];
     series = await deps.indexSeries(from, signal).catch(() => null);
     if (series) for (const [p, ix] of indexed) lines.set(p.id, accrue(p, ix, series, today));
     else if (!signal.aborted) warnings.push(L("Taxas do Banco Central indisponíveis agora — a renda fixa indexada foi para a IA.", "Central Bank rates unavailable right now — indexed fixed income went to the AI."));
   }
 
-  // O resto (fundos, COE, cripto sem ticker…) vai para a IA. Nada fica de fora só por ter sido atualizado há pouco.
+  // Fundos: estimativa pelo índice de referência (ETF equivalente ou CDI), marcada como estimativa.
+  await mapPool(funds, 4, async ([p, proxy]) => {
+    if (signal.aborted) return;
+    const line = await priceByProxy(p, proxy, { fetchQuote: deps.fetchQuote, series, today });
+    if (line) lines.set(p.id, line);
+  });
+
+  // O resto (COE, fundos sem índice equivalente, cripto sem ticker…) vai para a IA. Nada fica de fora só por ter sido atualizado há pouco.
   const forClaude = pending.filter((p) => !lines.has(p.id));
 
   let ratesUsed: string | undefined;
