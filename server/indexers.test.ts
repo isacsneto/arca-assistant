@@ -19,6 +19,7 @@ test("indexador pelo nome/subtipo; fundos, COE, saldos e ações ficam de fora",
   assert.equal(parseIndexer(p({ name: "BTG Tesouro Selic FIRF", subtype: "Fundo RF Tesouro Selic · D+0" })), null);
   assert.equal(parseIndexer(p({ name: "COE CSN", subtype: "COE CSN pré (cupom semestral)" })), null);
   assert.equal(parseIndexer(p({ name: "Conta", subtype: "Saldo em conta investimento" })), null);
+  assert.deepEqual(parseIndexer(p({ name: "Saldo investido (CDB)", subtype: "CDB 100% CDI" })), { kind: "cdiPct", pct: 1 }, "saldo aplicado em CDB rende");
   assert.equal(parseIndexer(p({ subtype: "CDB" })), null, "sem taxa não dá para calcular");
   assert.equal(parseIndexer(p({ subtype: "CDB 100% CDI", currency: "USD" })), null);
 });

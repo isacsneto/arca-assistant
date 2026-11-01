@@ -33,7 +33,7 @@ export function parseIndexer(p: Pick<Position, "name" | "subtype" | "currency" |
   if (p.currency !== "BRL" || p.ticker?.trim()) return null;
   const t = `${p.subtype} ${p.name}`;
   if (!/\b(CDB|LCA|LCI|LCD|LC|LF|RDB|CRI|CRA|deb[eê]ntures?)\b/i.test(t)) return null;
-  if (/\bfundo\b|\bFI(C|M|RF|A)?\b|\bCOE\b|\bsaldo\b/i.test(t)) return null;
+  if (/\bfundo\b|\bFI(C|M|RF|A)?\b|\bCOE\b/i.test(t)) return null;
   let m: RegExpExecArray | null;
   if ((m = new RegExp(String.raw`\bCDI\s*\+\s*${NUM}\s*%`, "i").exec(t))) return { kind: "cdiPlus", spread: pctNum(m[1]) };
   if ((m = new RegExp(String.raw`${NUM}\s*%\s*(?:do\s+)?(?:CDI|DI)\b`, "i").exec(t))) return { kind: "cdiPct", pct: pctNum(m[1]) };
