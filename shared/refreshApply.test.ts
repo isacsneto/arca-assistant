@@ -30,6 +30,16 @@ test("'mantido' não altera nem a data (para não perder o período de acúmulo)
   assert.equal(out[0].updatedAt, "2026-09-01");
 });
 
+test("data de referência do indexador vira o updatedAt; valor da IA fica marcado e a marca sai depois", () => {
+  const asOf = "2026-10-31T03:00:00.000Z";
+  const out = applyRefresh([p("cdb", 1000), p("fundo", 500)], [{ ...line("cdb", 1000, 1007, "indexador"), asOf }, { ...line("fundo", 500, 505, "cotacao"), ai: true }], new Set(["cdb", "fundo"]), NOW);
+  assert.equal(out[0].updatedAt, asOf);
+  assert.equal(out[0].aiEstimate, undefined);
+  assert.equal(out[1].aiEstimate, true);
+  const again = applyRefresh(out, [line("fundo", 505, 510, "cotacao")], new Set(["fundo"]), NOW);
+  assert.equal(again[1].aiEstimate, undefined, "atualizado por fonte oficial deixa de ser estimativa");
+});
+
 test("isChange ignora mantidos e diferenças de centavos", () => {
   assert.equal(isChange(line("a", 100, 100.001, "cotacao")), false);
   assert.equal(isChange(line("a", 100, 101, "cotacao")), true);

@@ -138,14 +138,18 @@ ${mine || "(nenhuma ainda)"}
 export const REFRESH_SYSTEM = `Você atualiza o valor de posições financeiras de um investidor brasileiro que NÃO têm cotação de bolsa (renda fixa, saldos, fundos, cripto sem ticker etc.). Pesquise dados atuais na web e devolva o valor de hoje de cada posição.
 
 Regras por tipo:
-- Conta corrente, saldo em corretora, poupança sem rentabilidade clara: method="mantido" (não dá para saber movimentações).
+- Conta corrente e saldo parado em corretora: method="mantido" (não rende e não dá para saber movimentações). Poupança rende pela regra oficial (TR + 0,5% a.m., ou 70% da Selic): acumule.
 - Pós-fixados (Tesouro Selic, CDB/LCI/LCA/fundo DI "% do CDI" ou "CDI + x%"): acumule a rentabilidade do período entre a data da última atualização e hoje usando a Selic/CDI efetiva do período (pesquise). Se o percentual do CDI não aparecer no nome, assuma 100% do CDI e diga isso na nota. method="indexador". Valor BRUTO (antes do IR).
-- Prefixados (Tesouro Prefixado, CDB pré): acumule a taxa contratada se estiver no nome; senão "mantido". Tesouro com marcação a mercado: se encontrar o preço unitário atual no Tesouro Direto e a quantidade for conhecida, use-o (method="cotacao").
+- Prefixados (Tesouro Prefixado, CDB pré): acumule a taxa contratada se estiver no nome; senão estime pela taxa prefixada de mercado do mesmo prazo. Tesouro com marcação a mercado: se encontrar o preço unitário atual no Tesouro Direto e a quantidade for conhecida, use-o (method="cotacao").
 - IPCA+ (Tesouro IPCA+, NTN-B, CDB IPCA+): acumule IPCA do período + taxa real contratada (se constar), ou use o PU atual do Tesouro Direto quando possível.
-- Cripto, ouro, fundos com cota pública: pesquise o preço/cota atual. Sem quantidade, estime pela variação de preço desde a data da última atualização. method="cotacao".
-- Se não houver base confiável, method="mantido" com o motivo.
+- Fundos de investimento: pesquise a cota atual (CVM, site do gestor, Mais Retorno etc.) e aplique a variação da cota desde a data da última atualização (method="cotacao"). Sem a cota, use o índice de referência do fundo no período (ex.: CDI para fundo DI/Tesouro Selic, IMA-B5 para inflação curta, S&P 500 em reais) e diga isso na nota (method="indexador").
+- COE e outros: aplique o que for possível (cupom, indexador, ativo de referência).
+- Cripto, ouro: pesquise o preço atual. Sem quantidade, estime pela variação de preço desde a data da última atualização. method="cotacao".
+- Mesmo quando o efeito do período for pequeno (TR perto de zero, poucos dias), CALCULE e devolva o valor novo — nunca use "mantido" por efeito desprezível.
+- Se faltar o dado exato (cota, PU, taxa contratada), NÃO desista: faça a melhor estimativa possível com o que existe (índice de referência do produto, taxa típica do tipo, variação do mercado no período) e explique na nota o que foi estimado. O valor será marcado como "atualizado pela IA" para o investidor conferir.
+- "mantido" só vale para saldo parado em conta corrente/corretora, que não rende e não dá para saber movimentações.
 
-Nunca invente números. Na "note" explique o cálculo em uma linha (taxa usada, período, fórmula). Em "source" coloque a URL principal usada (ou null). Em "ratesUsed" resuma as taxas de referência usadas (ex.: "CDI acumulado set/26: 1,05%; Selic 13,75%; IPCA 12m 4,9%"). Retorne um item por id recebido, com newValue na MESMA moeda da posição.`;
+Nunca invente números. Na "note" explique o cálculo em uma linha (taxa usada, período, fórmula). Em "source" coloque a URL principal usada (ou null). Em "ratesUsed" resuma as taxas de referência usadas (ex.: "CDI acumulado set/26: 1,05%; Selic 13,75%; IPCA 12m 4,9%"). Retorne EXATAMENTE um item para CADA id recebido (nenhum pode faltar), com newValue na MESMA moeda da posição.`;
 
 /** "Dólar americano (USD): R$ 5,4200" — uma linha por moeda do registro. */
 export function fxLine(fx: FxRates): string {

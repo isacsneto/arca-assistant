@@ -57,8 +57,17 @@ export function OpenFinanceSettings() {
     });
 
   // Login pela tela da Pluggy (banco ou MeuPluggy): a conexão volta pronta, sem copiar itemId.
-  const connect = (itemId?: string) =>
-    act(itemId ? `relogin:${itemId}` : "connect", async () => {
+  const connect = (itemId?: string) => {
+    if (!status?.configured) {
+      // A Pluggy só abre a tela de login para uma aplicação: sem Client ID/Secret não há como.
+      setMsg({ ok: false, text: L(
+        "Para conectar, cole antes o Client ID e o Client Secret da sua aplicação (meu.pluggy.ai) e clique em Conferir e salvar. É uma vez só; depois é só fazer login.",
+        "To connect, first paste your application's Client ID and Client Secret (meu.pluggy.ai) and click Verify and save. It's only once; after that you just log in.",
+      ) });
+      document.getElementById("pluggy-client-id")?.focus();
+      return;
+    }
+    return act(itemId ? `relogin:${itemId}` : "connect", async () => {
       const item = await openPluggyConnect(itemId);
       if (!item) return;
       setFound((f) => [...(f ?? []).filter((i) => i.id !== item.id), { id: item.id, name: item.name, status: "UPDATED", lastUpdatedAt: null }]);
@@ -66,9 +75,10 @@ export function OpenFinanceSettings() {
       if (isNew) setConnections([...of.connections, { itemId: item.id, owner: "PF" }]);
       const name = item.name ?? L("Conexão", "Connection");
       return isNew
-        ? L(`${name} conectado — confira o titular (PF/PJ) abaixo e importe em Importar → Open Finance.`, `${name} connected — check the owner (PF/PJ) below and import in Import → Open Finance.`)
+        ? L(`${name} conectado. Confira o titular (PF/PJ) abaixo e faça a primeira importação em Importar → Open Finance, para revisar; depois disso ele se atualiza sozinho.`, `${name} connected. Check the owner (PF/PJ) below and do the first import in Import → Open Finance to review it; after that it updates on its own.`)
         : L(`Login de ${name} renovado.`, `${name} login renewed.`);
     });
+  };
 
   const add = () => {
     const id = newId.trim();
@@ -120,12 +130,13 @@ export function OpenFinanceSettings() {
           <button className="btn sm" disabled={!status?.configured || !!busy} onClick={() => void discover()} title={L("Lista as conexões que já existem na sua conta da Pluggy", "Lists the connections that already exist in your Pluggy account")}>
             {busy === "discover" ? <Loader2 size={14} className="spin" /> : <Search size={14} />} {L("Buscar conexões", "Find connections")}
           </button>
-          <button className="btn sm primary" disabled={!status?.configured || !!busy} onClick={() => void connect()}>
+          <button className="btn sm primary" disabled={!!busy} onClick={() => void connect()}>
             {busy === "connect" ? <Loader2 size={14} className="spin" /> : <LogIn size={14} />} {L("Conectar banco", "Connect bank")}
           </button>
         </div>
       </div>
 
+      {msg && <p className="small" role="status" style={{ color: msg.ok ? "var(--ok)" : "var(--bad)" }}>{msg.text}</p>}
       {of.connections.length > 0 ? (
         <div className="table-wrap">
           <table className="mc t-of">
@@ -194,6 +205,16 @@ export function OpenFinanceSettings() {
           </span>
         )}
       </label>
+      <label className="check small" style={{ marginTop: 10, alignItems: "flex-start" }}>
+        <input type="checkbox" checked={of.autoSync} disabled={!of.sourceOfTruth} onChange={(e) => set({ autoSync: e.target.checked })} style={{ marginTop: 2 }} />
+        <span>
+          {L(
+            "Atualizar sozinho: a cada 6 horas o app aplica, sem precisar de revisão, o que vier das conexões já importadas uma vez. Conexão com erro ou que volte vazia não apaga nada.",
+            "Update on its own: every 6 hours the app applies, without review, what comes from connections already imported once. A connection with an error, or one that comes back empty, never deletes anything.",
+          )}
+          {of.lastAutoSyncAt && <span className="muted"> {L("Última atualização automática:", "Last automatic update:")} {new Date(of.lastAutoSyncAt).toLocaleString(locale())}.</span>}
+        </span>
+      </label>
       <label className="check small" style={{ marginTop: 10 }}>
         <input type="checkbox" checked={of.includeAccounts} onChange={(e) => set({ includeAccounts: e.target.checked })} />
         {L("Incluir saldo de conta corrente e poupança (como Caixa)", "Include checking and savings account balances (as Cash)")}
@@ -205,7 +226,6 @@ export function OpenFinanceSettings() {
         )}
         {of.lastSyncAt && <> {L("Última importação:", "Last import:")} {new Date(of.lastSyncAt).toLocaleString(locale())}.</>}
       </p>
-      {msg && <p className="small" style={{ color: msg.ok ? "var(--ok)" : "var(--bad)" }}>{msg.text}</p>}
     </section>
   );
 }
@@ -223,7 +243,7 @@ function CredentialsForm({ configured, busy, onSave }: {
       <form className="row wrap" style={{ gap: 8, alignItems: "flex-end" }}
         onSubmit={(e) => { e.preventDefault(); if (valid) void onSave({ clientId: clientId.trim(), clientSecret: secret.trim() }).then(() => { setClientId(""); setSecret(""); }); }}>
         <label className="field grow" style={{ minWidth: 220 }}>Client ID
-          <input type="text" autoComplete="off" spellCheck={false} value={clientId} placeholder={configured ? L("salvo — enviar outro substitui", "saved — sending another replaces it") : "00000000-0000-0000-0000-000000000000"} onChange={(e) => setClientId(e.target.value)} />
+          <input id="pluggy-client-id" type="text" autoComplete="off" spellCheck={false} value={clientId} placeholder={configured ? L("salvo — enviar outro substitui", "saved — sending another replaces it") : "00000000-0000-0000-0000-000000000000"} onChange={(e) => setClientId(e.target.value)} />
         </label>
         <label className="field grow" style={{ minWidth: 220 }}>Client Secret
           <input type="password" autoComplete="off" spellCheck={false} value={secret} placeholder={configured ? "••••••••••••" : ""} onChange={(e) => setSecret(e.target.value)} />

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { classifyInvestment, institutionName, openFinanceSettings, tickerOf, toImport, withSyncedConnections, type ConnectionData, type PluggyInvestment } from "./openFinance";
+import { autoSyncConnections, autoSyncOpenFinance, classifyInvestment, institutionName, openFinanceSettings, tickerOf, toImport, withSyncedConnections, type ConnectionData, type PluggyInvestment } from "./openFinance";
 
 const inv = (o: Partial<PluggyInvestment>): PluggyInvestment => ({ id: "x", name: "Investimento", balance: 1000, ...o });
 
@@ -95,7 +95,7 @@ test("converte conexões em itens de importação, com avisos e sem itens zerado
 });
 
 test("ajustes do Open Finance são normalizados", () => {
-  assert.deepEqual(openFinanceSettings(undefined), { connections: [], includeAccounts: true, sourceOfTruth: true, lastSyncAt: null });
+  assert.deepEqual(openFinanceSettings(undefined), { connections: [], includeAccounts: true, sourceOfTruth: true, autoSync: true, lastSyncAt: null, lastAutoSyncAt: null });
   const s = openFinanceSettings({ connections: [{ itemId: " abc ", owner: "PJ", institution: "  " }, { itemId: "", owner: "PF" }] as never, includeAccounts: false });
   assert.deepEqual(s.connections, [{ itemId: "abc", owner: "PJ" }]);
   assert.equal(s.includeAccounts, false);
@@ -108,7 +108,7 @@ test("depois de importar, cada conexão guarda a instituição e o titular finai
     [{ itemId: "a", file: "Open Finance · Banco Inter PF", institution: "Banco Inter", owner: "PF" }],
     "2026-10-10T00:00:00Z",
   );
-  assert.deepEqual(of.connections, [{ itemId: "a", owner: "PJ", institution: "Inter" }, { itemId: "b", owner: "PF" }]);
+  assert.deepEqual(of.connections, [{ itemId: "a", owner: "PJ", institution: "Inter", syncedAt: "2026-10-10T00:00:00Z" }, { itemId: "b", owner: "PF" }], "revisada = pode atualizar sozinha");
   assert.equal(of.lastSyncAt, "2026-10-10T00:00:00Z");
   assert.equal(of.sourceOfTruth, true, "fonte da verdade vem ligada por padrão");
 });
@@ -155,4 +155,28 @@ test("Open Finance só substitui a instituição + titular de cada conexão (BTG
   // Conexão PJ com erro: o PJ fica fora do Open Finance (segue pela cotação/IA), o PF continua coberto.
   const pjDown = openFinanceRefresh(positions, [btgPf, { ...btgPj, investments: [], error: "falhou" }], { includeAccounts: false });
   assert.ok(!pjDown.covered.has("pj-cdb") && pjDown.covered.has("pf-cdb"));
+});
+
+test("automático: só conexões revisadas, com fonte da verdade e automático ligados", () => {
+  const conns = [{ itemId: "a", owner: "PF" as const, syncedAt: "2026-10-10" }, { itemId: "b", owner: "PF" as const }];
+  assert.deepEqual(autoSyncConnections(openFinanceSettings({ connections: conns })).map((c) => c.itemId), ["a"]);
+  assert.deepEqual(autoSyncConnections(openFinanceSettings({ connections: conns, autoSync: false })), []);
+  assert.deepEqual(autoSyncConnections(openFinanceSettings({ connections: conns, sourceOfTruth: false })), []);
+});
+
+test("automático aplica o que veio da Pluggy; conexão com erro ou vazia não apaga nada", () => {
+  const pos = (id: string, name: string, institution: string, value: number) =>
+    ({ id, name, institution, owner: "PF" as const, assetClass: "caixa" as const, subtype: "CDB", currency: "BRL" as const, value, updatedAt: "2026-10-01", source: "print" });
+  const positions = [pos("btg", "CDB BTG", "BTG Pactual", 1000), pos("inter", "CDB Inter", "Banco Inter", 500), pos("itau", "CDB Itaú", "Itaú", 300)];
+  const conn = (itemId: string, institution: string) => ({ itemId, owner: "PF" as const, institution, syncedAt: "2026-10-10" });
+  const data: ConnectionData[] = [
+    { connection: conn("a", "BTG Pactual"), item: { id: "a" }, investments: [{ id: "1", name: "CDB BTG", type: "FIXED_INCOME", subtype: "CDB", balance: 1010 }], accounts: [] },
+    { connection: conn("b", "Banco Inter"), item: { id: "b" }, investments: [], accounts: [] },
+    { connection: conn("c", "Itaú"), item: null, investments: [], accounts: [], error: "LOGIN_ERROR" },
+  ];
+  const r = autoSyncOpenFinance(positions, data, { includeAccounts: false, now: "2026-11-01T12:00:00Z" });
+  assert.deepEqual(r.positions.map((p) => [p.id, p.value]), [["btg", 1010], ["inter", 500], ["itau", 300]]);
+  assert.equal(r.positions[0].updatedAt, "2026-11-01T12:00:00Z");
+  assert.equal(r.applied.length, 1);
+  assert.equal(r.warnings.length, 2);
 });

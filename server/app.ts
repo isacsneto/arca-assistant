@@ -16,7 +16,7 @@ import { attachmentsRoot } from "./paths";
 import { sanitizeAssets, type AssetEstimate, type PhysicalAsset } from "../shared/assets";
 import { AttachmentError, collectGarbage, deleteAttachment, loadForClaude, readAttachment, saveAttachments } from "./attachments";
 import { PluggyError, fetchConnections, type PluggyClient, type PluggyCredentialStore } from "./pluggy";
-import { openFinanceSettings, toImport, type PluggyItem } from "../shared/openFinance";
+import { autoSyncConnections, autoSyncOpenFinance, openFinanceSettings, toImport, type PluggyItem } from "../shared/openFinance";
 import { VideoError, type VideoSample } from "./video";
 import { VIDEO_SAMPLE_STEP } from "../shared/videoFrames";
 import { L, setLang } from "../shared/i18n";
@@ -52,6 +52,8 @@ export interface Deps {
   fetchFx?: () => Promise<FxRates>;
   /** Open Finance (Meu Pluggy): credenciais no servidor + cliente da API. */
   pluggy?: { credentials: PluggyCredentialStore; client: PluggyClient };
+  /** Open Finance automático: de quanto em quanto tempo checar (sem valor = só pela rota, como nos testes). */
+  openFinanceAutoSync?: { checkEveryMs: number; minIntervalMs: number };
   /** Amostras de um vídeo via ffmpeg (quando o navegador não decodifica o formato). */
   sampleVideo?: (bytes: Buffer, opts: { step: number; signal?: AbortSignal }) => Promise<VideoSample[]>;
   /** Aba Mercado: cotação do dia e busca de ativos (padrão: Yahoo Finance). */
@@ -122,11 +124,21 @@ export function createApp(deps: Deps) {
     res.json(state);
   });
 
+  // Barato: o navegador confere se o servidor mudou a carteira (Open Finance automático) e recarrega.
+  app.get("/api/state/rev", (_req, res) => {
+    res.json({ rev: state.rev ?? 0 });
+  });
+
   // O cliente edita posições/transações/bens/ajustes; scans e projeção são gerenciados pelo servidor.
   app.put("/api/state", (req, res) => {
     const body = req.body as Partial<AppState>;
     if (!Array.isArray(body.positions) || !Array.isArray(body.transactions) || !body.settings || typeof body.settings !== "object") {
       res.status(400).json({ error: L("Estado inválido.", "Invalid state.") });
+      return;
+    }
+    // Cópia velha (a carteira foi atualizada pelo servidor depois que a aba carregou): não sobrescreve.
+    if (typeof body.rev === "number" && body.rev !== (state.rev ?? 0)) {
+      res.status(409).json({ error: L("A carteira foi atualizada pelo Open Finance enquanto você editava. Recarreguei os dados; refaça a última alteração.", "The portfolio was updated by Open Finance while you were editing. I reloaded the data; please redo your last change."), rev: state.rev ?? 0 });
       return;
     }
     state = {
@@ -344,6 +356,51 @@ export function createApp(deps: Deps) {
     }
     try {
       res.json({ accessToken: await deps.pluggy.client.connectToken(itemId || undefined) });
+    } catch (err) {
+      pluggyFail(res, err);
+    }
+  });
+
+  // Open Finance automático: aplica sem revisão o que vier das conexões já revisadas numa importação.
+  let autoSyncRunning: ReturnType<typeof autoSync> | null = null;
+  let lastAutoSyncRun = 0; // em memória: checar sem mudar nada não grava nem invalida o que o navegador tem
+  async function autoSync(force = false): Promise<{ ran: boolean; applied: number; warnings: string[] }> {
+    const of = openFinanceSettings(state.settings.openFinance);
+    const conns = autoSyncConnections(of);
+    const due = force || Date.now() - lastAutoSyncRun >= (deps.openFinanceAutoSync?.minIntervalMs ?? 0);
+    if (!deps.pluggy?.credentials.get() || !conns.length || !due) return { ran: false, applied: 0, warnings: [] };
+    const data = await fetchConnections(deps.pluggy.client, conns, { includeAccounts: of.includeAccounts });
+    lastAutoSyncRun = Date.now();
+    const now = new Date().toISOString();
+    // Estado relido depois da rede: uma edição feita enquanto a Pluggy respondia não se perde.
+    const r = autoSyncOpenFinance(state.positions, data, { includeAccounts: of.includeAccounts, now });
+    if (r.applied.length) {
+      state = {
+        ...state,
+        positions: r.positions,
+        settings: { ...state.settings, openFinance: { ...openFinanceSettings(state.settings.openFinance), lastAutoSyncAt: now } },
+        rev: (state.rev ?? 0) + 1,
+      };
+      store.save(state);
+      console.log(L(`Open Finance automático: ${r.applied.length} posições atualizadas.`, `Automatic Open Finance: ${r.applied.length} positions updated.`));
+    }
+    for (const w of r.warnings) console.warn(`Open Finance: ${w}`);
+    return { ran: true, applied: r.applied.length, warnings: r.warnings };
+  }
+  const runAutoSync = (force = false) => {
+    autoSyncRunning ??= autoSync(force).finally(() => (autoSyncRunning = null));
+    return autoSyncRunning;
+  };
+  if (deps.openFinanceAutoSync) {
+    const tick = () => void runAutoSync().catch((e: unknown) => console.warn(`Open Finance automático: ${e instanceof Error ? e.message : String(e)}`));
+    setTimeout(tick, 60_000).unref();
+    setInterval(tick, deps.openFinanceAutoSync.checkEveryMs).unref();
+  }
+
+  app.post("/api/openfinance/auto-sync", async (_req, res) => {
+    if (!deps.pluggy) return noPluggy(res);
+    try {
+      res.json(await runAutoSync(true));
     } catch (err) {
       pluggyFail(res, err);
     }

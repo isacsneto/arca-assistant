@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { refreshValues, type RefreshDeps } from "./refresh";
 import type { Quote } from "./quotes";
+import { parseTesouroCsv } from "./tesouro";
 import { withDefaults } from "./store";
 import type { JobEvent, Position, RefreshResult } from "../shared/types";
 
@@ -62,8 +63,9 @@ test("ativo em USD continua em USD; posição em BRL de ativo cotado em USD é c
   assert.equal(line("brl").newValue, 7000);
 });
 
-test("sem cotação vai para o Claude; recém-atualizado não; estimativas absurdas são descartadas", async () => {
-  const { line, claudeCalledWith } = await run(
+test("sem cotação vai para a IA (mesmo recém-atualizado); quem ficou sem resposta é pedido de novo; absurdos são descartados", async () => {
+  const calls: string[][] = [];
+  const { line } = await run(
     [
       p({ id: "cdb", name: "CDB 110% CDI", assetClass: "caixa", value: 10000 }),
       p({ id: "cc", name: "Conta corrente", assetClass: "caixa", value: 500 }),
@@ -71,20 +73,25 @@ test("sem cotação vai para o Claude; recém-atualizado não; estimativas absur
       p({ id: "louco", name: "Fundo X", assetClass: "outros", value: 1000 }),
       p({ id: "sumiu", name: "Fundo Y", assetClass: "outros", value: 1000 }),
     ],
-    async () => ({
+    async (ps) => {
+      calls.push(ps.map((x) => x.id).sort());
+      return {
       ratesUsed: "CDI set/26 1,05%",
       updates: [
         { id: "cdb", newValue: 10115.5, method: "indexador", note: "110% do CDI", source: "https://bcb.gov.br" },
         { id: "cc", newValue: 999, method: "mantido", note: "saldo", source: null },
         { id: "louco", newValue: 50000, method: "cotacao", note: "?", source: null },
+        ...(calls.length === 2 ? [{ id: "novo", newValue: 1001, method: "indexador" as const, note: "LCI", source: null }] : []),
       ],
-    }),
+      };
+    },
   );
-  assert.deepEqual(claudeCalledWith.sort(), ["cc", "cdb", "louco", "sumiu"]);
+  assert.deepEqual(calls, [["cc", "cdb", "louco", "novo", "sumiu"], ["novo", "sumiu"]], "2ª rodada só com quem faltou");
   assert.equal(line("cdb").newValue, 10115.5);
   assert.equal(line("cdb").method, "indexador");
+  assert.equal(line("cdb").ai, true, "valor calculado pela IA fica marcado");
   assert.equal(line("cc").newValue, 500, "mantido ignora o número devolvido");
-  assert.equal(line("novo").method, "mantido");
+  assert.equal(line("novo").newValue, 1001);
   assert.equal(line("louco").newValue, 1000);
   assert.match(line("louco").note, /implausível/);
   assert.match(line("sumiu").note, /Sem estimativa/);
@@ -110,6 +117,59 @@ test("sem internet para cotações: usa o dólar dos ajustes e manda tudo ao Cla
   });
   assert.equal(r.fx, null);
   assert.deepEqual(claudeCalledWith, ["petr"]);
+});
+
+test("renda fixa indexada sai pelo Banco Central (não vai para a IA); sem as taxas, vai para a IA com aviso", async () => {
+  const positions = [
+    p({ id: "cdb", name: "CDB Pine", subtype: "CDB 110% CDI", assetClass: "caixa", value: 1000, updatedAt: "2026-10-05T15:00:00Z" }),
+    p({ id: "fundo", name: "Fundo X", subtype: "Fundo multimercado", assetClass: "outros", value: 500 }),
+  ];
+  const series = { cdi: [{ d: "2026-10-05", r: 0.0005 }, { d: "2026-10-06", r: 0.0005 }], ipca: new Map(), ipca12m: null, tr: new Map() };
+  let from = "";
+  let toAi: string[] = [];
+  const deps: RefreshDeps = {
+    fetchQuote: async () => null,
+    claudeRefresh: async (ps) => {
+      toAi = ps.map((x) => x.id);
+      return { updates: [], ratesUsed: "" };
+    },
+    now: () => NOW,
+    indexSeries: async (f) => {
+      from = f;
+      return series;
+    },
+  };
+  const r = await refreshValues(withDefaults({ positions }), deps, () => undefined, new AbortController().signal);
+  const cdb = r.lines.find((l) => l.id === "cdb")!;
+  assert.equal(cdb.method, "indexador");
+  assert.ok(Math.abs(cdb.newValue - 1000 * Math.pow(1 + 0.0005 * 1.1, 2)) < 1e-9);
+  assert.equal(cdb.ai, undefined, "conta exata, não é estimativa da IA");
+  assert.equal(from, "2026-09-24", "ao menos 15 dias de histórico");
+  assert.deepEqual(toAi, ["fundo"]);
+  const down = await refreshValues(withDefaults({ positions }), { ...deps, indexSeries: async () => null }, () => undefined, new AbortController().signal);
+  assert.deepEqual(toAi, ["cdb", "fundo"]);
+  assert.match(down.warnings![0], /Banco Central/);
+});
+
+test("títulos do Tesouro saem pelo PU oficial; sem o arquivo, vão para a IA com aviso", async () => {
+  const positions = [
+    p({ id: "renda", name: "Tesouro Renda+ 2084", subtype: "Tesouro Renda+ · venc. 15/12/2084", assetClass: "caixa", value: 2481.8, quantity: 10 }),
+    p({ id: "fundo", name: "BTG Tesouro Selic FIRF", subtype: "Fundo RF Tesouro Selic", assetClass: "caixa", value: 500 }),
+  ];
+  const prices = parseTesouroCsv("h\nTesouro Renda+ Aposentadoria Extra;15/12/2084;30/10/2026;0;0;0;169,96;169,96");
+  const base: RefreshDeps = { fetchQuote: async () => null, claudeRefresh: async () => ({ updates: [], ratesUsed: "" }), now: () => NOW };
+  let toAi: string[] = [];
+  const ai: RefreshDeps["claudeRefresh"] = async (ps) => {
+    toAi = ps.map((x) => x.id);
+    return { updates: [], ratesUsed: "" };
+  };
+  const r = await refreshValues(withDefaults({ positions }), { ...base, claudeRefresh: ai, tesouro: async () => prices }, () => undefined, new AbortController().signal);
+  const renda = r.lines.find((l) => l.id === "renda")!;
+  assert.deepEqual([renda.method, Math.round(renda.newValue * 100) / 100], ["cotacao", 1699.6]);
+  assert.deepEqual(toAi, ["fundo"], "fundo de Tesouro Selic não é título");
+  const down = await refreshValues(withDefaults({ positions }), { ...base, claudeRefresh: ai, tesouro: async () => null }, () => undefined, new AbortController().signal);
+  assert.deepEqual(toAi, ["renda", "fundo"]);
+  assert.match(down.warnings![0], /Tesouro Direto/);
 });
 
 test("Open Finance como fonte da verdade: instituições conectadas vêm da Pluggy, fora da cotação/IA", async () => {

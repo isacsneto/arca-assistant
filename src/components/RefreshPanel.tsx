@@ -138,7 +138,10 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
                       </div>
                     )}
                   </td>
-                  <td className="ga-a"><span className={`chip ${METHOD()[l.method].cls}`}>{l.add ? L("novo", "new") : METHOD()[l.method].label}</span></td>
+                  <td className="ga-a">
+                    <span className={`chip ${METHOD()[l.method].cls}`}>{l.add ? L("novo", "new") : METHOD()[l.method].label}</span>
+                    {l.ai && <> <span className="chip warn" title={L("Valor calculado pela IA: confira com o extrato.", "Value calculated by the AI: check it against your statement.")}>{L("IA", "AI")}</span></>}
+                  </td>
                 </tr>
               );
             })}
@@ -148,8 +151,8 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
       {result.ratesUsed && <p className="muted small" style={{ marginTop: 10 }}>{L("Taxas de referência:", "Reference rates:")} {result.ratesUsed}</p>}
       <p className="muted small" style={{ marginTop: 6 }}>
         {L(
-          "Cotação = preço de mercado (Yahoo Finance). Indexador = estimativa da IA acumulando CDI/Selic/IPCA desde a última atualização (valor bruto, antes de IR). Open Finance = valor líquido informado pelo banco (instituições conectadas): ativos novos entram e os que não vieram saem. Saldos em conta são mantidos. Para o valor exato de renda fixa, importe um print novo do banco.",
-          "Quote = market price (Yahoo Finance). Index accrual = AI estimate accruing CDI/Selic/IPCA since the last update (gross value, before income tax). Open Finance = net value reported by the bank (connected institutions): new assets are added and those not returned are removed. Account balances are kept. For the exact fixed income value, import a new screenshot from your bank.",
+          "Cotação = preço de mercado (Yahoo Finance; títulos do Tesouro Direto pelo PU oficial do Tesouro). Indexador = CDI, IPCA e TR oficiais do Banco Central acumulados desde a última atualização (valor bruto, antes de IR, sem pagamentos de juros ou amortização); fundos e COE são estimados pela IA. Open Finance = valor líquido informado pelo banco (instituições conectadas): ativos novos entram e os que não vieram saem. Só saldos em conta ficam iguais.",
+          "Quote = market price (Yahoo Finance; Tesouro Direto bonds at the official Treasury unit price). Index accrual = official Central Bank CDI, IPCA and TR accrued since the last update (gross value, before income tax, without interest or amortization payments); funds and structured notes are estimated by the AI. Open Finance = net value reported by the bank (connected institutions): new assets are added and those not returned are removed. Only account balances stay the same.",
         )}
       </p>
     </div>

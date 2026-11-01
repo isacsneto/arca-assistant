@@ -56,7 +56,8 @@ export function applyRefresh(positions: Position[], lines: RefreshLine[], approv
       value: l.newValue,
       ...(fromOf && { currency: l.currency, source: "Open Finance" }),
       quantity: (l.method === "cotacao" || fromOf) && l.quantity && l.quantity > 0 ? l.quantity : p.quantity,
-      updatedAt: now,
+      updatedAt: l.asOf ?? now,
+      aiEstimate: l.ai ? true : undefined,
     }];
   });
   const added: Position[] = lines

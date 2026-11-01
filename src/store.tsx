@@ -55,27 +55,58 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
   const timer = useRef<number | undefined>(undefined);
 
+  const load = useCallback((s: AppState) => {
+    const merged: AppState = { ...s, settings: { ...DEFAULT_SETTINGS, ...s.settings } };
+    latest.current = merged;
+    setState(merged);
+  }, []);
+
   useEffect(() => {
     Promise.all([api.getState(), api.getConfig()])
       .then(([s, c]) => {
-        const merged: AppState = { ...s, settings: { ...DEFAULT_SETTINGS, ...s.settings } };
-        latest.current = merged;
-        setState(merged);
+        load(s);
         setConfig(c);
       })
       .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
-  }, []);
+  }, [load]);
 
+  // Gravação ainda não confirmada: não recarrega por cima dela.
+  const saving = useRef(false);
   const persist = useCallback(() => {
     window.clearTimeout(timer.current);
+    saving.current = true;
     timer.current = window.setTimeout(() => {
       if (!latest.current) return;
       api
         .putState(latest.current)
         .then(() => setSaveError(null))
-        .catch((e) => setSaveError(e instanceof Error ? e.message : String(e)));
+        .catch(async (e: Error & { status?: number }) => {
+          setSaveError(e.message);
+          // O servidor mudou a carteira (Open Finance automático): pega a versão nova.
+          if (e.status === 409) load(await api.getState());
+        })
+        .finally(() => (saving.current = false));
     }, 350);
-  }, []);
+  }, [load]);
+
+  // Ao voltar para a aba (e a cada 5 min), traz o que o servidor atualizou sozinho.
+  useEffect(() => {
+    const check = async () => {
+      if (document.hidden || saving.current || !latest.current) return;
+      try {
+        const { rev } = await api.stateRev();
+        if (rev !== (latest.current.rev ?? 0) && !saving.current) load(await api.getState());
+      } catch {
+        /* offline: tenta na próxima */
+      }
+    };
+    const every = window.setInterval(() => void check(), 5 * 60_000);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      window.clearInterval(every);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, [load]);
 
   const update = useCallback(
     (mutate: (s: AppState) => AppState) => {

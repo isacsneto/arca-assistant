@@ -2,6 +2,8 @@ import type { AppState, ClaudeRefresh, JobEvent, Position, RefreshLine, RefreshR
 import { closeAt, convert, fxSymbol, yahooSymbols, type FetchQuote } from "./quotes";
 import { FX_CODES, fxRates, type FxRates } from "../shared/currency";
 import { mapPool } from "./pool";
+import { priceTesouro, tesouroType, type TesouroPrices } from "./tesouro";
+import { accrue, brDate, parseIndexer, type IndexSeries } from "./indexers";
 import { L, locale } from "../shared/i18n";
 import { openFinanceRefresh, openFinanceSettings, type ConnectionData } from "../shared/openFinance";
 
@@ -17,6 +19,10 @@ export interface RefreshDeps {
   now?: () => Date;
   /** Dados das conexões do Open Finance, quando ele é a fonte da verdade (null = não usar). */
   openFinance?: (state: AppState, signal: AbortSignal) => Promise<ConnectionData[] | null>;
+  /** PU oficial dos títulos do Tesouro Direto (null = indisponível; aí vão para a IA). */
+  tesouro?: (signal: AbortSignal) => Promise<TesouroPrices | null>;
+  /** Séries do Banco Central (CDI, IPCA, TR) desde a data dada, para a renda fixa indexada. */
+  indexSeries?: (from: string, signal: AbortSignal) => Promise<IndexSeries | null>;
 }
 
 const DAY = 86_400_000;
@@ -121,38 +127,58 @@ export async function refreshValues(
     }
   }
 
+  // Títulos do Tesouro Direto: PU oficial (Renda+, Educa+, IPCA+… não têm ticker).
+  const open = state.positions.filter((p) => !covered.has(p.id));
+  let tesouro: TesouroPrices | null = null;
+  if (deps.tesouro && open.some((p) => tesouroType(p))) {
+    emit({ type: "status", text: L("Buscando preços do Tesouro Direto…", "Fetching Tesouro Direto prices…") });
+    tesouro = await deps.tesouro(signal).catch(() => null);
+    if (!tesouro && !signal.aborted) warnings.push(L("Preços do Tesouro Direto indisponíveis agora — os títulos foram para a IA.", "Tesouro Direto prices unavailable right now — the bonds went to the AI."));
+  }
+
   emit({ type: "status", text: L("Buscando cotações de mercado…", "Fetching market quotes…") });
   const pending: Position[] = [];
-  await mapPool(state.positions.filter((p) => !covered.has(p.id)), 4, async (p) => {
+  await mapPool(open, 4, async (p) => {
     if (signal.aborted) return;
-    const line = await priceFromQuote(p, deps.fetchQuote, fx);
+    const line = (tesouro && priceTesouro(p, tesouro)) || (await priceFromQuote(p, deps.fetchQuote, fx));
     if (line) lines.set(p.id, line);
     else pending.push(p);
   });
   emit({ type: "status", text: L(`${lines.size - covered.size} posições atualizadas pela cotação.`, `${lines.size - covered.size} positions updated from market quotes.`) });
 
-  // Sem cotação: o que foi atualizado há menos de 1 dia não muda; o resto vai para o Claude.
-  const forClaude: Position[] = [];
-  for (const p of pending) {
-    const age = now.getTime() - Date.parse(p.updatedAt);
-    if (Number.isFinite(age) && age < DAY) lines.set(p.id, kept(p, L("Atualizado há menos de 1 dia.", "Updated less than 1 day ago.")));
-    else forClaude.push(p);
+  // Renda fixa indexada (CDI, IPCA, TR, pré): conta exata com as taxas do Banco Central.
+  const indexed = pending.map((p) => [p, parseIndexer(p)] as const).filter((x): x is [Position, NonNullable<ReturnType<typeof parseIndexer>>] => x[1] != null);
+  let series: IndexSeries | null = null;
+  if (deps.indexSeries && indexed.length && !signal.aborted) {
+    emit({ type: "status", text: L("Buscando CDI, IPCA e TR no Banco Central…", "Fetching CDI, IPCA and TR from the Central Bank…") });
+    const today = brDate(now);
+    // Pelo menos 15 dias de histórico: a API recusa intervalo sem nenhum dia útil.
+    const from = [...indexed.map(([p]) => brDate(new Date(p.updatedAt))), brDate(new Date(now.getTime() - 15 * DAY))].sort()[0];
+    series = await deps.indexSeries(from, signal).catch(() => null);
+    if (series) for (const [p, ix] of indexed) lines.set(p.id, accrue(p, ix, series, today));
+    else if (!signal.aborted) warnings.push(L("Taxas do Banco Central indisponíveis agora — a renda fixa indexada foi para a IA.", "Central Bank rates unavailable right now — indexed fixed income went to the AI."));
   }
 
+  // O resto (fundos, COE, cripto sem ticker…) vai para a IA. Nada fica de fora só por ter sido atualizado há pouco.
+  const forClaude = pending.filter((p) => !lines.has(p.id));
+
   let ratesUsed: string | undefined;
-  if (forClaude.length && !signal.aborted) {
-    emit({ type: "status", text: L(
-        `Pesquisando ${forClaude.length} posições sem cotação (renda fixa, saldos…)…`,
-        `Researching ${forClaude.length} positions without a market quote (fixed income, balances…)…`,
-      ) });
+  // Até 2 rodadas: a segunda pede de novo só o que a IA deixou sem resposta.
+  let ask = forClaude;
+  for (let round = 0; round < 2 && ask.length && !signal.aborted; round += 1) {
+    emit({ type: "status", text: round === 0
+      ? L(`Pesquisando ${ask.length} posições sem cotação (fundos, COE, saldos…)…`, `Researching ${ask.length} positions without a market quote (funds, structured notes, balances…)…`)
+      : L(`A IA não respondeu ${ask.length} posições — pedindo de novo só elas…`, `The AI skipped ${ask.length} positions — asking again for just those…`) });
     try {
-      const res = await deps.claudeRefresh(forClaude, { fx, state }, emit as (e: JobEvent<never>) => void, signal);
-      ratesUsed = res.ratesUsed;
+      const res = await deps.claudeRefresh(ask, { fx, state }, emit as (e: JobEvent<never>) => void, signal);
+      ratesUsed = [ratesUsed, res.ratesUsed].filter(Boolean).join(" · ") || undefined;
       const byId = new Map(res.updates.map((u) => [u.id, u]));
-      for (const p of forClaude) {
+      const missing: Position[] = [];
+      for (const p of ask) {
         const u = byId.get(p.id);
         if (!u) {
-          lines.set(p.id, kept(p, L("Sem estimativa do Claude.", "No estimate from Claude.")));
+          missing.push(p);
+          lines.set(p.id, kept(p, L("Sem estimativa da IA.", "No estimate from the AI.")));
         } else if (!(u.newValue >= 0) || (p.value > 0 && (u.newValue / p.value > MAX_CHANGE || u.newValue / p.value < 1 / MAX_CHANGE))) {
           lines.set(p.id, kept(p, L(`Estimativa descartada por variação implausível (${fmt(u.newValue)}).`, `Estimate discarded due to implausible change (${fmt(u.newValue)}).`)));
         } else {
@@ -161,14 +187,17 @@ export async function refreshValues(
             newValue: u.method === "mantido" ? p.value : u.newValue,
             method: u.method,
             source: u.source,
+            ai: true,
           });
         }
       }
+      ask = missing;
     } catch (err) {
       if (signal.aborted) throw err;
       const msg = err instanceof Error ? err.message : String(err);
       emit({ type: "status", text: L(`Não foi possível estimar as posições sem cotação: ${msg}`, `Couldn't estimate the positions without a market quote: ${msg}`) });
-      for (const p of forClaude) lines.set(p.id, kept(p, L(`Não estimado: ${msg}`, `Not estimated: ${msg}`)));
+      for (const p of ask) lines.set(p.id, kept(p, L(`Não estimado: ${msg}`, `Not estimated: ${msg}`)));
+      break;
     }
   }
 

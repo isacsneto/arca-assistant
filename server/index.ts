@@ -4,6 +4,8 @@ import { aiStatus, setApiKey } from "./ai";
 import { estimateAsset, extractFromFiles, interpretPrompt, projectWithAi, refineImport, refreshWithAi, researchAsset, scanClass } from "./tasks";
 import { refreshValues } from "./refresh";
 import { yahooQuote } from "./quotes";
+import { tesouroSource } from "./tesouro";
+import { bcbSource } from "./indexers";
 import { dataDir, secretsFile } from "./paths";
 import { fetchConnections, filePluggyCredentials, pluggyClient } from "./pluggy";
 import { openFinanceSettings } from "../shared/openFinance";
@@ -14,6 +16,8 @@ import { L } from "../shared/i18n";
 const store = fileStore();
 const pluggyCredentials = filePluggyCredentials(secretsFile());
 const pluggy = pluggyClient(() => pluggyCredentials.get());
+const tesouroPrices = tesouroSource();
+const indexSeries = bcbSource();
 const app = createApp({
   store,
   aiStatus,
@@ -25,6 +29,8 @@ const app = createApp({
   refreshValues: (state, emit, signal) =>
     refreshValues(state, {
       fetchQuote: yahooQuote,
+      tesouro: tesouroPrices,
+      indexSeries,
       claudeRefresh: refreshWithAi,
       // Open Finance como fonte da verdade: as instituições conectadas vêm da Pluggy.
       openFinance: async (s, sig) => {
@@ -37,6 +43,8 @@ const app = createApp({
   researchAsset,
   estimateAsset,
   pluggy: { credentials: pluggyCredentials, client: pluggy },
+  // Checa de hora em hora; aplica no máximo a cada 6 h (o Meu Pluggy atualiza os bancos 1x por dia).
+  openFinanceAutoSync: { checkEveryMs: 60 * 60_000, minIntervalMs: 6 * 60 * 60_000 },
   sampleVideo,
 });
 

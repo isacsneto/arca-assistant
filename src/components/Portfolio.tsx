@@ -62,7 +62,8 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
   const patch = (id: string, changes: Partial<Position>) =>
     update((s) => ({
       ...s,
-      positions: s.positions.map((p) => (p.id === id ? { ...p, ...changes, updatedAt: new Date().toISOString() } : p)),
+      // Valor digitado à mão deixa de ser estimativa da IA.
+      positions: s.positions.map((p) => (p.id === id ? { ...p, ...changes, ...("value" in changes && { aiEstimate: undefined }), updatedAt: new Date().toISOString() } : p)),
     }));
   const remove = (id: string) => update((s) => ({ ...s, positions: s.positions.filter((p) => p.id !== id) }));
 
@@ -241,7 +242,10 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
                       <tr key={p.id}>
                         <td className="ga-main" style={{ minWidth: 200 }}>
                           <div><b>{p.ticker ? `${p.ticker} · ` : ""}{p.name}</b></div>
-                          <div className="muted small">{p.subtype}{p.quantity != null ? ` · ${hidden ? MASK : p.quantity.toLocaleString(locale())} ${L("un.", "units")}` : ""}</div>
+                          <div className="muted small">
+                            {p.subtype}{p.quantity != null ? ` · ${hidden ? MASK : p.quantity.toLocaleString(locale())} ${L("un.", "units")}` : ""}
+                            {p.aiEstimate && <> <span className="chip warn" title={L(`Valor estimado pela IA em ${new Date(p.updatedAt).toLocaleDateString(locale())}. Confira com o extrato do banco.`, `Value estimated by the AI on ${new Date(p.updatedAt).toLocaleDateString(locale())}. Check it against your bank statement.`)}>{L("atualizado pela IA", "updated by AI")}</span></>}
+                          </div>
                         </td>
                         <td className="muted ga-sub">
                           {p.institution}

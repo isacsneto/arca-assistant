@@ -3,6 +3,7 @@ import type { AssetClass, ExtractedItem, ExtractionResult, FileReading, Owner, P
 import { norm, posKey } from "./importMerge";
 import { parseFileName } from "./fileHints";
 import { L, locale } from "./i18n";
+import { applyRefresh, isChange } from "./refreshApply";
 
 /*
  * Open Finance via Pluggy (Meu Pluggy). O servidor busca os investimentos e contas de
@@ -16,6 +17,8 @@ export interface OpenFinanceConnection {
   owner: Owner;
   /** Nome da instituição na carteira (vazio = usa o nome do conector da Pluggy). */
   institution?: string;
+  /** Quando a conexão foi revisada numa importação; só depois disso ela se atualiza sozinha. */
+  syncedAt?: string;
 }
 
 export interface OpenFinanceSettings {
@@ -27,10 +30,14 @@ export interface OpenFinanceSettings {
    * tudo o que havia nelas (por titular) e o "Atualizar valores" usa os dados de lá.
    */
   sourceOfTruth: boolean;
+  /** Com fonte da verdade: o servidor aplica sozinho, a cada poucas horas, o que vier das conexões já revisadas. */
+  autoSync: boolean;
   lastSyncAt: string | null;
+  /** Última atualização automática que mudou algo. */
+  lastAutoSyncAt: string | null;
 }
 
-export const DEFAULT_OPEN_FINANCE: OpenFinanceSettings = { connections: [], includeAccounts: true, sourceOfTruth: true, lastSyncAt: null };
+export const DEFAULT_OPEN_FINANCE: OpenFinanceSettings = { connections: [], includeAccounts: true, sourceOfTruth: true, autoSync: true, lastSyncAt: null, lastAutoSyncAt: null };
 
 export function openFinanceSettings(raw: Partial<OpenFinanceSettings> | undefined): OpenFinanceSettings {
   const connections = (Array.isArray(raw?.connections) ? raw.connections : [])
@@ -39,12 +46,15 @@ export function openFinanceSettings(raw: Partial<OpenFinanceSettings> | undefine
       itemId: c.itemId.trim(),
       owner: c.owner === "PJ" ? ("PJ" as const) : ("PF" as const),
       ...(typeof c.institution === "string" && c.institution.trim() && { institution: c.institution.trim() }),
+      ...(typeof c.syncedAt === "string" && { syncedAt: c.syncedAt }),
     }));
   return {
     connections,
     includeAccounts: raw?.includeAccounts ?? true,
     sourceOfTruth: raw?.sourceOfTruth ?? true,
+    autoSync: raw?.autoSync ?? true,
     lastSyncAt: typeof raw?.lastSyncAt === "string" ? raw.lastSyncAt : null,
+    lastAutoSyncAt: typeof raw?.lastAutoSyncAt === "string" ? raw.lastAutoSyncAt : null,
   };
 }
 
@@ -401,7 +411,39 @@ export function withSyncedConnections(
       const s = synced.find((x) => x.itemId === c.itemId);
       if (!s) return c;
       const f = files.find((x) => x.file === s.file);
-      return { ...c, institution: f?.institution?.trim() || s.institution, owner: f?.owner ?? s.owner };
+      return { ...c, institution: f?.institution?.trim() || s.institution, owner: f?.owner ?? s.owner, syncedAt: now };
     }),
+  };
+}
+
+/** Conexões que se atualizam sozinhas: fonte da verdade + automático ligados, e já revisadas numa importação. */
+export function autoSyncConnections(of: OpenFinanceSettings): OpenFinanceConnection[] {
+  return of.sourceOfTruth && of.autoSync ? of.connections.filter((c) => c.syncedAt) : [];
+}
+
+export interface AutoSyncResult {
+  positions: Position[];
+  /** Linhas aplicadas (mudanças de valor, entradas e saídas). */
+  applied: RefreshLine[];
+  warnings: string[];
+}
+
+/**
+ * Atualização automática: o mesmo cálculo do "Atualizar valores", aplicado sem revisão — só para conexões já
+ * revisadas. Conexão com erro, ou que voltou vazia, fica de fora (não apaga nada por uma falha da Pluggy).
+ */
+export function autoSyncOpenFinance(
+  positions: Position[],
+  data: ConnectionData[],
+  opts: { includeAccounts: boolean; now: string },
+): AutoSyncResult {
+  const usable = data.filter((d) => !d.error && (d.investments.length > 0 || (opts.includeAccounts && d.accounts.length > 0)));
+  const skipped = data.filter((d) => !usable.includes(d)).map((d) => d.error ?? L(`conexão ${d.connection.itemId} voltou vazia`, `connection ${d.connection.itemId} came back empty`));
+  const r = openFinanceRefresh(positions, usable, { includeAccounts: opts.includeAccounts });
+  const applied = r.lines.filter(isChange);
+  return {
+    positions: applied.length ? applyRefresh(positions, r.lines, new Set(applied.map((l) => l.id)), opts.now) : positions,
+    applied,
+    warnings: [...r.warnings, ...skipped],
   };
 }

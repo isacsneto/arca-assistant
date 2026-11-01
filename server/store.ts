@@ -28,6 +28,7 @@ export function withDefaults(raw: Partial<AppState>): AppState {
     scans: raw.scans ?? base.scans,
     projection: raw.projection,
     research: Array.isArray(raw.research) ? raw.research : [],
+    rev: typeof raw.rev === "number" ? raw.rev : 0,
     settings: {
       ...base.settings,
       ...withoutLegacy(raw.settings),

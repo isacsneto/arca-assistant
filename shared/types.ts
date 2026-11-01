@@ -257,6 +257,8 @@ export interface Position {
   quantity?: number;
   updatedAt: string; // ISO
   source: string;
+  /** O valor atual é uma estimativa calculada pela IA no "Atualizar valores" (some quando o valor vem de outro jeito). */
+  aiEstimate?: boolean;
 }
 
 export interface Transaction {
@@ -384,6 +386,11 @@ export interface AppState {
   projection?: ProjectionResult;
   /** Pesquisas de ativos feitas na aba Mercado (mais recente primeiro). */
   research?: ResearchResult[];
+  /**
+   * Revisão das posições/ajustes, que sobe quando o servidor muda a carteira sozinho (Open Finance
+   * automático). Gravação do navegador com revisão antiga é recusada, para não desfazer a atualização.
+   */
+  rev?: number;
 }
 
 export type ScanEvent =
@@ -440,6 +447,13 @@ export interface RefreshLine {
   unitPrice?: number;
   note: string;
   source?: string | null;
+  /** Valor calculado pela IA (sem fonte determinística: fundos, COE, ou quando as fontes oficiais falharam). */
+  ai?: boolean;
+  /**
+   * Data a que o novo valor se refere, quando não é "agora" (ex.: rendimento acumulado até o último CDI
+   * publicado). Vira o updatedAt da posição, para a próxima atualização continuar dali sem buraco.
+   */
+  asOf?: string;
 }
 
 export interface RefreshResult {

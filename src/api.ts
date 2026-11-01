@@ -41,7 +41,7 @@ export interface OpenFinanceItem {
 
 async function json<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? L(`Erro ${res.status}`, `Error ${res.status}`));
+  if (!res.ok) throw Object.assign(new Error((body as { error?: string }).error ?? L(`Erro ${res.status}`, `Error ${res.status}`)), { status: res.status });
   return body as T;
 }
 
@@ -51,8 +51,10 @@ export const api = {
     fetch("/api/state", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ positions: s.positions, transactions: s.transactions, assets: s.assets, settings: s.settings }),
+      body: JSON.stringify({ positions: s.positions, transactions: s.transactions, assets: s.assets, settings: s.settings, rev: s.rev ?? 0 }),
     }).then((r) => json<{ ok: true }>(r)),
+  /** Revisão da carteira no servidor (sobe quando o Open Finance automático muda algo). */
+  stateRev: () => fetch("/api/state/rev").then((r) => json<{ rev: number }>(r)),
   getConfig: (refresh = false) => fetch(`/api/config${refresh ? "?refresh=1" : ""}`).then((r) => json<Config>(r)),
   /** Salva (ou remove, com null) a chave de API de um provedor — fica só no servidor. */
   setAiKey: (provider: ProviderId, key: string | null) =>

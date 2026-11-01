@@ -493,6 +493,38 @@ test("Open Finance: token do widget de login (novo ou reconectar)", async () => 
   });
 });
 
+test("estado: gravação com revisão antiga é recusada (não desfaz a atualização automática)", async () => {
+  await withServer({}, async (base) => {
+    const put = (rev?: number) => fetch(`${base}/api/state`, { ...json({ positions: [], transactions: [], settings: withDefaults({}).settings, rev }), method: "PUT" });
+    assert.deepEqual(await (await fetch(`${base}/api/state/rev`)).json(), { rev: 3 });
+    assert.equal((await put(2)).status, 409);
+    assert.equal((await put(3)).status, 200);
+    assert.equal((await put()).status, 200, "cliente antigo, sem revisão, continua gravando");
+  }, { rev: 3 });
+});
+
+test("Open Finance automático: aplica as conexões revisadas e sobe a revisão; sem mudança não grava", async () => {
+  const pluggy = fakePluggy();
+  pluggy.credentials.set({ clientId: "11111111-2222-3333-4444-555555555555", clientSecret: "segredo-123" });
+  await withServer(
+    { pluggy },
+    async (base, store) => {
+      const r1 = await (await fetch(`${base}/api/openfinance/auto-sync`, { method: "POST" })).json();
+      assert.equal(r1.applied, 1);
+      assert.equal(store.saved!.positions[0].value, 1000);
+      assert.equal(store.saved!.rev, 1);
+      assert.ok(store.saved!.settings.openFinance.lastAutoSyncAt);
+      const r2 = await (await fetch(`${base}/api/openfinance/auto-sync`, { method: "POST" })).json();
+      assert.deepEqual([r2.ran, r2.applied], [true, 0]);
+      assert.equal(store.saved!.rev, 1, "nada mudou: revisão igual");
+    },
+    {
+      positions: [{ id: "p", name: "CDB BTG", institution: "BTG Pactual", owner: "PF", assetClass: "caixa", subtype: "CDB", currency: "BRL", value: 900, updatedAt: "2026-10-01", source: "" }],
+      settings: { openFinance: { connections: [{ itemId: "aaaaaaaaaa", owner: "PF", institution: "BTG Pactual", syncedAt: "2026-10-10" }, { itemId: "bbbbbbbbbb", owner: "PF", institution: "Itaú" }], includeAccounts: false, lastSyncAt: null } },
+    } as unknown as Partial<AppState>,
+  );
+});
+
 test("Open Finance: sincronizar exige conexões e devolve itens para revisão (sem salvar)", async () => {
   await withServer({ pluggy: fakePluggy() }, async (base) => {
     const res = await fetch(`${base}/api/openfinance/sync`, { method: "POST" });
