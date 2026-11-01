@@ -57,6 +57,26 @@ test("apiKey expirada: autentica de novo e repete a chamada", async () => {
   assert.equal(gets, 2);
 });
 
+test("connect token: POST com o usuário do app e, para reconectar, o itemId", async () => {
+  const bodies: unknown[] = [];
+  const { impl, calls } = fakeFetch({
+    "/auth": () => ({ body: { apiKey: "key-1" } }),
+    "/connect_token": (init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return { body: { accessToken: "tok-1" } };
+    },
+  });
+  const client = pluggyClient(() => CREDS, impl);
+  assert.equal(await client.connectToken(), "tok-1");
+  assert.equal(await client.connectToken("abcdef0123"), "tok-1");
+  assert.deepEqual(bodies, [
+    { clientUserId: "arca-assistant", avoidDuplicates: true },
+    { clientUserId: "arca-assistant", avoidDuplicates: true, itemId: "abcdef0123" },
+  ]);
+  assert.equal(calls.at(-1)!.init!.method, "POST");
+  await assert.rejects(client.connectToken("../x"), (e: PluggyError) => e.status === 400);
+});
+
 test("credenciais recusadas, ausentes ou itemId inválido viram erros claros", async () => {
   const { impl } = fakeFetch({ "/auth": () => ({ status: 401 }) });
   await assert.rejects(pluggyClient(() => CREDS, impl).check(), (e: PluggyError) => e.status === 401 && /recusou/.test(e.message));

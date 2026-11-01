@@ -333,6 +333,22 @@ export function createApp(deps: Deps) {
     }
   });
 
+  // Token curto para o widget Pluggy Connect (login no banco/MeuPluggy feito na tela da Pluggy).
+  // É feito para o navegador: só abre o widget, não lê dados nem expõe o Client Secret.
+  app.post("/api/openfinance/connect-token", async (req, res) => {
+    if (!deps.pluggy) return noPluggy(res);
+    const itemId = (req.body ?? {}).itemId;
+    if (itemId != null && typeof itemId !== "string") {
+      res.status(400).json({ error: L("itemId inválido.", "Invalid itemId.") });
+      return;
+    }
+    try {
+      res.json({ accessToken: await deps.pluggy.client.connectToken(itemId || undefined) });
+    } catch (err) {
+      pluggyFail(res, err);
+    }
+  });
+
   // Busca investimentos (e contas) de todas as conexões → itens para a tela de revisão.
   app.post("/api/openfinance/sync", async (_req, res) => {
     if (!deps.pluggy) return noPluggy(res);

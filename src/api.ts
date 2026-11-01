@@ -81,6 +81,13 @@ export const api = {
       body: JSON.stringify(creds ?? { clientId: null }),
     }).then((r) => json<{ ok: true }>(r)),
   openFinanceItems: () => fetch("/api/openfinance/items").then((r) => json<{ items: OpenFinanceItem[] }>(r)),
+  /** Token curto para abrir o widget de login da Pluggy (com itemId: renovar o login daquela conexão). */
+  openFinanceConnectToken: (itemId?: string) =>
+    fetch("/api/openfinance/connect-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(itemId ? { itemId } : {}),
+    }).then((r) => json<{ accessToken: string }>(r)),
   openFinanceSync: (signal?: AbortSignal) =>
     fetch("/api/openfinance/sync", { method: "POST", signal }).then((r) => json<OpenFinanceImport>(r)),
   /** Mercado: variação do dia dos principais ativos da visão + referências (Ibovespa, S&P 500…). */

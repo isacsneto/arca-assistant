@@ -61,6 +61,11 @@ export interface PluggyClient {
   /** Conexões da aplicação, se a API permitir listar; senão, lista vazia. */
   listItems(signal?: AbortSignal): Promise<PluggyItem[]>;
   getItem(itemId: string, signal?: AbortSignal): Promise<PluggyItem>;
+  /**
+   * Token de uso único (30 min) para o widget Pluggy Connect no navegador: o usuário escolhe o
+   * banco (ou o conector MeuPluggy) e faz login lá. Com `itemId`, reabre aquela conexão para renovar o login.
+   */
+  connectToken(itemId?: string, signal?: AbortSignal): Promise<string>;
   investments(itemId: string, signal?: AbortSignal): Promise<PluggyInvestment[]>;
   accounts(itemId: string, signal?: AbortSignal): Promise<PluggyAccount[]>;
 }
@@ -91,17 +96,18 @@ export function pluggyClient(creds: () => PluggyCredentials | null, fetchImpl: F
     return body.apiKey;
   }
 
-  async function get<T>(url: string, signal?: AbortSignal, retry = true): Promise<T> {
+  async function request<T>(url: string, signal?: AbortSignal, retry = true, body?: unknown): Promise<T> {
     const key = await apiKey(signal);
     const res = await fetchImpl(`${base}${url}`, {
-      headers: { "X-API-KEY": key, Accept: "application/json" },
+      ...(body !== undefined && { method: "POST", body: JSON.stringify(body) }),
+      headers: { "X-API-KEY": key, Accept: "application/json", ...(body !== undefined && { "Content-Type": "application/json" }) },
       signal: signal ?? AbortSignal.timeout(30_000),
     }).catch((e: unknown) => {
       throw new PluggyError(L(`Não foi possível falar com a Pluggy (${(e as Error).message}).`, `Couldn't reach Pluggy (${(e as Error).message}).`));
     });
     if ((res.status === 401 || res.status === 403) && retry) {
       cached = null; // apiKey expirada: autentica de novo uma vez
-      return get<T>(url, signal, false);
+      return request<T>(url, signal, false, body);
     }
     if (res.status === 404) throw new PluggyError(L("Conexão não encontrada na Pluggy. Confira o itemId.", "Connection not found on Pluggy. Check the itemId."), 404);
     if (!res.ok) throw new PluggyError(L(`A Pluggy respondeu com erro ${res.status}.`, `Pluggy returned error ${res.status}.`));
@@ -113,7 +119,7 @@ export function pluggyClient(creds: () => PluggyCredentials | null, fetchImpl: F
     const out: T[] = [];
     for (let page = 1; page <= 50; page += 1) {
       const sep = url.includes("?") ? "&" : "?";
-      const body = await get<{ results?: T[]; totalPages?: number }>(`${url}${sep}page=${page}&pageSize=500`, signal);
+      const body = await request<{ results?: T[]; totalPages?: number }>(`${url}${sep}page=${page}&pageSize=500`, signal);
       out.push(...(body.results ?? []));
       if (!body.totalPages || page >= body.totalPages) break;
     }
@@ -131,14 +137,21 @@ export function pluggyClient(creds: () => PluggyCredentials | null, fetchImpl: F
     },
     async listItems(signal) {
       try {
-        const body = await get<{ results?: PluggyItem[] } | PluggyItem[]>("/items", signal);
+        const body = await request<{ results?: PluggyItem[] } | PluggyItem[]>("/items", signal);
         return Array.isArray(body) ? body : (body.results ?? []);
       } catch (e) {
         if (e instanceof PluggyError && e.status === 401) throw e;
         return []; // nem todo plano expõe a listagem; o usuário cola o itemId
       }
     },
-    getItem: async (itemId, signal) => get<PluggyItem>(`/items/${id(itemId)}`, signal),
+    getItem: async (itemId, signal) => request<PluggyItem>(`/items/${id(itemId)}`, signal),
+    async connectToken(itemId, signal) {
+      if (itemId) id(itemId);
+      // avoidDuplicates: logar de novo no mesmo banco reaproveita a conexão em vez de criar outra.
+      const body = await request<{ accessToken?: string }>("/connect_token", signal, true, { clientUserId: "arca-assistant", avoidDuplicates: true, ...(itemId && { itemId }) });
+      if (!body.accessToken) throw new PluggyError(L("Resposta inesperada da Pluggy ao abrir a conexão.", "Unexpected response from Pluggy when opening the connection."));
+      return body.accessToken;
+    },
     investments: async (itemId, signal) => all<PluggyInvestment>(`/investments?itemId=${id(itemId)}`, signal),
     accounts: async (itemId, signal) => all<PluggyAccount>(`/accounts?itemId=${id(itemId)}`, signal),
   };

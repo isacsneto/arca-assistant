@@ -459,6 +459,7 @@ function fakePluggy(opts: { valid?: boolean } = {}) {
     getItem: async (id) => ({ id, status: "UPDATED", connector: { name: "Banco BTG Pactual" } }),
     investments: async () => [{ id: "1", name: "CDB BTG", type: "FIXED_INCOME", subtype: "CDB", balance: 1000 }],
     accounts: async () => [],
+    connectToken: async (itemId) => `tok${itemId ? `-${itemId}` : ""}`,
   };
   return { credentials: { get: () => creds, set: (c: typeof creds) => void (creds = c) }, client };
 }
@@ -480,6 +481,15 @@ test("Open Finance: credenciais validadas, nunca devolvidas, e recusadas não fi
     const res = await fetch(`${base}/api/openfinance/credentials`, { ...json({ clientId: "11111111-2222-3333-4444-555555555555", clientSecret: "segredo-123" }), method: "PUT" });
     assert.equal(res.status, 401);
     assert.equal(refused.credentials.get(), null);
+  });
+});
+
+test("Open Finance: token do widget de login (novo ou reconectar)", async () => {
+  await withServer({ pluggy: fakePluggy() }, async (base) => {
+    const post = (body: unknown) => fetch(`${base}/api/openfinance/connect-token`, json(body));
+    assert.deepEqual(await (await post({})).json(), { accessToken: "tok" });
+    assert.deepEqual(await (await post({ itemId: "aaaaaaaaaa" })).json(), { accessToken: "tok-aaaaaaaaaa" });
+    assert.equal((await post({ itemId: 5 })).status, 400);
   });
 });
 

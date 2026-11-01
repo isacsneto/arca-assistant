@@ -171,9 +171,9 @@ Hosts like Vercel, Netlify or free Render don't work: they wipe saved files, can
 
 ### 🏦 Open Finance (optional, Brazil)
 
-1. Create an account at [meu.pluggy.ai](https://meu.pluggy.ai) and connect your banks (authorization happens in each bank's app).
-2. In **Settings → Open Finance**, paste your application's **Client ID** and **Client Secret** (the app verifies them with Pluggy before saving).
-3. Click **Find connections** (or paste each bank's `itemId`) and mark each one as PF or PJ.
+1. Create an account at [meu.pluggy.ai](https://meu.pluggy.ai) and, in **Settings → Open Finance**, paste your application's **Client ID** and **Client Secret**. The app verifies them with Pluggy before saving. You only do this once.
+2. Click **Connect bank** and log in on Pluggy's own screen (the Pluggy Connect widget): pick your bank, or **MeuPluggy** to bring the banks you've already connected there. Your password stays with Pluggy and the bank and never goes through the app. When a bank asks you to sign in again, the 🔑 button on the connection renews the login.
+3. Mark each connection as PF or PJ. (**Find connections** and pasting an `itemId` still work for connections created elsewhere.)
 4. **Import → Open Finance → Fetch investments**: review and save.
 
 With **"Use Open Finance as the source of truth"** on (default), each connection mirrors the bank **within its exact scope: institution + owner**:

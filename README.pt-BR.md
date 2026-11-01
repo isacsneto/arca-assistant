@@ -162,9 +162,9 @@ Hospedagens como Vercel, Netlify e Render grátis não servem: apagam os arquivo
 
 ### 🏦 Open Finance (opcional)
 
-1. Crie a conta em [meu.pluggy.ai](https://meu.pluggy.ai) e conecte seus bancos (a autorização é feita no app de cada banco).
-2. Em **Ajustes → Open Finance**, cole o **Client ID** e o **Client Secret** da sua aplicação (o app confere com a Pluggy antes de salvar).
-3. Clique em **Buscar conexões** (ou cole o `itemId` de cada banco) e marque se cada uma é PF ou PJ.
+1. Crie a conta em [meu.pluggy.ai](https://meu.pluggy.ai) e, em **Ajustes → Open Finance**, cole o **Client ID** e o **Client Secret** da sua aplicação. O app confere com a Pluggy antes de salvar. Isso é feito uma vez só.
+2. Clique em **Conectar banco** e faça login na tela da própria Pluggy (widget Pluggy Connect): escolha o seu banco, ou **MeuPluggy** para trazer os bancos que você já conectou lá. A senha fica com a Pluggy e o banco, nunca passa pelo app. Quando o banco pedir para entrar de novo, o botão 🔑 da conexão renova o login.
+3. Marque se cada conexão é PF ou PJ. (**Buscar conexões** e colar um `itemId` continuam valendo para conexões criadas em outro lugar.)
 4. **Importar → Open Finance → Buscar investimentos**: revise e salve.
 
 Com **"Usar o Open Finance como fonte da verdade"** ligado (padrão), cada conexão passa a ser espelho do banco **no seu escopo exato: instituição + titular**:

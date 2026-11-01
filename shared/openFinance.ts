@@ -194,10 +194,10 @@ export function classifyInvestment(inv: PluggyInvestment): Classification {
   }
 }
 
-/** Código de negociação (PETR4, HGLG11, IVVB11…); CNPJs de fundos e códigos internos não contam. */
+/** Código de negociação (PETR4, HGLG11, B3SA3, B5P211…); CNPJs de fundos e códigos internos não contam. */
 export function tickerOf(code: string | null | undefined): string | null {
   const c = (code ?? "").trim().toUpperCase();
-  return /^[A-Z]{4}\d{1,2}[A-Z]?$/.test(c) ? c : null;
+  return /^[A-Z][A-Z0-9]{3}\d{1,2}[A-Z]?$/.test(c) ? c : null;
 }
 
 /* ---------------- instituição ---------------- */

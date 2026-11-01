@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, ExternalLink, Landmark, Loader2, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { CheckCircle2, ExternalLink, Landmark, Loader2, LogIn, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { openFinanceSettings, type OpenFinanceConnection, type OpenFinanceSettings as OFSettings } from "../../shared/openFinance";
 import { OWNERS, type Owner } from "../../shared/types";
 import { api, type OpenFinanceItem, type OpenFinanceStatus } from "../api";
 import { useStore } from "../store";
+import { openPluggyConnect } from "../lib/pluggyConnect";
 import { getLang, L, locale } from "../../shared/i18n";
 
 /** Ajustes → Open Finance: credenciais do Meu Pluggy (só no servidor) e conexões a importar. */
@@ -55,6 +56,20 @@ export function OpenFinanceSettings() {
             );
     });
 
+  // Login pela tela da Pluggy (banco ou MeuPluggy): a conexão volta pronta, sem copiar itemId.
+  const connect = (itemId?: string) =>
+    act(itemId ? `relogin:${itemId}` : "connect", async () => {
+      const item = await openPluggyConnect(itemId);
+      if (!item) return;
+      setFound((f) => [...(f ?? []).filter((i) => i.id !== item.id), { id: item.id, name: item.name, status: "UPDATED", lastUpdatedAt: null }]);
+      const isNew = !of.connections.some((c) => c.itemId === item.id);
+      if (isNew) setConnections([...of.connections, { itemId: item.id, owner: "PF" }]);
+      const name = item.name ?? L("Conexão", "Connection");
+      return isNew
+        ? L(`${name} conectado — confira o titular (PF/PJ) abaixo e importe em Importar → Open Finance.`, `${name} connected — check the owner (PF/PJ) below and import in Import → Open Finance.`)
+        : L(`Login de ${name} renovado.`, `${name} login renewed.`);
+    });
+
   const add = () => {
     const id = newId.trim();
     if (!id || of.connections.some((c) => c.itemId === id)) return;
@@ -82,13 +97,13 @@ export function OpenFinanceSettings() {
       </div>
 
       <ol className="small steps">
-        <li>{L("Crie a conta em ", "Create an account at ")}{pluggyLink("meu.pluggy.ai")}{L(" e conecte seus bancos (você autoriza no app de cada banco).", " and connect your banks (you authorize it in each bank's app).")}</li>
-        <li>{L("Copie o ", "Copy your application's ")}<b>Client ID</b>{L(" e o ", " and ")}<b>Client Secret</b>{L(" da sua aplicação e cole abaixo.", " and paste them below.")}</li>
+        <li>{L("Crie a conta em ", "Create an account at ")}{pluggyLink("meu.pluggy.ai")}{L(", copie o ", ", copy your application's ")}<b>Client ID</b>{L(" e o ", " and ")}<b>Client Secret</b>{L(" da sua aplicação e cole abaixo (uma vez só).", " and paste them below (only once).")}</li>
         <li>
           {getLang() === "pt"
-            ? <>Clique em <b>Buscar conexões</b> (ou cole o <b>itemId</b> de cada banco) e marque se a conta é PF ou PJ.</>
-            : <>Click <b>Find connections</b> (or paste each bank's <b>itemId</b>) and mark whether the account is PF or PJ.</>}
+            ? <>Clique em <b>Conectar banco</b> e faça login na tela da Pluggy: escolha o seu banco, ou <b>MeuPluggy</b> para trazer os bancos que você já conectou lá. A senha fica com a Pluggy e o banco, nunca passa pelo Arca.</>
+            : <>Click <b>Connect bank</b> and log in on Pluggy's screen: pick your bank, or <b>MeuPluggy</b> to bring the banks you've already connected there. Your password stays with Pluggy and the bank and never goes through Arca.</>}
         </li>
+        <li>{L("Marque se cada conexão é PF ou PJ.", "Mark whether each connection is PF or PJ.")}</li>
       </ol>
 
       <CredentialsForm configured={!!status?.configured} busy={busy} onSave={(c) => act("save", async () => {
@@ -101,9 +116,14 @@ export function OpenFinanceSettings() {
 
       <div className="card-head" style={{ marginTop: 18 }}>
         <h3>{L("Conexões", "Connections")}</h3>
-        <button className="btn sm" disabled={!status?.configured || !!busy} onClick={() => void discover()}>
-          {busy === "discover" ? <Loader2 size={14} className="spin" /> : <Search size={14} />} {L("Buscar conexões", "Find connections")}
-        </button>
+        <div className="row" style={{ gap: 8 }}>
+          <button className="btn sm" disabled={!status?.configured || !!busy} onClick={() => void discover()} title={L("Lista as conexões que já existem na sua conta da Pluggy", "Lists the connections that already exist in your Pluggy account")}>
+            {busy === "discover" ? <Loader2 size={14} className="spin" /> : <Search size={14} />} {L("Buscar conexões", "Find connections")}
+          </button>
+          <button className="btn sm primary" disabled={!status?.configured || !!busy} onClick={() => void connect()}>
+            {busy === "connect" ? <Loader2 size={14} className="spin" /> : <LogIn size={14} />} {L("Conectar banco", "Connect bank")}
+          </button>
+        </div>
       </div>
 
       {of.connections.length > 0 ? (
@@ -119,6 +139,8 @@ export function OpenFinanceSettings() {
                       {info?.name && <b>{info.name} </b>}
                       <code>{c.itemId}</code>
                       {info?.status === "NOT_FOUND" && <span className="chip bad">{L("não encontrada", "not found")}</span>}
+                      {(info?.status === "LOGIN_ERROR" || info?.status === "WAITING_USER_INPUT") && <span className="chip warn">{L("login expirou — renove", "login expired — renew it")}</span>}
+                      {info?.status === "OUTDATED" && <span className="chip warn">{L("desatualizada", "outdated")}</span>}
                     </td>
                     <td className="ga-a" data-l={L("Instituição na carteira", "Institution in portfolio")} style={{ minWidth: 180 }}>
                       <input className="cell" type="text" value={c.institution ?? ""} placeholder={info?.name ?? L("automático (nome do banco)", "automatic (bank name)")}
@@ -129,7 +151,10 @@ export function OpenFinanceSettings() {
                         {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </td>
-                    <td className="ga-act">
+                    <td className="ga-act" style={{ whiteSpace: "nowrap" }}>
+                      <button className="btn icon sm ghost" disabled={!status?.configured || !!busy} title={L("Renovar o login (quando o banco pede para entrar de novo)", "Renew the login (when the bank asks you to sign in again)")} onClick={() => void connect(c.itemId)}>
+                        {busy === `relogin:${c.itemId}` ? <Loader2 size={14} className="spin" /> : <LogIn size={14} />}
+                      </button>
                       <button className="btn icon sm ghost" title={L("Remover conexão", "Remove connection")} onClick={() => setConnections(of.connections.filter((x) => x.itemId !== c.itemId))}>
                         <Trash2 size={14} />
                       </button>
@@ -141,11 +166,13 @@ export function OpenFinanceSettings() {
           </table>
         </div>
       ) : (
-        <p className="muted small">{L("Nenhuma conexão ainda.", "No connections yet.")}</p>
+        <p className="muted small">{status?.configured
+          ? L("Nenhuma conexão ainda. Clique em Conectar banco.", "No connections yet. Click Connect bank.")
+          : L("Nenhuma conexão ainda. Salve o Client ID e o Client Secret acima para conectar.", "No connections yet. Save the Client ID and Client Secret above to connect.")}</p>
       )}
 
       <form className="row wrap" style={{ gap: 8, marginTop: 10 }} onSubmit={(e) => { e.preventDefault(); add(); }}>
-        <input type="text" value={newId} placeholder={L("itemId (ex.: 4c1f0a7e-…)", "itemId (e.g. 4c1f0a7e-…)")} spellCheck={false} style={{ maxWidth: 340 }} onChange={(e) => setNewId(e.target.value)} />
+        <input type="text" value={newId} placeholder={L("ou cole um itemId (ex.: 4c1f0a7e-…)", "or paste an itemId (e.g. 4c1f0a7e-…)")} spellCheck={false} style={{ maxWidth: 340 }} onChange={(e) => setNewId(e.target.value)} />
         <button className="btn sm" disabled={!/^[0-9a-f-]{10,64}$/i.test(newId.trim())}><Plus size={14} /> {L("Adicionar", "Add")}</button>
       </form>
 

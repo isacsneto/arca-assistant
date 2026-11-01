@@ -7,6 +7,10 @@ test("yahooSymbols mapeia B3, exterior e cripto", () => {
   assert.deepEqual(yahooSymbols({ ticker: "MXRF11", currency: "BRL", assetClass: "fiis" }), ["MXRF11.SA"]);
   assert.deepEqual(yahooSymbols({ ticker: "IVVB11.SA", currency: "BRL", assetClass: "internacional" }), ["IVVB11.SA"]);
   assert.deepEqual(yahooSymbols({ ticker: "VOO", currency: "USD", assetClass: "internacional" }), ["VOO"]);
+  assert.deepEqual(yahooSymbols({ ticker: "B3SA3", currency: "BRL", assetClass: "acoes" }), ["B3SA3.SA"], "dígito no meio do código");
+  assert.deepEqual(yahooSymbols({ ticker: "B5P211", currency: "BRL", assetClass: "caixa" }), ["B5P211.SA"]);
+  assert.deepEqual(yahooSymbols({ ticker: "PETR4F", currency: "BRL", assetClass: "acoes" }), ["PETR4F.SA"], "fracionário");
+  assert.deepEqual(yahooSymbols({ ticker: "XYZ", currency: "BRL", assetClass: "acoes" }), ["XYZ.SA", "XYZ"], "reais: tenta a B3 primeiro");
   assert.deepEqual(yahooSymbols({ ticker: "BTC", currency: "BRL", assetClass: "outros" }), ["BTC-USD", "BTC"]);
   assert.deepEqual(yahooSymbols({ ticker: undefined, currency: "BRL", assetClass: "caixa" }), []);
   assert.deepEqual(yahooSymbols({ ticker: undefined, name: "Bitcoin", currency: "BRL", assetClass: "outros" }), ["BTC-USD"]);

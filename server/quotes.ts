@@ -17,7 +17,8 @@ export interface Quote {
 
 export type FetchQuote = (symbol: string) => Promise<Quote | null>;
 
-const B3_TICKER = /^[A-Z]{4}\d{1,2}[A-Z]?$/;
+// 4 caracteres (começa com letra; pode ter dígito, ex.: B3SA3, B5P211) + 1-2 dígitos + "F" opcional do fracionário.
+const B3_TICKER = /^[A-Z][A-Z0-9]{3}\d{1,2}[A-Z]?$/;
 
 /** Símbolos candidatos no Yahoo para uma posição (vazio = sem cotação de mercado). */
 export function yahooSymbols(p: Pick<Position, "ticker" | "currency" | "assetClass"> & { name?: string }): string[] {
@@ -29,6 +30,8 @@ export function yahooSymbols(p: Pick<Position, "ticker" | "currency" | "assetCla
   if (!t || !/^[A-Z0-9.\-^=]{1,15}$/.test(t)) return [];
   if (B3_TICKER.test(t)) return [`${t}.SA`];
   if (p.assetClass === "outros" && /^[A-Z]{2,6}$/.test(t)) return [`${t}-USD`, t]; // cripto: BTC -> BTC-USD
+  // Posição em reais com ticker fora do padrão: tenta a B3 antes do símbolo puro.
+  if (p.currency === "BRL" && !t.includes(".")) return [`${t}.SA`, t];
   return [t];
 }
 
