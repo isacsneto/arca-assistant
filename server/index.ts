@@ -7,7 +7,8 @@ import { yahooQuote } from "./quotes";
 import { tesouroSource } from "./tesouro";
 import { bcbSource } from "./indexers";
 import { dataDir, secretsFile } from "./paths";
-import { fetchConnections, filePluggyCredentials, pluggyClient } from "./pluggy";
+import { fetchConnections, filePluggyCredentials, pluggyClient, switchingClient } from "./pluggy";
+import { pgQuery, securoClient, SECURO_APP_URL, SECURO_DB_URL } from "./securo";
 import { openFinanceSettings } from "../shared/openFinance";
 import { sampleVideo } from "./video";
 import { PROVIDERS, aiSettings, isAiReady } from "../shared/ai";
@@ -15,7 +16,11 @@ import { L } from "../shared/i18n";
 
 const store = fileStore();
 const pluggyCredentials = filePluggyCredentials(secretsFile());
-const pluggy = pluggyClient(() => pluggyCredentials.get());
+const direct = pluggyClient(() => pluggyCredentials.get());
+// Open Finance: Pluggy direto se houver credenciais no Arca; senão, lê o Securo instalado no PC (se estiver rodando).
+const securo = securoClient(pgQuery(process.env.SECURO_DB_URL || SECURO_DB_URL));
+const securoUp = () => securo.check().then(() => true, () => false);
+const pluggy = switchingClient(() => (pluggyCredentials.get() ? direct : securo));
 const tesouroPrices = tesouroSource();
 const indexSeries = bcbSource();
 const app = createApp({
@@ -35,14 +40,14 @@ const app = createApp({
       // Open Finance como fonte da verdade: as instituições conectadas vêm da Pluggy.
       openFinance: async (s, sig) => {
         const of = openFinanceSettings(s.settings.openFinance);
-        if (!of.sourceOfTruth || !of.connections.length || !pluggyCredentials.get()) return null;
+        if (!of.sourceOfTruth || !of.connections.length || (!pluggyCredentials.get() && !(await securoUp()))) return null;
         return fetchConnections(pluggy, of.connections, { includeAccounts: of.includeAccounts, signal: sig });
       },
     }, emit, signal),
   projectPortfolio: projectWithAi,
   researchAsset,
   estimateAsset,
-  pluggy: { credentials: pluggyCredentials, client: pluggy },
+  pluggy: { credentials: pluggyCredentials, client: pluggy, securo: { available: securoUp, url: process.env.SECURO_APP_URL || SECURO_APP_URL } },
   // Checa de hora em hora; aplica no máximo a cada 6 h (o Meu Pluggy atualiza os bancos 1x por dia).
   openFinanceAutoSync: { checkEveryMs: 60 * 60_000, minIntervalMs: 6 * 60 * 60_000 },
   sampleVideo,

@@ -31,6 +31,9 @@ export interface OpenFinanceStatus {
   configured: boolean;
   /** Fim do Client ID, para o usuário reconhecer qual está salvo. */
   clientIdHint: string | null;
+  /** De onde vêm os dados: Pluggy direto (credenciais no Arca) ou o Securo rodando no PC. */
+  source: "pluggy" | "securo" | null;
+  securoUrl: string | null;
 }
 export interface OpenFinanceItem {
   id: string;

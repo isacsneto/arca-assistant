@@ -50,14 +50,28 @@ export function OpenFinanceSettings() {
           )
         : items.length
           ? L("Nenhuma conexão nova.", "No new connections.")
-          : L(
+          : status?.source === "securo"
+            ? L("O Securo ainda não tem bancos conectados. Conecte em Contas → Conectar banco → MeuPluggy e busque de novo.", "Securo has no connected banks yet. Connect them in Accounts → Connect bank → MeuPluggy and search again.")
+            : L(
               "A Pluggy não listou conexões para esta conta. Cole o itemId de cada banco abaixo (fica em meu.pluggy.ai, na conexão).",
               "Pluggy didn't list any connections for this account. Paste each bank's itemId below (found at meu.pluggy.ai, in the connection).",
             );
     });
 
+  const viaSecuro = status?.source === "securo";
+  const ready = !!status?.source;
+
   // Login pela tela da Pluggy (banco ou MeuPluggy): a conexão volta pronta, sem copiar itemId.
   const connect = (itemId?: string) => {
+    if (viaSecuro) {
+      // Com o Securo, o login no MeuPluggy é feito nele; o Arca lê o que ele sincronizou.
+      window.open(`${status!.securoUrl}/accounts`, "_blank", "noopener");
+      setMsg({ ok: true, text: L(
+        "Abri o Securo: em Contas → Conectar banco, escolha MeuPluggy e faça login. Quando terminar, volte aqui e clique em Buscar conexões.",
+        "I opened Securo: in Accounts → Connect bank, choose MeuPluggy and log in. When you're done, come back and click Find connections.",
+      ) });
+      return;
+    }
     if (!status?.configured) {
       // A Pluggy só abre a tela de login para uma aplicação: sem Client ID/Secret não há como.
       setMsg({ ok: false, text: L(
@@ -103,9 +117,20 @@ export function OpenFinanceSettings() {
             {L("(grátis para uso pessoal: até 5 conexões do mesmo titular, atualizadas a cada 24 h). Depois é só ir em ", "(free for personal use: up to 5 connections of the same account holder, updated every 24 h). Then just go to ")}<b>{L("Importar → Open Finance", "Import → Open Finance")}</b>.
           </p>
         </div>
-        {status?.configured && <span className="chip ok"><CheckCircle2 size={12} /> {L("credenciais salvas", "credentials saved")} {status.clientIdHint}</span>}
+        {viaSecuro
+          ? <span className="chip ok"><CheckCircle2 size={12} /> {L("via Securo", "via Securo")}</span>
+          : status?.configured && <span className="chip ok"><CheckCircle2 size={12} /> {L("credenciais salvas", "credentials saved")} {status.clientIdHint}</span>}
       </div>
 
+      {viaSecuro ? (
+        <ol className="small steps">
+          <li>
+            {L("Os dados vêm do ", "Data comes from ")}<a href={status!.securoUrl!} target="_blank" rel="noreferrer noopener">Securo <ExternalLink size={11} /></a>
+            {L(" rodando no seu PC: conecte os bancos nele (Contas → Conectar banco → MeuPluggy) e o Arca lê o que ele sincronizou, sem senha e só no seu computador.", " running on your PC: connect your banks there (Accounts → Connect bank → MeuPluggy) and Arca reads what it synced, with no password and only on your computer.")}
+          </li>
+          <li>{getLang() === "pt" ? <>Clique em <b>Buscar conexões</b> e marque se cada uma é PF ou PJ.</> : <>Click <b>Find connections</b> and mark each one as PF or PJ.</>}</li>
+        </ol>
+      ) : (
       <ol className="small steps">
         <li>{L("Crie a conta em ", "Create an account at ")}{pluggyLink("meu.pluggy.ai")}{L(", copie o ", ", copy your application's ")}<b>Client ID</b>{L(" e o ", " and ")}<b>Client Secret</b>{L(" da sua aplicação e cole abaixo (uma vez só).", " and paste them below (only once).")}</li>
         <li>
@@ -115,19 +140,20 @@ export function OpenFinanceSettings() {
         </li>
         <li>{L("Marque se cada conexão é PF ou PJ.", "Mark whether each connection is PF or PJ.")}</li>
       </ol>
+      )}
 
-      <CredentialsForm configured={!!status?.configured} busy={busy} onSave={(c) => act("save", async () => {
+      {!viaSecuro && <CredentialsForm configured={!!status?.configured} busy={busy} onSave={(c) => act("save", async () => {
         await api.setOpenFinanceCredentials(c);
         await loadStatus();
         return c
           ? L("Credenciais conferidas com a Pluggy e salvas.", "Credentials verified with Pluggy and saved.")
           : L("Credenciais removidas.", "Credentials removed.");
-      })} />
+      })} />}
 
       <div className="card-head" style={{ marginTop: 18 }}>
         <h3>{L("Conexões", "Connections")}</h3>
         <div className="row" style={{ gap: 8 }}>
-          <button className="btn sm" disabled={!status?.configured || !!busy} onClick={() => void discover()} title={L("Lista as conexões que já existem na sua conta da Pluggy", "Lists the connections that already exist in your Pluggy account")}>
+          <button className="btn sm" disabled={!ready || !!busy} onClick={() => void discover()} title={viaSecuro ? L("Lista os bancos conectados no Securo", "Lists the banks connected in Securo") : L("Lista as conexões que já existem na sua conta da Pluggy", "Lists the connections that already exist in your Pluggy account")}>
             {busy === "discover" ? <Loader2 size={14} className="spin" /> : <Search size={14} />} {L("Buscar conexões", "Find connections")}
           </button>
           <button className="btn sm primary" disabled={!!busy} onClick={() => void connect()}>
@@ -163,7 +189,7 @@ export function OpenFinanceSettings() {
                       </select>
                     </td>
                     <td className="ga-act" style={{ whiteSpace: "nowrap" }}>
-                      <button className="btn icon sm ghost" disabled={!status?.configured || !!busy} title={L("Renovar o login (quando o banco pede para entrar de novo)", "Renew the login (when the bank asks you to sign in again)")} onClick={() => void connect(c.itemId)}>
+                      <button className="btn icon sm ghost" disabled={!ready || !!busy} title={L("Renovar o login (quando o banco pede para entrar de novo)", "Renew the login (when the bank asks you to sign in again)")} onClick={() => void connect(c.itemId)}>
                         {busy === `relogin:${c.itemId}` ? <Loader2 size={14} className="spin" /> : <LogIn size={14} />}
                       </button>
                       <button className="btn icon sm ghost" title={L("Remover conexão", "Remove connection")} onClick={() => setConnections(of.connections.filter((x) => x.itemId !== c.itemId))}>
@@ -177,8 +203,10 @@ export function OpenFinanceSettings() {
           </table>
         </div>
       ) : (
-        <p className="muted small">{status?.configured
-          ? L("Nenhuma conexão ainda. Clique em Conectar banco.", "No connections yet. Click Connect bank.")
+        <p className="muted small">{ready
+          ? viaSecuro
+            ? L("Nenhuma conexão ainda. Conecte os bancos no Securo e clique em Buscar conexões.", "No connections yet. Connect your banks in Securo and click Find connections.")
+            : L("Nenhuma conexão ainda. Clique em Conectar banco.", "No connections yet. Click Connect bank.")
           : L("Nenhuma conexão ainda. Salve o Client ID e o Client Secret acima para conectar.", "No connections yet. Save the Client ID and Client Secret above to connect.")}</p>
       )}
 

@@ -467,13 +467,13 @@ function fakePluggy(opts: { valid?: boolean } = {}) {
 test("Open Finance: credenciais validadas, nunca devolvidas, e recusadas não ficam salvas", async () => {
   const ok = fakePluggy();
   await withServer({ pluggy: ok }, async (base) => {
-    assert.deepEqual(await (await fetch(`${base}/api/openfinance`)).json(), { available: true, configured: false, clientIdHint: null });
+    assert.deepEqual(await (await fetch(`${base}/api/openfinance`)).json(), { available: true, configured: false, clientIdHint: null, source: null, securoUrl: null });
     const bad = await fetch(`${base}/api/openfinance/credentials`, { ...json({ clientId: "x", clientSecret: "y" }), method: "PUT" });
     assert.equal(bad.status, 400);
     const res = await fetch(`${base}/api/openfinance/credentials`, { ...json({ clientId: "11111111-2222-3333-4444-555555555555", clientSecret: "segredo-123" }), method: "PUT" });
     assert.equal(res.status, 200);
     const status = await (await fetch(`${base}/api/openfinance`)).json();
-    assert.deepEqual(status, { available: true, configured: true, clientIdHint: "…5555" });
+    assert.deepEqual(status, { available: true, configured: true, clientIdHint: "…5555", source: "pluggy", securoUrl: null });
     assert.ok(!JSON.stringify(status).includes("segredo"));
   });
   const refused = fakePluggy({ valid: false });
@@ -481,6 +481,18 @@ test("Open Finance: credenciais validadas, nunca devolvidas, e recusadas não fi
     const res = await fetch(`${base}/api/openfinance/credentials`, { ...json({ clientId: "11111111-2222-3333-4444-555555555555", clientSecret: "segredo-123" }), method: "PUT" });
     assert.equal(res.status, 401);
     assert.equal(refused.credentials.get(), null);
+  });
+});
+
+test("Open Finance: sem credenciais no Arca, usa o Securo quando ele está rodando", async () => {
+  const pluggy = { ...fakePluggy(), securo: { available: async () => true, url: "http://localhost:3000" } };
+  await withServer({ pluggy }, async (base) => {
+    const st = await (await fetch(`${base}/api/openfinance`)).json();
+    assert.deepEqual([st.configured, st.source, st.securoUrl], [false, "securo", "http://localhost:3000"]);
+  });
+  const down = { ...fakePluggy(), securo: { available: async () => false, url: "http://localhost:3000" } };
+  await withServer({ pluggy: down }, async (base) => {
+    assert.equal((await (await fetch(`${base}/api/openfinance`)).json()).source, null);
   });
 });
 

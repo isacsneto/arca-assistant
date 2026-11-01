@@ -51,7 +51,12 @@ export interface Deps {
   /** Cotações atuais das moedas do registro na moeda base. */
   fetchFx?: () => Promise<FxRates>;
   /** Open Finance (Meu Pluggy): credenciais no servidor + cliente da API. */
-  pluggy?: { credentials: PluggyCredentialStore; client: PluggyClient };
+  pluggy?: {
+    credentials: PluggyCredentialStore;
+    client: PluggyClient;
+    /** Securo no PC como fonte alternativa (sem credenciais no Arca). */
+    securo?: { available: () => Promise<boolean>; url: string };
+  };
   /** Open Finance automático: de quanto em quanto tempo checar (sem valor = só pela rota, como nos testes). */
   openFinanceAutoSync?: { checkEveryMs: number; minIntervalMs: number };
   /** Amostras de um vídeo via ffmpeg (quando o navegador não decodifica o formato). */
@@ -291,9 +296,19 @@ export function createApp(deps: Deps) {
     res.status(501).json({ error: L("Open Finance indisponível.", "Open Finance unavailable.") });
   };
 
-  app.get("/api/openfinance", (_req, res) => {
+  // De onde vêm os dados: Pluggy direto (credenciais no Arca) ou o Securo rodando no PC.
+  const ofSource = async (): Promise<"pluggy" | "securo" | null> =>
+    deps.pluggy?.credentials.get() ? "pluggy" : (await deps.pluggy?.securo?.available()) ? "securo" : null;
+
+  app.get("/api/openfinance", async (_req, res) => {
     const creds = deps.pluggy?.credentials.get();
-    res.json({ available: Boolean(deps.pluggy), configured: Boolean(creds), clientIdHint: creds ? `…${creds.clientId.slice(-4)}` : null });
+    res.json({
+      available: Boolean(deps.pluggy),
+      configured: Boolean(creds),
+      clientIdHint: creds ? `…${creds.clientId.slice(-4)}` : null,
+      source: await ofSource(),
+      securoUrl: deps.pluggy?.securo?.url ?? null,
+    });
   });
 
   // Credenciais só entram (ou saem); nunca voltam ao navegador.
@@ -368,7 +383,7 @@ export function createApp(deps: Deps) {
     const of = openFinanceSettings(state.settings.openFinance);
     const conns = autoSyncConnections(of);
     const due = force || Date.now() - lastAutoSyncRun >= (deps.openFinanceAutoSync?.minIntervalMs ?? 0);
-    if (!deps.pluggy?.credentials.get() || !conns.length || !due) return { ran: false, applied: 0, warnings: [] };
+    if (!deps.pluggy || !conns.length || !due || !(await ofSource())) return { ran: false, applied: 0, warnings: [] };
     const data = await fetchConnections(deps.pluggy.client, conns, { includeAccounts: of.includeAccounts });
     lastAutoSyncRun = Date.now();
     const now = new Date().toISOString();

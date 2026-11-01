@@ -183,3 +183,15 @@ export async function fetchConnections(
     }),
   );
 }
+
+/** Cliente que escolhe a fonte a cada chamada (ex.: Pluggy direto se houver credenciais; senão, o Securo). */
+export function switchingClient(pick: () => PluggyClient): PluggyClient {
+  return {
+    check: (signal) => pick().check(signal),
+    listItems: (signal) => pick().listItems(signal),
+    getItem: (itemId, signal) => pick().getItem(itemId, signal),
+    investments: (itemId, signal) => pick().investments(itemId, signal),
+    accounts: (itemId, signal) => pick().accounts(itemId, signal),
+    connectToken: (itemId, signal) => pick().connectToken(itemId, signal),
+  };
+}
