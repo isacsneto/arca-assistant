@@ -4,6 +4,9 @@ import { aiFor } from "../shared/ai";
 import { L } from "../shared/i18n";
 import type { MonthStats, Snapshot } from "../shared/history";
 import { runAi } from "./ai";
+import { CATEGORIES, categoryOf } from "../shared/cashflow";
+import type { CashflowView } from "../shared/cashflowView";
+import { planningOf } from "../shared/planning";
 
 /*
  * Análises em texto feitas pela IA sobre os dados do próprio app (histórico, metas, gastos…).
@@ -94,6 +97,64 @@ export async function goalsAdviceWithAi(
     schema: TextSchema,
     web: true,
     maxTurns: 20,
+    signal,
+    onProgress: emit,
+  });
+  return data.text;
+}
+
+/* ---------------- categorias dos gastos ---------------- */
+
+export async function categorizeWithAi(
+  state: AppState,
+  items: { desc: string; sample: string; amount: number; pluggyCategory: string | null; count: number }[],
+  signal?: AbortSignal,
+): Promise<Record<string, string>> {
+  if (!items.length) return {};
+  const ids = CATEGORIES.map((c) => c.id) as [string, ...string[]];
+  const schema = z.object({ items: z.array(z.object({ desc: z.string(), category: z.enum(ids) })) });
+  const rules = planningOf(state.planning).categoryRules;
+  const catalog = CATEGORIES.map((c) => `- ${c.id} (${c.kind === "expense" ? "gasto" : c.kind === "income" ? "receita" : "não é gasto nem receita"}): ${c.label()}`).join("\n");
+  const examples = rules.slice(-40).map((r) => `- "${r.match}" → ${r.category}`).join("\n");
+  const { data } = await runAi(aiFor(state.settings, "refresh"), {
+    system: `Você classifica transações bancárias brasileiras (conta e cartão) em categorias. Responda só com o resultado estruturado: para cada "desc" recebida, uma categoria do catálogo.
+
+Catálogo:
+${catalog}
+
+Dicas: PIX/TED para a própria pessoa ou entre contas dela = transferencia; PIX para outra pessoa ou empresa = o gasto correspondente (se não der para saber, "outros"); "APLICAÇÃO", "RESGATE", "CDB", "TESOURO", corretora = investimento; pagamento de fatura = fatura; valor positivo de salário/pró-labore = salario. Use as correções do usuário como exemplo do gosto dele.`,
+    prompt: `${examples ? `Correções do usuário (siga o padrão):\n${examples}\n\n` : ""}Transações (desc normalizada | exemplo original | sinal | categoria do banco | ocorrências):\n${items
+      .map((i) => `- ${i.desc} | ${i.sample} | ${i.amount < 0 ? "saída" : "entrada"} | ${i.pluggyCategory ?? "-"} | ${i.count}`)
+      .join("\n")}`,
+    schema,
+    web: false,
+    maxTurns: 4,
+    signal,
+  });
+  const valid = new Set(items.map((i) => i.desc));
+  return Object.fromEntries(data.items.filter((i) => valid.has(i.desc)).map((i) => [i.desc, i.category]));
+}
+
+/* ---------------- análise dos gastos ---------------- */
+
+export async function spendingAdviceWithAi(state: AppState, view: CashflowView, emit: (e: JobEvent<never>) => void, signal: AbortSignal): Promise<string> {
+  emit({ type: "status", text: L("Analisando os gastos…", "Analyzing spending…") });
+  const label = (id: string) => categoryOf(id).label();
+  const months = view.months.slice(-6).map((m) => `- ${m.month}: receitas ${brl(m.income)}, gastos ${brl(m.expenses)}, sobra ${brl(m.net)}; maiores: ${Object.entries(m.byCategory).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([c, v]) => `${label(c)} ${brl(v)}`).join(", ")}`);
+  const rec = view.recurring.slice(0, 15).map((r) => `- ${r.label} (${label(r.category)}): ${brl(r.amount)}/mês`);
+  const { data } = await runAi(aiFor(state.settings, "insights"), {
+    system: `Você é o consultor financeiro pessoal de um brasileiro e analisa os GASTOS dele (conta e cartão, via Open Finance), em português do Brasil. Os números já foram calculados pelo app — use-os.
+
+Formato (markdown simples, até ~300 palavras):
+1. Retrato em 2 frases: quanto entra, quanto sai, quanto sobra por mês e a taxa de poupança.
+2. "Onde dá para economizar": 2–4 pontos concretos com valor estimado por mês (categorias acima do comum para a renda, assinaturas que parecem esquecidas/duplicadas, tarifas e juros).
+3. "Orçamento sugerido": limite mensal para as 5–8 maiores categorias.
+4. Uma frase ligando a sobra aos investimentos (quanto daria para aportar por mês).
+Sem julgamento moral; seja prático.`,
+    prompt: `MESES:\n${months.join("\n")}\n\nSOBRA MÉDIA (3 meses): ${view.capacity ? brl(view.capacity.average) : "n/d"}\nRESERVA: ${brl(view.reserve.value)} (${view.reserve.months?.toFixed(1) ?? "?"} meses de gasto)\n\nRECORRENTES:\n${rec.join("\n") || "- nenhum detectado"}\n\nEscreva a análise.`,
+    schema: TextSchema,
+    web: false,
+    maxTurns: 6,
     signal,
     onProgress: emit,
   });

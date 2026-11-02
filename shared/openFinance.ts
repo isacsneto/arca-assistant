@@ -97,6 +97,60 @@ export interface PluggyAccount {
   marketingName?: string | null;
   balance?: number | null;
   currencyCode?: string | null;
+  /** Cartão: vencimento da fatura atual, limite disponível etc. */
+  creditData?: { balanceDueDate?: string | null; balanceCloseDate?: string | null; availableCreditLimit?: number | null; creditLimit?: number | null; minimumPayment?: number | null } | null;
+}
+
+/** Transação de conta/cartão (GET /v2/transactions). */
+export interface PluggyTransaction {
+  id: string;
+  description: string;
+  amount: number;
+  currencyCode?: string | null;
+  date: string;
+  category?: string | null;
+  type?: "DEBIT" | "CREDIT" | string;
+  status?: string | null;
+  merchant?: { name?: string | null; businessName?: string | null } | null;
+  creditCardMetadata?: { installmentNumber?: number | null; totalInstallments?: number | null; billForecastDate?: string | null } | null;
+}
+
+export interface PluggyBill {
+  id: string;
+  dueDate: string;
+  totalAmount: number;
+  minimumPaymentAmount?: number | null;
+}
+
+export interface PluggyLoan {
+  id: string;
+  productName?: string | null;
+  type?: string | null;
+  contractNumber?: string | null;
+  contractAmount?: number | null;
+  outstandingBalance?: number | null;
+  currencyCode?: string | null;
+  CET?: number | null;
+  interestRates?: { preFixedRate?: number | null; postFixedRate?: number | null; referentialRateIndexerType?: string | null }[] | null;
+  installments?: { totalNumberOfInstallments?: number | null; dueInstallments?: number | null; paidInstallments?: number | null; balanceDueInstallments?: number | null } | null;
+  installmentPeriodicity?: string | null;
+  dueDate?: string | null;
+  contractDate?: string | null;
+}
+
+/** Movimentação de um investimento (GET /investments/{id}/transactions). */
+export interface PluggyInvestmentTx {
+  id: string;
+  type?: "BUY" | "SELL" | "TAX" | "TRANSFER" | string;
+  movementType?: "CREDIT" | "DEBIT" | string | null;
+  quantity?: number | null;
+  value?: number | null;
+  amount?: number | null;
+  netAmount?: number | null;
+  date?: string | null;
+  tradeDate?: string | null;
+  description?: string | null;
+  expenses?: { brokerageFee?: number | null; incomeTax?: number | null; [k: string]: unknown } | null;
 }
 
 /** Dados de uma conexão, como o servidor entrega para a conversão. */

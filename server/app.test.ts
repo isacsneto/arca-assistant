@@ -461,6 +461,10 @@ function fakePluggy(opts: { valid?: boolean } = {}) {
     investments: async () => [{ id: "1", name: "CDB BTG", type: "FIXED_INCOME", subtype: "CDB", balance: 1000 }],
     accounts: async () => [],
     connectToken: async (itemId) => `tok${itemId ? `-${itemId}` : ""}`,
+    transactions: async () => [],
+    bills: async () => [],
+    loans: async () => [],
+    investmentTransactions: async () => [],
   };
   return Object.assign(self, { credentials: { get: () => creds, set: (c: typeof creds) => void (creds = c) }, client });
 }

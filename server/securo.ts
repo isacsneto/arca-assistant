@@ -118,6 +118,11 @@ export function securoClient(query: Query): PluggyClient {
         currencyCode: r.currency,
       }));
     },
+    // Transações, faturas, empréstimos e movimentações: só pela Pluggy direto (o Securo guarda num formato próprio).
+    transactions: async () => [],
+    bills: async () => [],
+    loans: async () => [],
+    investmentTransactions: async () => [],
     async connectToken() {
       throw new PluggyError(
         L(`Com o Securo, os bancos são conectados nele: abra ${SECURO_APP_URL} → Contas → Conectar banco → MeuPluggy.`, `With Securo, banks are connected there: open ${SECURO_APP_URL} → Accounts → Connect bank → MeuPluggy.`),

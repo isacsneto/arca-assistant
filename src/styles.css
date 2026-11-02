@@ -566,3 +566,13 @@ label.btn.disabled { opacity: 0.6; pointer-events: none; }
 .goal .bar { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
 .goal .bar > div { height: 100%; border-radius: 99px; }
 .goal-pick { max-height: 240px; overflow: auto; display: grid; gap: 4px; margin-top: 8px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; }
+
+/* Gastos */
+.grid.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.cat-list { display: grid; gap: 6px; }
+.cat-row { display: grid; grid-template-columns: minmax(120px, 1.4fr) auto minmax(60px, 1fr) 84px; gap: 8px; align-items: center; font-size: 13px; }
+.cat-row.on .link { font-weight: 700; }
+.cat-row .bar { height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.cat-row .bar > div { height: 100%; }
+.link { background: none; border: 0; padding: 0; color: var(--text); cursor: pointer; text-align: left; font: inherit; }
+.link:hover { text-decoration: underline; }

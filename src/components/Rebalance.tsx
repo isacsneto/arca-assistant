@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { api } from "../api";
 import { CURRENCIES } from "../../shared/currency";
 import { ArrowDownRight, ArrowUpRight, Radar } from "lucide-react";
 import { CLASS_META, METHODOLOGIES } from "../../shared/types";
 import { VIEW_LABEL } from "../../shared/owner";
 import { computeAllocation, rebalance, targetsSum } from "../../shared/arca";
 import { useStore } from "../store";
-import { amt, pct, displayCurrency, fromDisplay } from "../lib/format";
+import { amt, amt0, pct, displayCurrency, fromDisplay, toDisplay } from "../lib/format";
 import { Banner, ClassLabel, Empty, PageHead } from "./ui";
 import { L, locale } from "../../shared/i18n";
 
@@ -14,6 +15,11 @@ export function Rebalance({ goScan }: { goScan: () => void }) {
   const { settings, scans } = state!;
   const [contribution, setContribution] = useState("5000");
   const [allowSell, setAllowSell] = useState(false);
+  // Quanto sobra por mês (Gastos, via Open Finance): sugestão de aporte.
+  const [capacity, setCapacity] = useState<number | null>(null);
+  useEffect(() => {
+    api.cashflow().then((v) => setCapacity(v?.capacity && v.capacity.average > 0 ? v.capacity.average : null)).catch(() => undefined);
+  }, []);
 
   const alloc = useMemo(() => computeAllocation(positions, settings.fx), [positions, settings.fx]);
   // O aporte é digitado na moeda de exibição; o cálculo é na moeda base.
@@ -46,6 +52,12 @@ export function Rebalance({ goScan }: { goScan: () => void }) {
             {L("Novo aporte", "New contribution")} ({CURRENCIES[displayCurrency()].symbol})
             <input type="number" min="0" step="100" value={contribution} onChange={(e) => setContribution(e.target.value)} />
           </label>
+          {capacity != null && (
+            <button className="btn sm ghost" style={{ marginBottom: 6 }} onClick={() => setContribution(String(Math.round(toDisplay(capacity) / 100) * 100))}
+              title={L("Média do que sobrou por mês nos últimos 3 meses (aba Gastos)", "Average left over per month in the last 3 months (Spending tab)")}>
+              {L("Usar a sobra média", "Use average surplus")}: {amt0(capacity)}
+            </button>
+          )}
           <label className="check" style={{ paddingBottom: 8 }}>
             <input type="checkbox" checked={allowSell} onChange={(e) => setAllowSell(e.target.checked)} />
             {L("Permitir vendas para atingir a meta exata", "Allow selling to hit the exact target")}

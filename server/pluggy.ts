@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { L } from "../shared/i18n";
-import type { ConnectionData, OpenFinanceConnection, PluggyAccount, PluggyInvestment, PluggyItem } from "../shared/openFinance";
+import type { ConnectionData, OpenFinanceConnection, PluggyAccount, PluggyBill, PluggyInvestment, PluggyInvestmentTx, PluggyItem, PluggyLoan, PluggyTransaction } from "../shared/openFinance";
 
 /*
  * Cliente mínimo da API da Pluggy (https://docs.pluggy.ai), para o plano pessoal
@@ -66,6 +66,11 @@ export interface PluggyClient {
    * banco (ou o conector MeuPluggy) e faz login lá. Com `itemId`, reabre aquela conexão para renovar o login.
    */
   connectToken(itemId?: string, signal?: AbortSignal): Promise<string>;
+  /** Transações de uma conta/cartão desde `from` (AAAA-MM-DD), todas as páginas. */
+  transactions(accountId: string, from: string, signal?: AbortSignal): Promise<PluggyTransaction[]>;
+  bills(accountId: string, signal?: AbortSignal): Promise<PluggyBill[]>;
+  loans(itemId: string, signal?: AbortSignal): Promise<PluggyLoan[]>;
+  investmentTransactions(investmentId: string, signal?: AbortSignal): Promise<PluggyInvestmentTx[]>;
   investments(itemId: string, signal?: AbortSignal): Promise<PluggyInvestment[]>;
   accounts(itemId: string, signal?: AbortSignal): Promise<PluggyAccount[]>;
 }
@@ -145,6 +150,20 @@ export function pluggyClient(creds: () => PluggyCredentials | null, fetchImpl: F
       }
     },
     getItem: async (itemId, signal) => request<PluggyItem>(`/items/${id(itemId)}`, signal),
+    async transactions(accountId, from, signal) {
+      // v2: paginação por cursor ("next" já vem como querystring); a v1 foi desativada (410).
+      const out: PluggyTransaction[] = [];
+      let url: string | null = `/v2/transactions?accountId=${id(accountId)}&dateFrom=${encodeURIComponent(from)}`;
+      for (let page = 0; url && page < 100; page += 1) {
+        const body: { results?: PluggyTransaction[]; next?: string | null } = await request(url, signal);
+        out.push(...(body.results ?? []));
+        url = body.next ? `/v2/transactions${body.next.startsWith("?") ? body.next : `?${body.next}`}` : null;
+      }
+      return out;
+    },
+    bills: async (accountId, signal) => all<PluggyBill>(`/bills?accountId=${id(accountId)}`, signal),
+    loans: async (itemId, signal) => all<PluggyLoan>(`/loans?itemId=${id(itemId)}`, signal),
+    investmentTransactions: async (investmentId, signal) => all<PluggyInvestmentTx>(`/investments/${id(investmentId)}/transactions`, signal),
     async connectToken(itemId, signal) {
       if (itemId) id(itemId);
       // avoidDuplicates: logar de novo no mesmo banco reaproveita a conexão em vez de criar outra.
@@ -193,5 +212,9 @@ export function switchingClient(pick: () => PluggyClient): PluggyClient {
     investments: (itemId, signal) => pick().investments(itemId, signal),
     accounts: (itemId, signal) => pick().accounts(itemId, signal),
     connectToken: (itemId, signal) => pick().connectToken(itemId, signal),
+    transactions: (accountId, from, signal) => pick().transactions(accountId, from, signal),
+    bills: (accountId, signal) => pick().bills(accountId, signal),
+    loans: (itemId, signal) => pick().loans(itemId, signal),
+    investmentTransactions: (investmentId, signal) => pick().investmentTransactions(investmentId, signal),
   };
 }

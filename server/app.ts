@@ -23,6 +23,9 @@ import { GOAL_KINDS, goalPositions, goalStatus, planningOf } from "../shared/pla
 import type { HistoryStore } from "./history";
 import type { goalsAdviceWithAi, monthSummaryPrompt } from "./insights";
 import type { ChatMessage, ChatReply } from "./chat";
+import type { LedgerStore } from "./ledger";
+import { cashflowView, type CashflowView } from "../shared/cashflowView";
+import { brDay } from "../shared/history";
 import { VideoError, type VideoSample } from "./video";
 import { VIDEO_SAMPLE_STEP } from "../shared/videoFrames";
 import { L, setLang } from "../shared/i18n";
@@ -82,6 +85,12 @@ export interface Deps {
   scanConcurrency?: number;
   /** "Pergunte à Arca": conversa com a IA sobre os dados do usuário (só leitura). */
   chat?: (state: AppState, messages: ChatMessage[], emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<ChatReply>;
+  /** Transações, faturas, empréstimos (Open Finance): razão local, sincronização e análise dos gastos pela IA. */
+  ledger?: {
+    store: LedgerStore;
+    sync: (state: AppState) => Promise<void>;
+    advise: (state: AppState, view: CashflowView, emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<string>;
+  };
   /** Análise das metas pela IA (texto). */
   goalsAdvice?: (state: AppState, rows: Parameters<typeof goalsAdviceWithAi>[1], emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<string>;
   /** Histórico do patrimônio: fotos diárias, CDI/Ibovespa por mês e resumo do mês pela IA. */
@@ -673,6 +682,35 @@ export function createApp(deps: Deps) {
     try {
       const reply = await deps.chat(structuredClone(state), messages, sse.send as (e: JobEvent<never>) => void, sse.signal);
       sse.send({ type: "result", result: reply });
+    } catch (err) {
+      if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });
+    } finally {
+      sse.end();
+    }
+  });
+
+  /* ---------------- Gastos (transações do Open Finance) ---------------- */
+  const view = (month: string | null) => cashflowView(state, deps.ledger!.store.get(), month, brDay(new Date()));
+  app.get("/api/cashflow", (req, res) => {
+    if (!deps.ledger) return res.json(null);
+    const month = typeof req.query.month === "string" && /^\d{4}-\d{2}$/.test(req.query.month) ? req.query.month : null;
+    res.json(view(month));
+  });
+  app.post("/api/cashflow/sync", async (_req, res) => {
+    if (!deps.ledger) return noPluggy(res);
+    try {
+      await deps.ledger.sync(state);
+      res.json(view(null));
+    } catch (err) {
+      pluggyFail(res, err);
+    }
+  });
+  app.post("/api/cashflow/advice", async (_req, res) => {
+    if (!deps.ledger) return noPluggy(res);
+    const sse = openSse<JobEvent<{ text: string; at: string }>>(res);
+    try {
+      const text = await deps.ledger.advise(structuredClone(state), view(null), sse.send as (e: JobEvent<never>) => void, sse.signal);
+      sse.send({ type: "result", result: { text, at: new Date().toISOString() } });
     } catch (err) {
       if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });
     } finally {

@@ -6,9 +6,12 @@ import { refreshValues } from "./refresh";
 import { yahooQuote } from "./quotes";
 import { tesouroSource } from "./tesouro";
 import { bcbSource } from "./indexers";
-import { dataDir, historyFile, secretsFile } from "./paths";
+import { dataDir, historyFile, ledgerFile, secretsFile } from "./paths";
+import { ledgerStore, needsAi, syncLedger } from "./ledger";
+import { cashflowView } from "../shared/cashflowView";
+import { categoryOf } from "../shared/cashflow";
 import { backfillHistory, historyStore, withHistory } from "./history";
-import { goalsAdviceWithAi, monthSummaryWithAi } from "./insights";
+import { categorizeWithAi, goalsAdviceWithAi, monthSummaryWithAi, spendingAdviceWithAi } from "./insights";
 import { GOAL_KINDS, goalStatus, planningOf } from "../shared/planning";
 import { chatWithAi } from "./chat";
 import { monthlyStats } from "../shared/history";
@@ -22,6 +25,7 @@ import { L } from "../shared/i18n";
 
 // Cada gravação da carteira também tira a foto do dia (histórico do patrimônio).
 const history = historyStore(historyFile());
+const ledger = ledgerStore(ledgerFile());
 const store = withHistory(fileStore(), history);
 const pluggyCredentials = filePluggyCredentials(secretsFile());
 const direct = pluggyClient(() => pluggyCredentials.get());
@@ -76,6 +80,7 @@ const app = createApp({
   sampleVideo,
   chat: (state, messages, emit, signal) => chatWithAi(state, messages, chatExtras(state), emit, signal),
   goalsAdvice: goalsAdviceWithAi,
+  ledger: { store: ledger, sync: (s) => syncLedgerNow(s), advise: spendingAdviceWithAi },
   history: {
     store: history,
     benchmarks: async (from) => {
@@ -98,6 +103,33 @@ const app = createApp({
   },
 });
 
+/**
+ * Transações, faturas, empréstimos e movimentações do Open Finance (só com a Pluggy direto). Depois de
+ * sincronizar, a IA categoriza as descrições que nem regra nem a Pluggy resolvem.
+ */
+let ledgerRunning: Promise<void> | null = null;
+function syncLedgerNow(state: import("../shared/types").AppState): Promise<void> {
+  ledgerRunning ??= (async () => {
+    if (!pluggyCredentials.get() || !openFinanceSettings(state.settings.openFinance).connections.length) return;
+    const data = await syncLedger(direct, state, ledger.get());
+    ledger.set(data);
+    const todo = needsAi(data, state);
+    if (todo.length) {
+      try {
+        const map = await categorizeWithAi(state, todo);
+        ledger.set({ ...ledger.get(), aiCategories: { ...ledger.get().aiCategories, ...map } });
+      } catch (e) {
+        console.warn(`Categorias pela IA: ${(e as Error).message}`);
+      }
+    }
+  })().finally(() => (ledgerRunning = null));
+  return ledgerRunning;
+}
+// Junto com a atualização automática: a cada 30 min (a primeira, 90 s depois de subir).
+const ledgerTick = () => void syncLedgerNow(store.load()).catch((e: unknown) => console.warn(`Open Finance (transações): ${e instanceof Error ? e.message : String(e)}`));
+setTimeout(ledgerTick, 90_000).unref();
+setInterval(ledgerTick, 30 * 60_000).unref();
+
 /** Seções extras do contexto do chat (histórico, metas, gastos, IR…). */
 function chatExtras(state: import("../shared/types").AppState): string[] {
   const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -115,6 +147,20 @@ function chatExtras(state: import("../shared/types").AppState): string[] {
       return `- ${g.name} (${GOAL_KINDS()[g.kind]}): alvo ${brl(g.target)} (R$ de hoje) em ${g.targetDate}; hoje ${brl(st.current)} (${(st.progress * 100).toFixed(0)}%); aporte planejado ${brl(g.monthly)}/mês, necessário ${brl(st.required)}/mês; ${st.onTrack ? "no trilho" : "FORA do trilho"} (retorno real ${st.realReturnPct.toFixed(1)}% a.a.)`;
     });
     out.push(["METAS:", ...rows].join("\n"));
+  }
+  const led = ledger.get();
+  if (led.bankTx.length) {
+    const v = cashflowView(state, led, null, brDay(new Date()));
+    const cat = (id: string) => categoryOf(id).label();
+    const months = v.months.slice(-4).map((m) => `- ${m.month}: receitas ${brl(m.income)}, gastos ${brl(m.expenses)}, sobra ${brl(m.net)}; maiores: ${Object.entries(m.byCategory).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([c, x]) => `${cat(c)} ${brl(x)}`).join(", ")}`);
+    out.push([
+      "GASTOS (conta e cartão, Open Finance):",
+      ...months,
+      `- Sobra média (3 meses): ${v.capacity ? brl(v.capacity.average) : "n/d"}/mês`,
+      `- Recorrentes: ${v.recurring.length} (${brl(v.recurring.reduce((s, r) => s + r.amount, 0))}/mês): ${v.recurring.slice(0, 8).map((r) => `${r.label} ${brl(r.amount)}`).join("; ")}`,
+      `- Reserva: ${brl(v.reserve.value)} = ${v.reserve.months?.toFixed(1) ?? "?"} meses de gasto médio (${brl(v.reserve.avgExpenses)})`,
+      `- Compromissos próximos: ${v.commitments.map((c) => `${c.month} ${brl(c.total)} (faturas ${brl(c.bills)}, parcelas ${brl(c.installments)})`).join("; ")}`,
+    ].join("\n"));
   }
   return out;
 }
