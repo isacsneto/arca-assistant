@@ -58,6 +58,12 @@ Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes
 | 📈 **5–30 year projection** | Likely and plausible worst-case scenarios, with researched assumptions (Focus survey, rates, fiscal, valuation) and the math done by the app — nominal and in today's money. |
 | 🏦 **By institution** | How much you hold at each bank/broker. Mark one as outdated and the app reminds you to update it. |
 | 🚗 **Physical assets** | Cars, real estate, jewelry and electronics outside the portfolio, with **AI value estimates** (FIPE table, new and used listings, gold price) and attachments (photos, invoices). |
+| 📜 **History** | A daily snapshot of your wealth: evolution by class, month by month against CDI and the Ibovespa, and an **AI-written monthly summary** (what weighed most and why). Starts with ~4 rebuilt months. |
+| 💬 **Ask Arca** | Chat with the AI about your own data — portfolio, history, goals, spending, taxes and debts — with web search. Read-only; it never changes anything. |
+| 🎯 **Goals** | Retirement, emergency fund, home…: what you have, the monthly contribution needed and whether your plan gets there, in today's money (real return from the Projection). AI goals analysis. |
+| 🧾 **Spending** | Account and card transactions through Open Finance, **categorized by the AI** (it learns from your corrections), budgets, recurring subscriptions, bills and installments for the coming months, how many months your emergency fund covers and the average surplus to invest (suggested in Rebalance). |
+| 🧮 **Income tax** | Monthly stock-market DARF (R$ 20k exemption, REITs 20%, loss offset), Bens e Direitos with acquisition cost and ready-made description, exempt income and JCP, and an AI checklist for the return. |
+| 💳 **Debts** | Open Finance and manually added loans, net worth (investments + assets − debts) and "prepay or invest?" against net CDI, with an AI simulation. |
 | ⏰ **Reminders** | Outdated institutions on startup and a periodic "is everything up to date?" check every 1 or 2 weeks. |
 
 <div align="center">

@@ -52,6 +52,12 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 | 📈 **Projeção 5–30 anos** | Cenário mais provável e pior caso plausível, com premissas pesquisadas (Focus, juros, fiscal, valuation) e a conta feita pelo app — nominal e em reais de hoje. |
 | 🏦 **Por instituição** | Quanto você tem em cada banco/corretora. Marque uma como desatualizada e o app lembra você de atualizar. |
 | 🚗 **Bens físicos** | Carros, imóveis, joias e eletrônicos fora dos investimentos, com **estimativa de valor por IA** (FIPE, anúncios de novos e usados, cotação do ouro) e anexos (fotos, nota fiscal). |
+| 📜 **Histórico** | Uma foto do patrimônio por dia: evolução por classe, mês a mês contra CDI e Ibovespa, e o **resumo do mês escrito pela IA** (o que mais pesou e por quê). Começa com ~4 meses reconstruídos. |
+| 💬 **Pergunte à Arca** | Chat com a IA sobre os seus dados — carteira, histórico, metas, gastos, IR e dívidas — com busca na web. Só lê; não altera nada. |
+| 🎯 **Metas** | Aposentadoria, reserva, imóvel…: quanto já tem, o aporte mensal necessário e se o planejado chega lá, em reais de hoje (retorno real da Projeção). Análise das metas pela IA. |
+| 🧾 **Gastos** | Transações de conta e cartão pelo Open Finance, **categorizadas pela IA** (aprende com as suas correções), orçamentos, assinaturas recorrentes, faturas e parcelas dos próximos meses, quantos meses a reserva cobre e a sobra média para investir (vira sugestão no Rebalancear). |
+| 🧮 **Imposto de Renda** | DARF da bolsa mês a mês (isenção de R$ 20 mil, FII 20%, compensação de prejuízo), Bens e Direitos com custo de aquisição e discriminação pronta, proventos isentos e JCP, e checklist da declaração pela IA. |
+| 💳 **Dívidas** | Empréstimos do Open Finance e cadastrados, patrimônio líquido (investimentos + bens − dívidas) e "amortizar ou investir?" contra o CDI líquido, com simulação pela IA. |
 | ⏰ **Lembretes** | Instituições desatualizadas ao abrir o app e revisão periódica ("está tudo atualizado?") a cada 1 ou 2 semanas. |
 
 <div align="center">

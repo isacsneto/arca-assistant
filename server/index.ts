@@ -9,9 +9,11 @@ import { bcbSource } from "./indexers";
 import { dataDir, historyFile, ledgerFile, secretsFile } from "./paths";
 import { ledgerStore, needsAi, syncLedger } from "./ledger";
 import { cashflowView } from "../shared/cashflowView";
+import { taxView } from "../shared/taxView";
 import { categoryOf } from "../shared/cashflow";
 import { backfillHistory, historyStore, withHistory } from "./history";
-import { categorizeWithAi, goalsAdviceWithAi, monthSummaryWithAi, spendingAdviceWithAi, taxAdviceWithAi } from "./insights";
+import { categorizeWithAi, debtsAdviceWithAi, goalsAdviceWithAi, monthSummaryWithAi, spendingAdviceWithAi, taxAdviceWithAi } from "./insights";
+import { debtRows, totalDebt } from "../shared/debts";
 import { GOAL_KINDS, goalStatus, planningOf } from "../shared/planning";
 import { chatWithAi } from "./chat";
 import { monthlyStats } from "../shared/history";
@@ -26,7 +28,9 @@ import { L } from "../shared/i18n";
 // Cada gravação da carteira também tira a foto do dia (histórico do patrimônio).
 const history = historyStore(historyFile());
 const ledger = ledgerStore(ledgerFile());
-const store = withHistory(fileStore(), history);
+// Patrimônio líquido no histórico desconta as dívidas (Open Finance + cadastradas).
+const debtsOf = (s: import("../shared/types").AppState) => totalDebt(debtRows(planningOf(s.planning), ledger.get()));
+const store = withHistory(fileStore(), history, debtsOf);
 const pluggyCredentials = filePluggyCredentials(secretsFile());
 const direct = pluggyClient(() => pluggyCredentials.get());
 // Open Finance: Pluggy direto se houver credenciais no Arca; senão, lê o Securo instalado no PC (se estiver rodando).
@@ -80,6 +84,15 @@ const app = createApp({
   sampleVideo,
   chat: (state, messages, emit, signal) => chatWithAi(state, messages, chatExtras(state), emit, signal),
   goalsAdvice: goalsAdviceWithAi,
+  debts: {
+    // CDI ao ano a partir do último CDI diário publicado.
+    cdiAnnual: async () => {
+      const s = await indexSeries(brDay(new Date(Date.now() - 20 * 86_400_000)));
+      const r = s?.cdi.at(-1)?.r;
+      return r != null ? (Math.pow(1 + r, 252) - 1) * 100 : null;
+    },
+    advise: debtsAdviceWithAi,
+  },
   ledger: { store: ledger, sync: (s) => syncLedgerNow(s), advise: spendingAdviceWithAi, taxAdvise: taxAdviceWithAi },
   history: {
     store: history,
@@ -162,6 +175,17 @@ function chatExtras(state: import("../shared/types").AppState): string[] {
       `- Compromissos próximos: ${v.commitments.map((c) => `${c.month} ${brl(c.total)} (faturas ${brl(c.bills)}, parcelas ${brl(c.installments)})`).join("; ")}`,
     ].join("\n"));
   }
+  const debts = debtRows(planningOf(state.planning), led);
+  if (debts.length) out.push(["DÍVIDAS:", ...debts.map((d) => `- ${d.name}: saldo ${brl(d.balance)}${d.ratePct != null ? `, ${d.ratePct}% a.a.` : ""}${d.installment ? `, parcela ${brl(d.installment)}` : ""}${d.remaining ? `, faltam ${d.remaining}` : ""}`)].join("\n"));
+  const year = new Date().getFullYear();
+  if (led.investTx.length || led.holdingsByYear?.[String(year)]) {
+    const tv = taxView(state, led, year);
+    out.push([
+      `IR (ano-base ${year}, estimativa):`,
+      `- DARF no ano: ${brl(tv.darfTotal)}; meses: ${tv.darfs.map((d) => `${d.month} vendas ações ${brl(d.stockSales)} DARF ${brl(d.darf)}`).join("; ") || "sem vendas"}`,
+      `- Proventos: isentos ${brl(tv.income.exempt)}, JCP ${brl(tv.income.jcp)}`,
+    ].join("\n"));
+  }
   return out;
 }
 
@@ -175,7 +199,7 @@ setTimeout(() => {
     const [tes, series] = await Promise.all([tesouroPrices().catch(() => null), indexSeries(brDay(new Date(Date.now() - 125 * 86_400_000))).catch(() => null)]);
     const snaps = await backfillHistory(state, { fetchQuote: yahooQuote, tesouro: tes, series, today });
     history.addEstimated(snaps);
-    history.record(state);
+    history.record(state, debtsOf(state));
     console.log(L(`Histórico: ${snaps.length} dias reconstruídos (estimados).`, `History: ${snaps.length} days rebuilt (estimated).`));
   })().catch((e: unknown) => console.warn(`Histórico: ${e instanceof Error ? e.message : String(e)}`));
 }, 5_000).unref();

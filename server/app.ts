@@ -21,7 +21,9 @@ import { applyRefresh, autoApplicable } from "../shared/refreshApply";
 import { monthlyStats, type MonthSummary } from "../shared/history";
 import { GOAL_KINDS, goalPositions, goalStatus, planningOf } from "../shared/planning";
 import type { HistoryStore } from "./history";
-import type { goalsAdviceWithAi, monthSummaryPrompt } from "./insights";
+import type { debtsAdviceWithAi, goalsAdviceWithAi, monthSummaryPrompt } from "./insights";
+import { amortizeOrInvest, debtRows, netOfTax, totalDebt } from "../shared/debts";
+import { toBRL } from "../shared/arca";
 import type { ChatMessage, ChatReply } from "./chat";
 import type { LedgerStore } from "./ledger";
 import { cashflowView, type CashflowView } from "../shared/cashflowView";
@@ -93,6 +95,11 @@ export interface Deps {
     advise: (state: AppState, view: CashflowView, emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<string>;
     /** Checklist do IR pela IA. */
     taxAdvise?: (state: AppState, view: TaxView, emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<string>;
+  };
+  /** Dívidas: CDI de referência e simulação amortizar × investir pela IA. */
+  debts?: {
+    cdiAnnual: () => Promise<number | null>;
+    advise: (state: AppState, rows: Parameters<typeof debtsAdviceWithAi>[1], ctx: Parameters<typeof debtsAdviceWithAi>[2], emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<string>;
   };
   /** Análise das metas pela IA (texto). */
   goalsAdvice?: (state: AppState, rows: Parameters<typeof goalsAdviceWithAi>[1], emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<string>;
@@ -713,6 +720,42 @@ export function createApp(deps: Deps) {
     const sse = openSse<JobEvent<{ text: string; at: string }>>(res);
     try {
       const text = await deps.ledger.advise(structuredClone(state), view(null), sse.send as (e: JobEvent<never>) => void, sse.signal);
+      sse.send({ type: "result", result: { text, at: new Date().toISOString() } });
+    } catch (err) {
+      if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });
+    } finally {
+      sse.end();
+    }
+  });
+
+  /* ---------------- Dívidas e patrimônio líquido ---------------- */
+  const debtsData = async () => {
+    const rows = debtRows(planningOf(state.planning), deps.ledger?.store.get() ?? null);
+    const cdiPct = await (deps.debts?.cdiAnnual() ?? Promise.resolve(null)).catch(() => null);
+    const netPct = cdiPct != null ? netOfTax(cdiPct) : null;
+    const investments = state.positions.reduce((s, p) => s + toBRL(p, state.settings.fx), 0);
+    const physical = (state.assets ?? []).reduce((s, a) => s + (a.value ?? 0), 0);
+    const debts = totalDebt(rows);
+    return {
+      rows: rows.map((r) => ({ ...r, ...amortizeOrInvest(r.ratePct, netPct) })),
+      reference: { cdiPct, netPct },
+      netWorth: { investments, physical, debts, net: investments + physical - debts },
+      monthly: rows.reduce((s, r) => s + (r.installment ?? 0), 0),
+    };
+  };
+  app.get("/api/debts", async (_req, res) => {
+    res.json(await debtsData());
+  });
+  app.post("/api/debts/advice", async (_req, res) => {
+    const d = await debtsData();
+    if (!deps.debts || !d.rows.length) {
+      res.status(400).json({ error: L("Cadastre ao menos uma dívida.", "Add at least one debt.") });
+      return;
+    }
+    const sse = openSse<JobEvent<{ text: string; at: string }>>(res);
+    try {
+      const v = deps.ledger ? cashflowView(state, deps.ledger.store.get(), null, brDay(new Date())) : null;
+      const text = await deps.debts.advise(structuredClone(state), d.rows, { cdiPct: d.reference.cdiPct, netPct: d.reference.netPct, liquid: v?.reserve.value ?? 0, monthlySurplus: v?.capacity?.average ?? null }, sse.send as (e: JobEvent<never>) => void, sse.signal);
       sse.send({ type: "result", result: { text, at: new Date().toISOString() } });
     } catch (err) {
       if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });

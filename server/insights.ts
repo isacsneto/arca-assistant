@@ -188,3 +188,29 @@ Não invente valores: use os dados fornecidos e diga quando faltar algo (ex.: in
   });
   return data.text;
 }
+
+/* ---------------- dívidas ---------------- */
+
+export async function debtsAdviceWithAi(
+  state: AppState,
+  rows: { name: string; balance: number; ratePct: number | null; installment: number | null; remaining: number | null }[],
+  ctx: { cdiPct: number | null; netPct: number | null; liquid: number; monthlySurplus: number | null },
+  emit: (e: JobEvent<never>) => void,
+  signal: AbortSignal,
+): Promise<string> {
+  emit({ type: "status", text: L("Simulando amortizar × investir…", "Simulating prepay × invest…") });
+  const { data } = await runAi(aiFor(state.settings, "insights"), {
+    system: `Você é um planejador financeiro brasileiro e compara AMORTIZAR DÍVIDAS × INVESTIR para o usuário, em português do Brasil.
+
+Use os números fornecidos; se faltar a taxa de uma dívida, diga como descobrir (contrato, app do banco, CET). Considere: juro efetivo da dívida vs rendimento líquido de IR do investimento, reduzir prazo vs reduzir parcela (SAC/Price), manter a reserva de emergência intacta, e o efeito na sobra mensal.
+
+Formato (markdown simples, até ~300 palavras): veredito por dívida com o ganho estimado por ano a cada R$ 10 mil; ordem para quitar (maior custo primeiro); quanto do caixa/sobra mensal usar sem mexer na reserva.`,
+    prompt: `CDI atual: ${ctx.cdiPct?.toFixed(2) ?? "n/d"}% a.a. · rendimento líquido de referência (CDI −15% IR): ${ctx.netPct?.toFixed(2) ?? "n/d"}% a.a.\nCaixa com liquidez: ${brl(ctx.liquid)} · Sobra média por mês: ${ctx.monthlySurplus != null ? brl(ctx.monthlySurplus) : "n/d"}\n\nDÍVIDAS:\n${rows.map((r) => `- ${r.name}: saldo ${brl(r.balance)}; juros ${r.ratePct != null ? `${r.ratePct}% a.a.` : "não informado"}; parcela ${r.installment != null ? brl(r.installment) : "n/d"}; faltam ${r.remaining ?? "n/d"} parcelas`).join("\n")}\n\nFaça a análise.`,
+    schema: TextSchema,
+    web: true,
+    maxTurns: 12,
+    signal,
+    onProgress: emit,
+  });
+  return data.text;
+}

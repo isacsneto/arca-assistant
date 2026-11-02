@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Activity, ArrowLeftRight, Car, Ellipsis, Hexagon, FileText, History as HistoryIcon, Landmark, MessagesSquare, Receipt, Target, LineChart as LineChartIcon, Loader2, Radar, Scale,
+  Activity, ArrowLeftRight, Car, Ellipsis, Hexagon, FileText, HandCoins, History as HistoryIcon, Landmark, MessagesSquare, Receipt, Target, LineChart as LineChartIcon, Loader2, Radar, Scale,
   Settings as SettingsIcon, Upload, Wallet,
 } from "lucide-react";
 import { HistoryView } from "./components/HistoryView";
@@ -8,6 +8,7 @@ import { ChatView } from "./components/ChatView";
 import { GoalsView } from "./components/GoalsView";
 import { CashflowView } from "./components/CashflowView";
 import { TaxView } from "./components/TaxView";
+import { DebtsView } from "./components/DebtsView";
 import type { ProjectionResult, RefreshResult, ResearchResult } from "../shared/types";
 import { MarketView } from "./components/MarketView";
 import { useStore } from "./store";
@@ -39,6 +40,7 @@ const TABS = [
   { id: "goals", get label() { return L("Metas", "Goals"); }, icon: Target },
   { id: "cashflow", get label() { return L("Gastos", "Spending"); }, icon: Receipt },
   { id: "tax", get label() { return L("Imposto de Renda", "Income tax"); }, icon: FileText },
+  { id: "debts", get label() { return L("Dívidas", "Debts"); }, icon: HandCoins },
   { id: "institutions", get label() { return L("Instituições", "Institutions"); }, icon: Landmark },
   { id: "assets", get label() { return L("Bens", "Assets"); }, icon: Car },
   { id: "import", get label() { return L("Importar", "Import"); }, icon: Upload },
@@ -189,6 +191,7 @@ export function App() {
         {tab === "goals" && <GoalsView />}
         {tab === "cashflow" && <CashflowView goSettings={() => setTab("settings")} />}
         {tab === "tax" && <TaxView goSettings={() => setTab("settings")} />}
+        {tab === "debts" && <DebtsView />}
         {tab === "institutions" && <InstitutionsView />}
         {tab === "assets" && <AssetsView />}
         {tab === "import" && <ImportView key={importMode ?? "files"} initialMode={importMode ?? undefined} done={() => { setImportTarget(null); setImportMode(null); setTab("portfolio"); }} target={importTarget} goSettings={() => setTab("settings")} />}

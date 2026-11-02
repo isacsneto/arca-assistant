@@ -51,13 +51,13 @@ export function historyStore(file: string) {
 export type HistoryStore = ReturnType<typeof historyStore>;
 
 /** Store da carteira que também tira a foto do dia a cada gravação. */
-export function withHistory(store: Store, history: HistoryStore, debts: () => number = () => 0): Store {
+export function withHistory(store: Store, history: HistoryStore, debts: (state: AppState) => number = () => 0): Store {
   return {
     load: () => store.load(),
     save(state) {
       store.save(state);
       try {
-        history.record(state, debts());
+        history.record(state, debts(state));
       } catch (e) {
         console.warn(`Histórico: ${(e as Error).message}`);
       }
