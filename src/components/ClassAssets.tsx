@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { positionLabel } from "../../shared/label";
 import type { FxRates } from "../../shared/currency";
 import { CLASS_META, type AssetClass, type Position } from "../../shared/types";
 import { toBRL } from "../../shared/arca";
@@ -49,7 +50,7 @@ export function ClassAssets({
                 return (
                   <tr key={p.id}>
                     <td className="ga-main" style={{ minWidth: 180 }}>
-                      <b>{p.ticker ? `${p.ticker} · ` : ""}{p.name}</b>
+                      <b>{positionLabel(p)}</b>
                       <div className="muted small">
                         {p.institution}
                         {showOwner && <> · <span className={`chip owner-${p.owner}`}>{p.owner}</span></>}

@@ -67,10 +67,10 @@ export function TaxView({ goSettings }: { goSettings: () => void }) {
       )}
 
       <div className="grid kpis" style={{ marginBottom: 16 }}>
-        <div className="kpi"><div className="label">{L("DARF no ano", "DARF in the year")}</div><div className="value num" style={{ color: view.darfTotal > 0 ? "var(--bad)" : undefined }}>{amt(view.darfTotal)}</div>
+        <div className="card kpi"><div className="label">{L("DARF no ano", "DARF in the year")}</div><div className="value num" style={{ color: view.darfTotal > 0 ? "var(--bad)" : undefined }}>{amt(view.darfTotal)}</div>
           <div className="sub">{view.darfs.filter((d) => d.darf > 0).length} {L("meses com imposto", "months with tax")}</div></div>
-        <div className="kpi"><div className="label">{L("Proventos isentos", "Exempt income")}</div><div className="value num">{amt(view.income.exempt)}</div><div className="sub">{L("dividendos e FIIs", "dividends and REITs")}</div></div>
-        <div className="kpi"><div className="label">JCP</div><div className="value num">{amt(view.income.jcp)}</div><div className="sub">{L("tributação exclusiva (já retida)", "taxed at source")}</div></div>
+        <div className="card kpi"><div className="label">{L("Proventos isentos", "Exempt income")}</div><div className="value num">{amt(view.income.exempt)}</div><div className="sub">{L("dividendos e FIIs", "dividends and REITs")}</div></div>
+        <div className="card kpi"><div className="label">JCP</div><div className="value num">{amt(view.income.jcp)}</div><div className="sub">{L("tributação exclusiva (já retida)", "taxed at source")}</div></div>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -84,7 +84,10 @@ export function TaxView({ goSettings }: { goSettings: () => void }) {
                   <tr key={d.month}>
                     <td className="ga-main"><b>{monthLabel(d.month)}</b><div className="muted small">{d.sales.map((s) => `${s.ticker} ${s.quantity}`).join(", ")}</div></td>
                     <td className="right num">{amt(d.stockSales)}{d.stocksExempt && d.gains.acoes > 0 && <div className="small" style={{ color: "var(--ok)" }}>{L("isento (≤ R$ 20 mil)", "exempt (≤ R$ 20k)")}</div>}</td>
-                    <td className="right num" style={{ color: d.gains.acoes >= 0 ? undefined : "var(--bad)" }}>{amt(d.gains.acoes)}</td>
+                    <td className="right num" style={{ color: d.gains.acoes >= 0 ? undefined : "var(--bad)" }}>
+                      {amt(d.gains.acoes)}
+                      {d.sales.some((s) => s.costUnknown) && <div className="small" style={{ color: "var(--warn)" }} title={L("Sem compras registradas nem custo informado pelo banco: confira o preço médio na nota de corretagem.", "No recorded purchases or broker cost: check the average price on your broker notes.")}>{L("custo desconhecido", "unknown cost")}</div>}
+                    </td>
                     <td className="right num">{amt(d.gains.etf + d.gains.bdr)}</td>
                     <td className="right num">{amt(d.gains.fii)}</td>
                     <td className="right num"><b>{amt(d.darf)}</b>{d.tax > 0 && d.darf === 0 && <div className="muted small">{L("< R$ 10: acumula", "< R$ 10: carries over")}</div>}</td>

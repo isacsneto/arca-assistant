@@ -51,6 +51,8 @@ export interface SaleResult {
   gain: number;
   /** Custo médio veio da corretora (não havia o histórico de compras completo). */
   approxCost: boolean;
+  /** Sem compras registradas nem custo informado pelo banco: o ganho não pode ser calculado (gain = 0 aqui). */
+  costUnknown?: boolean;
 }
 
 export interface DarfMonth {
@@ -91,7 +93,8 @@ export function computeSales(txs: InvestTxRecord[], holdings: Holding[]): SaleRe
     const [owner, ticker] = key.split("|");
     const group = taxGroup(list[0].kind, ticker);
     if (!group || owner !== "PF") continue;
-    const h = holdings.find((x) => x.ticker === ticker && x.owner === owner && x.cost && x.quantity);
+    // Custo 0 vindo do banco é "não informado", não "de graça".
+    const h = holdings.find((x) => x.ticker === ticker && x.owner === owner && (x.cost ?? 0) > 0 && x.quantity);
     const brokerAvg = h ? h.cost! / h.quantity! : null;
     let qty = 0;
     let cost = 0;
@@ -102,9 +105,14 @@ export function computeSales(txs: InvestTxRecord[], holdings: Holding[]): SaleRe
         continue;
       }
       const known = qty >= t.quantity - 1e-9;
-      const avg = known && qty > 0 ? cost / qty : (brokerAvg ?? (qty > 0 ? cost / qty : 0));
-      const saleCost = avg * t.quantity;
+      const avg = known && qty > 0 ? cost / qty : (brokerAvg ?? (qty > 0 ? cost / qty : null));
       const proceeds = t.amount - t.fees;
+      if (avg == null) {
+        // Sem custo nenhum: não dá para afirmar lucro (o valor inteiro da venda NÃO é lucro).
+        out.push({ date: t.date, ticker, group, quantity: t.quantity, proceeds, cost: 0, gain: 0, approxCost: true, costUnknown: true });
+        continue;
+      }
+      const saleCost = avg * t.quantity;
       out.push({ date: t.date, ticker, group, quantity: t.quantity, proceeds, cost: saleCost, gain: proceeds - saleCost, approxCost: !known });
       qty = Math.max(0, qty - t.quantity);
       cost = qty > 0 ? cost - (known ? saleCost : 0) : 0;
@@ -179,7 +187,11 @@ export function incomeFromTransactions(txs: ResolvedTx[], year: number): IncomeS
 /** Texto da "Discriminação" de Bens e Direitos. */
 export function discrimination(h: Holding): string {
   const qty = h.quantity ? `${h.quantity.toLocaleString("pt-BR", { maximumFractionDigits: 6 })} ` : "";
-  const avg = h.cost && h.quantity ? ` (preço médio R$ ${(h.cost / h.quantity).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : "";
+  const avg = (h.cost ?? 0) > 0 && h.quantity ? ` (preço médio R$ ${(h.cost! / h.quantity).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : "";
   const due = h.dueDate ? `, vencimento ${h.dueDate.split("-").reverse().join("/")}` : "";
-  return `${qty}${h.ticker ? `${h.ticker} — ` : ""}${h.name}${due}, custodiado em ${h.institution}. Custo de aquisição R$ ${(h.cost ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${avg}.`;
+  const name = h.ticker && h.ticker.toUpperCase() === h.name.trim().toUpperCase() ? h.ticker : `${h.ticker ? `${h.ticker} — ` : ""}${h.name}`;
+  const cost = (h.cost ?? 0) > 0
+    ? `Custo de aquisição R$ ${h.cost!.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${avg}.`
+    : "Custo de aquisição: não informado pelo banco — preencha com as notas de corretagem.";
+  return `${qty}${name}${due}, custodiado em ${h.institution}. ${cost}`;
 }

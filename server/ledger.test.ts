@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { needsAi, syncLedger, toBankTx } from "./ledger";
+import { LEDGER_VERSION, needsAi, syncLedger, toBankTx } from "./ledger";
 import { withDefaults } from "./store";
 import { EMPTY_LEDGER } from "../shared/ledger";
 import type { PluggyClient } from "./pluggy";
@@ -48,7 +48,7 @@ test("sincroniza contas, cartão (faturas + aberta), movimentações; depois é 
   assert.equal(d1.bankTx[0].institution, "Itaú", "banco deduzido pelas contas do MeuPluggy");
   assert.deepEqual(d1.bills.map((b) => [b.dueDate, b.total, !!b.open]), [["2026-10-28", 1500, false]], "só faturas fechadas: a aberta sai dos lançamentos (o saldo do cartão é o total devedor)");
   assert.equal(d1.bankTx.find((t) => t.accountId === "card")?.billMonth, "2026-11");
-  assert.equal(d1.version, 2);
+  assert.equal(d1.version, LEDGER_VERSION);
   assert.deepEqual(d1.investTx.map((t) => [t.ticker, t.type, t.quantity, t.price, t.date]), [["PETR4", "BUY", 10, 30, "2026-05-02"]]);
   assert.ok(d1.lastSlowSync);
 

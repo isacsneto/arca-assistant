@@ -4,7 +4,7 @@ import type { AppState } from "../shared/types";
 import { brDay } from "../shared/history";
 import { categorize, fromPluggyCategory, normDesc, type BankTx, type Bill } from "../shared/cashflow";
 import { EMPTY_LEDGER, type InvestTxRecord, type LedgerData, type LoanRecord } from "../shared/ledger";
-import { institutionName, openFinanceSettings, tickerOf, type OpenFinanceConnection, type PluggyTransaction } from "../shared/openFinance";
+import { institutionName, investmentName, openFinanceSettings, tickerOf, type OpenFinanceConnection, type PluggyTransaction } from "../shared/openFinance";
 import { planningOf } from "../shared/planning";
 import { mapPool } from "./pool";
 import type { Holding } from "../shared/tax";
@@ -35,8 +35,8 @@ export function ledgerStore(file: string) {
 export type LedgerStore = ReturnType<typeof ledgerStore>;
 
 const DAY = 86_400_000;
-/** 2 = transações com a fatura em que caem (billMonth). */
-export const LEDGER_VERSION = 2;
+/** 2 = transações com a fatura em que caem (billMonth) · 3 = bens com nome legível e custo 0 = desconhecido. */
+export const LEDGER_VERSION = 3;
 /** Muda quando as instruções da IA para categorias mudam: o que ela decidiu antes é refeito. */
 export const AI_CATEGORIES_VERSION = 2;
 
@@ -81,11 +81,13 @@ export async function syncLedger(
   const data: LedgerData = structuredClone(prev);
   // Formato novo (fatura de cada lançamento): busca as transações do zero uma vez. A versão já fica gravada:
   // conta que falhar agora não tem lastTxSync e busca do zero sozinha na próxima — sem refazer as outras.
-  if ((prev.version ?? 1) < LEDGER_VERSION) {
+  const upgrade = (prev.version ?? 1) < LEDGER_VERSION;
+  if (upgrade) {
     data.lastTxSync = {};
     data.version = LEDGER_VERSION;
   }
-  const slow = opts.slow ?? (!prev.lastSlowSync || now.getTime() - Date.parse(prev.lastSlowSync) >= 20 * 3_600_000);
+  // Formato novo também refaz a parte "lenta" (bens, empréstimos, movimentações) na hora.
+  const slow = opts.slow ?? (upgrade || !prev.lastSlowSync || now.getTime() - Date.parse(prev.lastSlowSync) >= 20 * 3_600_000);
   const errors: string[] = [];
 
   await mapPool(of.connections, 2, async (conn: OpenFinanceConnection) => {
@@ -141,10 +143,11 @@ export async function syncLedger(
         const holdings: Holding[] = allInvs
           .filter((i) => i.status !== "TOTAL_WITHDRAWAL" && (i.balance ?? 0) > 0)
           .map((i) => ({
-            itemId: conn.itemId, ticker: tickerOf(i.code), name: i.name,
+            itemId: conn.itemId, ticker: tickerOf(i.code), name: investmentName(i),
             kind: `${(i.type ?? "").toUpperCase()}/${(i.subtype ?? "").toUpperCase()}`, quantity: i.quantity ?? null,
-            cost: (i as { amountOriginal?: number | null }).amountOriginal ?? null, value: i.balance ?? 0,
-            institution, owner: conn.owner, isin: (i as { isin?: string | null }).isin ?? null, dueDate: i.dueDate?.slice(0, 10) ?? null,
+            // Custo 0 = o banco não informou (comum em ações e fundos pelo MeuPluggy).
+            cost: (i.amountOriginal ?? 0) > 0 ? i.amountOriginal! : null, value: i.balance ?? 0,
+            institution, owner: conn.owner, isin: i.isin ?? null, dueDate: i.dueDate?.slice(0, 10) ?? null,
           }));
         data.holdingsByYear = { ...data.holdingsByYear, [year]: [...(data.holdingsByYear?.[year] ?? []).filter((h) => h.itemId !== conn.itemId), ...holdings] };
         // Movimentações de ações, FIIs, ETFs e BDRs (para preço médio e IR).

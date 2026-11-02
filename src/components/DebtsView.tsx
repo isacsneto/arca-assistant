@@ -48,11 +48,11 @@ export function DebtsView() {
 
       {data && (
         <div className="grid kpis" style={{ marginBottom: 16 }}>
-          <div className="kpi"><div className="label">{L("Patrimônio líquido", "Net worth")}</div><div className="value num">{amt0(data.netWorth.net)}</div>
+          <div className="card kpi"><div className="label">{L("Patrimônio líquido", "Net worth")}</div><div className="value num">{amt0(data.netWorth.net)}</div>
             <div className="sub">{L("investimentos", "investments")} {amt0(data.netWorth.investments)} + {L("bens", "assets")} {amt0(data.netWorth.physical)} − {L("dívidas", "debts")} {amt0(data.netWorth.debts)}</div></div>
-          <div className="kpi"><div className="label">{L("Dívidas", "Debts")}</div><div className="value num" style={{ color: data.netWorth.debts > 0 ? "var(--bad)" : undefined }}>{amt0(data.netWorth.debts)}</div>
+          <div className="card kpi"><div className="label">{L("Dívidas", "Debts")}</div><div className="value num" style={{ color: data.netWorth.debts > 0 ? "var(--bad)" : undefined }}>{amt0(data.netWorth.debts)}</div>
             <div className="sub">{data.rows.length} {L("contratos", "contracts")}{data.monthly > 0 ? ` · ${amt0(data.monthly)}/${L("mês", "mo")}` : ""}</div></div>
-          <div className="kpi"><div className="label">{L("Referência para investir", "Investing benchmark")}</div><div className="value num">{data.reference.netPct != null ? `${data.reference.netPct.toLocaleString(locale(), { maximumFractionDigits: 2 })}%` : "—"}</div>
+          <div className="card kpi"><div className="label">{L("Referência para investir", "Investing benchmark")}</div><div className="value num">{data.reference.netPct != null ? `${data.reference.netPct.toLocaleString(locale(), { maximumFractionDigits: 2 })}%` : "—"}</div>
             <div className="sub">{L("CDI", "CDI")} {data.reference.cdiPct?.toLocaleString(locale(), { maximumFractionDigits: 2 }) ?? "—"}% {L("a.a. menos 15% de IR", "p.a. minus 15% tax")}</div></div>
         </div>
       )}

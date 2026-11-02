@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { positionLabel } from "../../shared/label";
 import { BellOff, BellRing, ChevronRight, Landmark } from "lucide-react";
 import { isStale, markStale, unmarkStale } from "../../shared/reminders";
 import { ALL_CLASSES, CLASS_META, type AssetClass, type Owner, type Position } from "../../shared/types";
@@ -128,7 +129,7 @@ export function InstitutionsView() {
                         <tbody>
                           {g.items.map(({ p, v }) => (
                             <tr key={p.id}>
-                              <td className="ga-main"><b>{p.ticker ? `${p.ticker} · ` : ""}{p.name}</b><div className="muted small">{p.subtype}</div></td>
+                              <td className="ga-main"><b>{positionLabel(p)}</b><div className="muted small">{p.subtype}</div></td>
                               <td className="ga-sub"><span className="row" style={{ gap: 6 }}><ClassDot c={p.assetClass} />{CLASS_META[p.assetClass].label}{view === "all" && <span className={`chip owner-${p.owner} m-only`}>{p.owner}</span>}</span></td>
                               {view === "all" && <td className="mc-hide"><span className={`chip owner-${p.owner}`}>{p.owner}</span></td>}
                               <td className="right num ga-val">{amt(v)}</td>

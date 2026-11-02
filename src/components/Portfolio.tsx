@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { positionLabel } from "../../shared/label";
 import { CURRENCIES, CURRENCY_CODES, fxSummary } from "../../shared/currency";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { ChevronRight, Eye, EyeOff, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
@@ -248,7 +249,7 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
                     .map((p) => (
                       <tr key={p.id}>
                         <td className="ga-main" style={{ minWidth: 200 }}>
-                          <div><b>{p.ticker ? `${p.ticker} · ` : ""}{p.name}</b></div>
+                          <div><b>{positionLabel(p)}</b></div>
                           <div className="muted small">
                             {p.subtype}{p.quantity != null ? ` · ${hidden ? MASK : p.quantity.toLocaleString(locale())} ${L("un.", "units")}` : ""}
                             {p.aiEstimate && <> <span className="chip warn" title={L(`Valor estimado pela IA em ${new Date(p.updatedAt).toLocaleDateString(locale())}. Confira com o extrato do banco.`, `Value estimated by the AI on ${new Date(p.updatedAt).toLocaleDateString(locale())}. Check it against your bank statement.`)}>{L("atualizado pela IA", "updated by AI")}</span></>}

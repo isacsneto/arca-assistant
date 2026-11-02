@@ -1,4 +1,5 @@
 import { toCurrency } from "./currency";
+import { positionLabel } from "./label";
 import type { AssetClass, ExtractedItem, ExtractionResult, FileReading, Owner, Position, RefreshLine } from "./types";
 import { norm, posKey } from "./importMerge";
 import { parseFileName } from "./fileHints";
@@ -83,6 +84,9 @@ export interface PluggyInvestment {
   fixedAnnualRate?: number | null;
   dueDate?: string | null;
   issuer?: string | null;
+  /** Valor aplicado (custo de aquisição); 0 quando o banco não informa. */
+  amountOriginal?: number | null;
+  isin?: string | null;
   /** Instituição do produto (emissor/administrador), quando a Pluggy informa. */
   institution?: { name?: string | null } | null;
   date?: string | null;
@@ -377,6 +381,11 @@ function fixedIncomeNaming(inv: PluggyInvestment, c: Classification): { name: st
   return { name: [label, id, year].filter(Boolean).join(" "), subtype: withDue(c.subtype) };
 }
 
+/** Nome legível de um investimento (o mesmo da importação): "Tesouro Renda+ 2084", "CDB Agibank 2032"… */
+export function investmentName(inv: PluggyInvestment): string {
+  return (inv.type ?? "").toUpperCase() === "FIXED_INCOME" ? fixedIncomeNaming(inv, classifyInvestment(inv)).name : inv.name.trim();
+}
+
 function connectionItems(d: ConnectionData, institution: string, source: string, includeAccounts: boolean): ExtractedItem[] {
   const items: ExtractedItem[] = [];
   const base = { kind: "position" as const, sourceFile: source, institution, owner: d.connection.owner, txType: null };
@@ -527,7 +536,7 @@ export interface OpenFinanceRefresh {
   warnings: string[];
 }
 
-const label = (p: { ticker?: string | null; name: string }) => (p.ticker ? `${p.ticker} · ${p.name}` : p.name);
+const label = positionLabel;
 
 /**
  * Compara a carteira com o Open Finance, instituição por instituição (por titular).

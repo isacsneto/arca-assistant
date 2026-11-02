@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { positionLabel } from "../../shared/label";
 import { Pencil, Plus, Sparkles, Target, Trash2 } from "lucide-react";
 import { CLASS_META, type AssetClass } from "../../shared/types";
 import { GOAL_KINDS, goalPositions, goalStatus, planningOf, type Goal, type GoalKind, type Planning } from "../../shared/planning";
@@ -53,10 +54,10 @@ export function GoalsView() {
 
       {rows.length > 0 && (
         <div className="grid kpis" style={{ marginBottom: 16 }}>
-          <div className="kpi"><div className="label">{L("Aporte necessário (todas)", "Required per month (all)")}</div><div className="value num">{amt0(totalRequired)}</div><div className="sub">{L("por mês", "per month")}</div></div>
-          <div className="kpi"><div className="label">{L("Aporte planejado", "Planned per month")}</div><div className="value num" style={{ color: totalPlanned >= totalRequired ? "var(--ok)" : "var(--bad)" }}>{amt0(totalPlanned)}</div>
+          <div className="card kpi"><div className="label">{L("Aporte necessário (todas)", "Required per month (all)")}</div><div className="value num">{amt0(totalRequired)}</div><div className="sub">{L("por mês", "per month")}</div></div>
+          <div className="card kpi"><div className="label">{L("Aporte planejado", "Planned per month")}</div><div className="value num" style={{ color: totalPlanned >= totalRequired ? "var(--ok)" : "var(--bad)" }}>{amt0(totalPlanned)}</div>
             <div className="sub">{totalPlanned >= totalRequired ? L("cobre todas as metas", "covers all goals") : L(`faltam ${amt0(totalRequired - totalPlanned)}/mês`, `${amt0(totalRequired - totalPlanned)}/mo short`)}</div></div>
-          <div className="kpi"><div className="label">{L("No trilho", "On track")}</div><div className="value num">{rows.filter((r) => r.st.onTrack).length} / {rows.length}</div></div>
+          <div className="card kpi"><div className="label">{L("No trilho", "On track")}</div><div className="value num">{rows.filter((r) => r.st.onTrack).length} / {rows.length}</div></div>
         </div>
       )}
 
@@ -148,7 +149,7 @@ function GoalForm({ goal, onSave, onCancel }: { goal: Goal; onSave: (g: Goal) =>
         {positions.map((p) => (
           <label key={p.id} className="check small">
             <input type="checkbox" checked={g.positionIds.includes(p.id)} onChange={(e) => set({ positionIds: e.target.checked ? [...g.positionIds, p.id] : g.positionIds.filter((x) => x !== p.id) })} />
-            <span>{p.ticker ? `${p.ticker} · ` : ""}{p.name} <span className="muted">· {p.institution} {p.owner} · {amt0(toBRL(p, state!.settings.fx))}</span></span>
+            <span>{positionLabel(p)} <span className="muted">· {p.institution} {p.owner} · {amt0(toBRL(p, state!.settings.fx))}</span></span>
           </label>
         ))}
       </div>

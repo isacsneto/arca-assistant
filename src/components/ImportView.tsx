@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { positionLabel } from "../../shared/label";
 import { CURRENCY_CODES, type CurrencyCode } from "../../shared/currency";
 import {
   Copy, FileSpreadsheet, FileText, HelpCircle, Image as ImageIcon, Loader2, MessageSquare, Send, Sparkles, Upload, Video, X,
@@ -375,7 +376,7 @@ export function ImportView({ done, target, goSettings, initialMode }: { done: ()
                   {stale.map((p) => (
                     <tr key={p.id} style={{ opacity: keeps(p) ? 1 : 0.6 }}>
                       <td className="ga-chk"><input type="checkbox" checked={keeps(p)} onChange={() => flip(p.id)} aria-label={L(`Manter ${p.name}`, `Keep ${p.name}`)} /></td>
-                      <td className="ga-main"><b style={{ textDecoration: keeps(p) ? "none" : "line-through" }}>{p.ticker ? `${p.ticker} · ` : ""}{p.name}</b><div className="muted small">{p.subtype}</div></td>
+                      <td className="ga-main"><b style={{ textDecoration: keeps(p) ? "none" : "line-through" }}>{positionLabel(p)}</b><div className="muted small">{p.subtype}</div></td>
                       <td className="muted small ga-sub">{p.institution} {p.owner}</td>
                       <td className="right num ga-val">{money(p.value, p.currency)}</td>
                     </tr>

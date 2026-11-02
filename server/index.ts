@@ -40,6 +40,22 @@ const pluggy = switchingClient(() => (pluggyCredentials.get() ? direct : securo)
 const tesouroPrices = tesouroSource();
 const indexSeries = bcbSource();
 let lastAutoAi = 0;
+
+/** Guarda o resultado por `ms` (por argumento): consultas caras a Banco Central/Yahoo. */
+function cached<A, R>(ms: number, fn: (a: A) => Promise<R>): (a: A) => Promise<R> {
+  const memo = new Map<string, { at: number; value: Promise<R> }>();
+  return (a) => {
+    const key = JSON.stringify(a);
+    const hit = memo.get(key);
+    if (hit && Date.now() - hit.at < ms) return hit.value;
+    const value = fn(a).catch((e) => {
+      memo.delete(key);
+      throw e;
+    });
+    memo.set(key, { at: Date.now(), value });
+    return value;
+  };
+}
 const app = createApp({
   store,
   aiStatus,
@@ -101,7 +117,7 @@ const app = createApp({
   ledger: { store: ledger, sync: (s) => syncLedgerNow(s), advise: spendingAdviceWithAi, taxAdvise: taxAdviceWithAi },
   history: {
     store: history,
-    benchmarks: async (from) => {
+    benchmarks: cached(60 * 60_000, async (from: string) => {
       // CDI do mês = produto dos CDIs diários; Ibovespa = fechamento do mês sobre o do mês anterior.
       const cdi: Record<string, number> = {};
       const s = await indexSeries(from);
@@ -116,7 +132,7 @@ const app = createApp({
         if (i > 0 && m >= from.slice(0, 7)) ibov[m] = (lastClose.get(m)! / lastClose.get(months[i - 1])! - 1) * 100;
       });
       return { cdi, ibov };
-    },
+    }),
     summarize: monthSummaryWithAi,
   },
 });

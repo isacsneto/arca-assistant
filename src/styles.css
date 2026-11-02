@@ -75,23 +75,24 @@ a { color: var(--accent); }
   background: var(--surface); border-right: 1px solid var(--border);
   padding: 20px 12px; display: flex; flex-direction: column; gap: 4px;
 }
-.brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 18px; font-weight: 700; font-size: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 2px 10px 14px; font-weight: 700; font-size: 16px; }
 .brand-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); color: var(--accent-text); display: grid; place-items: center; }
 .nav-btn {
   display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 9px 10px; border: 0; border-radius: 8px; background: transparent;
+  padding: 7px 10px; font-size: 14px; border: 0; border-radius: 8px; background: transparent;
   color: var(--muted); cursor: pointer; text-align: left; font-weight: 500;
 }
 .nav-btn:hover { background: var(--surface-2); color: var(--text); }
 .nav-btn.active { background: var(--accent-soft); color: var(--accent); }
-.sidebar-foot { margin-top: auto; padding: 10px; font-size: 12px; color: var(--muted); }
+.sidebar-foot { margin-top: auto; padding: 8px 10px 0; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); }
 /* menu em grupos */
-.nav-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; margin: 6px -4px 8px; padding: 0 4px; }
+.nav-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin: 6px -4px 6px; padding: 0 4px; }
 .nav-group { display: flex; flex-direction: column; gap: 1px; }
 .nav-group-title { font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); opacity: 0.75; padding: 4px 10px 3px; }
 .main { padding: 28px 32px 60px; max-width: 1200px; width: 100%; min-width: 0; }
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
 .page-head p { color: var(--muted); margin-top: 4px; }
+.page-head select { width: auto; min-width: 140px; }
 
 @media (max-width: 1000px) and (min-width: 761px) {
   .app { grid-template-columns: 190px 1fr; }
@@ -600,7 +601,6 @@ label.btn.disabled { opacity: 0.6; pointer-events: none; }
 .goal-pick { max-height: 240px; overflow: auto; display: grid; gap: 4px; margin-top: 8px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; }
 
 /* Gastos */
-.grid.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
 .cat-list { display: grid; gap: 6px; }
 .cat-row { display: grid; grid-template-columns: minmax(120px, 1.4fr) auto minmax(60px, 1fr) 84px; gap: 8px; align-items: center; font-size: 13px; }
 .cat-row.on .link { font-weight: 700; }

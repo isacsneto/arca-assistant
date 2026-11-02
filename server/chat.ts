@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { positionLabel } from "../shared/label";
 import type { AppState, JobEvent } from "../shared/types";
 import { CLASS_META } from "../shared/types";
 import { aiFor } from "../shared/ai";
@@ -45,7 +46,7 @@ export function chatContext(state: AppState, extra: string[] = []): string {
   const rows = classRows(computeAllocation(positions, s.fx), s.targets);
   const lines = [...positions]
     .sort((a, b) => toBRL(b, s.fx) - toBRL(a, s.fx))
-    .map((p) => `- ${p.ticker ? `${p.ticker} · ` : ""}${p.name} | ${p.subtype || "-"} | ${p.institution} ${p.owner} | ${CLASS_META[p.assetClass].label} | ${brl(toBRL(p, s.fx))}${p.currency !== "BRL" ? ` (${p.currency})` : ""}${p.quantity ? ` | qtd ${p.quantity}` : ""} | atualizado ${p.updatedAt.slice(0, 10)}${p.aiEstimate ? " (estimado pela IA)" : ""}`);
+    .map((p) => `- ${positionLabel(p)} | ${p.subtype || "-"} | ${p.institution} ${p.owner} | ${CLASS_META[p.assetClass].label} | ${brl(toBRL(p, s.fx))}${p.currency !== "BRL" ? ` (${p.currency})` : ""}${p.quantity ? ` | qtd ${p.quantity}` : ""} | atualizado ${p.updatedAt.slice(0, 10)}${p.aiEstimate ? " (estimado pela IA)" : ""}`);
   const physical = (state.assets ?? []).map((a) => `- ${a.name} (${a.type}) ${brl(a.value ?? 0)} ${a.owner}`);
   return [
     `Hoje: ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}. Câmbio: US$ 1 = R$ ${s.fx.USD?.toFixed(4) ?? "?"}. Perfil: ${s.investorProfile || "não informado"}.`,

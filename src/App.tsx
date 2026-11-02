@@ -115,11 +115,9 @@ export function App() {
   const lang = getLang();
   const setLanguage = (language: Lang) => update((s) => ({ ...s, settings: { ...s.settings, language } }));
   const footer = (
-    <div className="sidebar-foot">
-      {L("Metodologia", "Method")}: {state.settings.methodology === "custom" ? L("personalizada", "custom") : METHODOLOGIES[state.settings.methodology].label}<br />
-      {L("Dados salvos localmente.", "Data saved locally.")}<br />
+    <div className="sidebar-foot" title={`${L("Metodologia", "Method")}: ${state.settings.methodology === "custom" ? L("personalizada", "custom") : METHODOLOGIES[state.settings.methodology].label} · ${L("dados salvos só neste computador", "data saved only on this computer")}`}>
       {L("IA", "AI")}: {PROVIDERS[aiConf.provider].label} · {aiConf.auth === "apiKey" ? L("chave de API", "API key") : config.aiStatus?.[aiConf.provider]?.account ?? L("login local", "local login")}
-      <div className="row" style={{ gap: 6, marginTop: 8 }} role="group" aria-label={L("Idioma", "Language")}>
+      <div className="row" style={{ gap: 6, marginTop: 6 }} role="group" aria-label={L("Idioma", "Language")}>
         {(Object.keys(LANGS) as Lang[]).map((l, i) => (
           <span key={l} className="row" style={{ gap: 6 }}>
             {i > 0 && <span aria-hidden>·</span>}

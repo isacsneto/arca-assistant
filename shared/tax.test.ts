@@ -62,3 +62,12 @@ test("proventos pela conta e discriminação de Bens e Direitos", () => {
   const h: Holding = { itemId: "", ticker: "PETR4", name: "PETROBRAS PN", kind: "EQUITY/STOCK", quantity: 100, cost: 3150.5, value: 4000, institution: "BTG Pactual", owner: "PF", isin: null, dueDate: null };
   assert.equal(discrimination(h), "100 PETR4 — PETROBRAS PN, custodiado em BTG Pactual. Custo de aquisição R$ 3.150,50 (preço médio R$ 31,51).");
 });
+
+test("sem compras nem custo do banco: custo desconhecido (o valor da venda NÃO vira lucro)", () => {
+  const sales = computeSales([t({ ticker: "BBAS3", type: "SELL", quantity: 500, amount: 15_000, date: "2026-10-10" })], [
+    { itemId: "x", ticker: "BBAS3", name: "BBAS3", kind: "EQUITY/STOCK", quantity: 1000, cost: null, value: 40_000, institution: "BTG", owner: "PF", isin: null, dueDate: null },
+  ]);
+  assert.deepEqual([sales[0].gain, sales[0].costUnknown], [0, true]);
+  const h: Holding = { itemId: "", ticker: "BBAS3", name: "BBAS3", kind: "EQUITY/STOCK", quantity: 1000, cost: null, value: 40_000, institution: "BTG Pactual", owner: "PF", isin: null, dueDate: null };
+  assert.equal(discrimination(h), "1.000 BBAS3, custodiado em BTG Pactual. Custo de aquisição: não informado pelo banco — preencha com as notas de corretagem.");
+});

@@ -1,4 +1,5 @@
 import { L } from "./i18n";
+import { positionLabel } from "./label";
 import type { Position, PromptOp, Transaction } from "./types";
 
 /** Como uma operação do import por texto muda a carteira (para a tela de revisão). */
@@ -16,7 +17,7 @@ export interface OpPreview {
   error: string | null;
 }
 
-const label = (p: Pick<Position, "ticker" | "name">) => (p.ticker ? `${p.ticker} · ${p.name}` : p.name);
+const label = (p: Pick<Position, "ticker" | "name">) => positionLabel(p);
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export function previewOps(positions: Position[], ops: PromptOp[]): OpPreview[] {

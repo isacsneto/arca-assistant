@@ -79,14 +79,14 @@ export function HistoryView() {
       ) : (
         <>
           <div className="grid kpis" style={{ marginBottom: 16 }}>
-            <div className="kpi"><div className="label">{L("Investido hoje", "Invested today")}</div><div className="value num">{amt0(last!.total)}</div>
+            <div className="card kpi"><div className="label">{L("Investido hoje", "Invested today")}</div><div className="value num">{amt0(last!.total)}</div>
               {last!.physical > 0 && <div className="sub">{L("com bens", "with assets")} {amt0(last!.total + last!.physical - last!.debts)}</div>}</div>
             {current && (
-              <div className="kpi"><div className="label">{L("No mês", "This month")} ({monthLabel(current.month)})</div>
+              <div className="card kpi"><div className="label">{L("No mês", "This month")} ({monthLabel(current.month)})</div>
                 <div className="value num" style={{ color: current.change >= 0 ? "var(--ok)" : "var(--bad)" }}>{signed(current.change)}</div>
                 <div className="sub">{L("rendimento", "return")} {signedPct(current.returnPct)} · CDI {signedPct(data.benchmarks.cdi[current.month])}</div></div>
             )}
-            <div className="kpi"><div className="label">{L("No período", "In the period")}</div>
+            <div className="card kpi"><div className="label">{L("No período", "In the period")}</div>
               <div className="value num" style={{ color: periodChange >= 0 ? "var(--ok)" : "var(--bad)" }}>{signed(periodChange)}</div>
               <div className="sub">{first ? `${L("desde", "since")} ${new Date(`${first.date}T12:00:00Z`).toLocaleDateString(locale())}` : ""}</div></div>
           </div>

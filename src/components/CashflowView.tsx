@@ -110,21 +110,21 @@ export function CashflowView({ goSettings }: { goSettings: () => void }) {
       {view.error && <Banner kind="warn">{L("Parte das contas não sincronizou:", "Some accounts didn't sync:")} {view.error}</Banner>}
 
       <div className="grid kpis" style={{ marginBottom: 16 }}>
-        <button className="kpi kpi-btn" onClick={() => openMonth(view.month, "income")}>
+        <button className="card kpi kpi-btn" onClick={() => openMonth(view.month, "income")}>
           <div className="label">{L("Receitas", "Income")} · {monthLabel(view.month)}</div><div className="value num" style={{ color: "var(--ok)" }}>{amt0(current?.income ?? 0)}</div>
           <div className="sub">{L("ver de onde veio", "see where from")} <ChevronRight size={12} /></div>
         </button>
-        <button className="kpi kpi-btn" onClick={() => openMonth(view.month, "expense")}>
+        <button className="card kpi kpi-btn" onClick={() => openMonth(view.month, "expense")}>
           <div className="label">{L("Gastos", "Spending")}</div><div className="value num" style={{ color: "var(--bad)" }}>{amt0(current?.expenses ?? 0)}</div>
           <div className="sub">{L("ver por categoria", "see by category")} <ChevronRight size={12} /></div>
         </button>
-        <button className="kpi kpi-btn" onClick={() => openMonth(view.month, "net")}>
+        <button className="card kpi kpi-btn" onClick={() => openMonth(view.month, "net")}>
           <div className="label">{L("Sobra", "Left over")}</div><div className="value num" style={{ color: (current?.net ?? 0) >= 0 ? "var(--ok)" : "var(--bad)" }}>{amt0(current?.net ?? 0)}</div>
           <div className="sub">{savingsRate != null ? `${L("taxa de poupança", "savings rate")} ${pct(savingsRate, 0)}` : ""}</div>
         </button>
-        <div className="kpi"><div className="label">{L("Sobra média para investir", "Average left to invest")}</div><div className="value num">{view.capacity ? amt0(view.capacity.average) : "—"}</div>
+        <div className="card kpi"><div className="label">{L("Sobra média para investir", "Average left to invest")}</div><div className="value num">{view.capacity ? amt0(view.capacity.average) : "—"}</div>
           <div className="sub">{L("por mês, últimos 3 meses", "per month, last 3 months")}</div></div>
-        <div className="kpi"><div className="label"><Wallet size={13} /> {L("Reserva cobre", "Emergency fund covers")}</div><div className="value num">{view.reserve.months != null ? `${view.reserve.months.toLocaleString(locale(), { maximumFractionDigits: 1 })} ${L("meses", "months")}` : "—"}</div>
+        <div className="card kpi"><div className="label"><Wallet size={13} /> {L("Reserva cobre", "Emergency fund covers")}</div><div className="value num">{view.reserve.months != null ? `${view.reserve.months.toLocaleString(locale(), { maximumFractionDigits: 1 })} ${L("meses", "months")}` : "—"}</div>
           <div className="sub">{amt0(view.reserve.value)} · {L("gasto médio", "avg spend")} {amt0(view.reserve.avgExpenses)}</div></div>
       </div>
 

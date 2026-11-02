@@ -1,4 +1,5 @@
 import type { AppState, ClaudeRefresh, JobEvent, Position, RefreshLine, RefreshResult } from "../shared/types";
+import { positionLabel } from "../shared/label";
 import { closeAt, convert, fxSymbol, yahooSymbols, type FetchQuote } from "./quotes";
 import { FX_CODES, fxRates, type FxRates } from "../shared/currency";
 import { mapPool } from "./pool";
@@ -60,7 +61,7 @@ async function priceFromQuote(
 
     return {
       id: p.id,
-      name: p.ticker ? `${p.ticker} · ${p.name}` : p.name,
+      name: positionLabel(p),
       currency: p.currency,
       oldValue: p.value,
       newValue,
@@ -80,7 +81,7 @@ async function priceFromQuote(
 }
 
 function kept(p: Position, note: string): RefreshLine {
-  return { id: p.id, name: p.ticker ? `${p.ticker} · ${p.name}` : p.name, currency: p.currency, oldValue: p.value, newValue: p.value, method: "mantido", note };
+  return { id: p.id, name: positionLabel(p), currency: p.currency, oldValue: p.value, newValue: p.value, method: "mantido", note };
 }
 
 export async function refreshValues(
