@@ -11,7 +11,7 @@ export const TESOURO_CSV =
   "https://www.tesourotransparente.gov.br/ckan/dataset/df56aa42-484a-4a59-8184-7676580c81e3/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1/download/PrecoTaxaTesouroDireto.csv";
 export const TESOURO_PAGE = "https://www.tesourotransparente.gov.br/ckan/dataset/taxas-dos-titulos-ofertados-pelo-tesouro-direto";
 
-type Point = { d: string; pu: number };
+export type Point = { d: string; pu: number };
 export interface TesouroPrices {
   /** Último dia com preço no arquivo (AAAA-MM-DD). */
   lastDate: string;
@@ -48,7 +48,7 @@ export function parseTesouroCsv(text: string): TesouroPrices {
 }
 
 /** PU no dia (ou no último dia antes dele); antes do histórico, o primeiro. */
-function puAt(s: Point[], iso: string): Point {
+export function puAt(s: Point[], iso: string): Point {
   const day = iso.slice(0, 10);
   let best = s[0];
   for (const p of s) {
@@ -96,7 +96,8 @@ function fmt(n: number, digits = 2) {
 }
 
 /** Linha de "Atualizar valores" pelo PU oficial; null = não é título do Tesouro ou não foi achado no arquivo. */
-export function priceTesouro(p: Position, prices: TesouroPrices): RefreshLine | null {
+/** Título e série de PU de uma posição (com a quantidade salva ou inferida); null = não é título do Tesouro. */
+export function matchTesouro(p: Position, prices: TesouroPrices): { type: string; venc: string; s: Point[]; quantity: number; inferred: boolean } | null {
   if (p.currency !== "BRL") return null;
   const type = tesouroType(p);
   if (!type) return null;
@@ -107,9 +108,17 @@ export function priceTesouro(p: Position, prices: TesouroPrices): RefreshLine | 
   const pick = hasQty && options.length > 1
     ? options.reduce((a, b) => (Math.abs(p.quantity! * puAt(a.s, p.updatedAt).pu - p.value) <= Math.abs(p.quantity! * puAt(b.s, p.updatedAt).pu - p.value) ? a : b))
     : options[0];
-  const now = pick.s[pick.s.length - 1];
-  const before = puAt(pick.s, p.updatedAt);
-  const quantity = hasQty ? p.quantity! : p.value / before.pu;
+  return { type, ...pick, quantity: hasQty ? p.quantity! : p.value / puAt(pick.s, p.updatedAt).pu, inferred: !hasQty };
+}
+
+export function priceTesouro(p: Position, prices: TesouroPrices): RefreshLine | null {
+  const m = matchTesouro(p, prices);
+  if (!m) return null;
+  const { type, s, quantity } = m;
+  const pick = m;
+  const hasQty = !m.inferred;
+  const now = s[s.length - 1];
+  const before = puAt(s, p.updatedAt);
   const vencBr = pick.venc.split("-").reverse().join("/");
   const dayBr = now.d.split("-").reverse().join("/");
   const inferred = hasQty ? "" : L(` (inferida pelo PU de ${before.d.split("-").reverse().join("/")})`, ` (inferred from the unit price on ${before.d.split("-").reverse().join("/")})`);

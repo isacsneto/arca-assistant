@@ -1,5 +1,5 @@
 import express from "express";
-import { BASE_CURRENCY, FX_CODES, type FxRates } from "../shared/currency";
+import { BASE_CURRENCY, FX_CODES, rate, type FxRates } from "../shared/currency";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -18,6 +18,9 @@ import { AttachmentError, collectGarbage, deleteAttachment, loadForClaude, readA
 import { PluggyError, fetchConnections, type PluggyClient, type PluggyCredentialStore } from "./pluggy";
 import { openFinanceSettings, toImport, type PluggyItem } from "../shared/openFinance";
 import { applyRefresh, autoApplicable } from "../shared/refreshApply";
+import { monthlyStats, type MonthSummary } from "../shared/history";
+import type { HistoryStore } from "./history";
+import type { monthSummaryPrompt } from "./insights";
 import { VideoError, type VideoSample } from "./video";
 import { VIDEO_SAMPLE_STEP } from "../shared/videoFrames";
 import { L, setLang } from "../shared/i18n";
@@ -75,6 +78,12 @@ export interface Deps {
   ) => Promise<ResearchResult>;
   distDir?: string;
   scanConcurrency?: number;
+  /** Histórico do patrimônio: fotos diárias, CDI/Ibovespa por mês e resumo do mês pela IA. */
+  history?: {
+    store: HistoryStore;
+    benchmarks: (from: string) => Promise<{ cdi: Record<string, number>; ibov: Record<string, number> }>;
+    summarize: (state: AppState, args: Parameters<typeof monthSummaryPrompt>[0], emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<string>;
+  };
 }
 
 async function awesomeApiFx(): Promise<FxRates> {
@@ -641,6 +650,51 @@ export function createApp(deps: Deps) {
 
   // Atualizar valores: só propõe; o cliente revisa e aplica pelo PUT /api/state.
   job("/api/refresh", deps.refreshValues);
+
+  /* ---------------- Histórico do patrimônio ---------------- */
+  // Aportes líquidos por mês: depósitos − saques registrados (compra/venda é troca dentro da carteira).
+  const flowsByMonth = () => {
+    const out: Record<string, number> = {};
+    for (const t of state.transactions) {
+      if (!t.date || (t.type !== "deposito" && t.type !== "saque")) continue;
+      const m = t.date.slice(0, 7);
+      out[m] = (out[m] ?? 0) + (t.type === "deposito" ? Math.abs(t.amount) : -Math.abs(t.amount)) * rate(state.settings.fx, t.currency);
+    }
+    return out;
+  };
+
+  app.get("/api/history", async (_req, res) => {
+    if (!deps.history) return res.json({ snapshots: [], summaries: [], months: [], benchmarks: { cdi: {}, ibov: {} } });
+    const { snapshots, summaries } = deps.history.store.get();
+    const benchmarks = snapshots.length ? await deps.history.benchmarks(snapshots[0].date).catch(() => ({ cdi: {}, ibov: {} })) : { cdi: {}, ibov: {} };
+    res.json({ snapshots, summaries, months: monthlyStats(snapshots, flowsByMonth()), benchmarks });
+  });
+
+  // Resumo do mês pela IA (SSE, como as outras tarefas longas); guarda o texto no histórico.
+  app.post("/api/history/summary", async (req, res) => {
+    const h = deps.history;
+    const month = String(req.body?.month ?? "");
+    const snaps = h?.store.get().snapshots ?? [];
+    const stats = monthlyStats(snaps, flowsByMonth()).find((m) => m.month === month);
+    if (!h || !stats) {
+      res.status(400).json({ error: L("Mês sem histórico.", "Month without history.") });
+      return;
+    }
+    const sse = openSse<JobEvent<MonthSummary>>(res);
+    try {
+      const inMonth = snaps.filter((x) => x.date.startsWith(month));
+      const first = snaps.filter((x) => x.date < `${month}-01`).at(-1) ?? inMonth[0];
+      const bench = await h.benchmarks(first.date).catch(() => ({ cdi: {} as Record<string, number>, ibov: {} as Record<string, number> }));
+      const text = await h.summarize(structuredClone(state), { month, stats, first, last: inMonth.at(-1)!, cdi: bench.cdi[month] ?? null, ibov: bench.ibov[month] ?? null }, sse.send as (e: JobEvent<never>) => void, sse.signal);
+      const summary = { month, text, at: new Date().toISOString() };
+      h.store.saveSummary(summary);
+      sse.send({ type: "result", result: summary });
+    } catch (err) {
+      if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });
+    } finally {
+      sse.end();
+    }
+  });
 
   job("/api/projection", deps.projectPortfolio, (projection) => {
     state = { ...state, projection };

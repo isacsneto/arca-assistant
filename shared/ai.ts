@@ -57,7 +57,8 @@ export const DEFAULT_AI: AiSettings = {
   models: { codex: { strong: "", fast: "" }, cursor: { strong: "", fast: "" } },
 };
 
-export type AiTaskName = "extraction" | "refine" | "prompt" | "refresh" | "estimate" | "scan" | "projection" | "research";
+/** insights = resumos e análises (histórico, metas, gastos); chat = "Pergunte à Arca". Usam o ajuste de Pesquisa. */
+export type AiTaskName = "extraction" | "refine" | "prompt" | "refresh" | "estimate" | "scan" | "projection" | "research" | "insights" | "chat";
 
 /** Pesquisas longas usam o modelo "forte"; leitura e lookups usam o "rápido". */
 export const TASK_TIER: Record<AiTaskName, "strong" | "fast"> = {
@@ -69,6 +70,8 @@ export const TASK_TIER: Record<AiTaskName, "strong" | "fast"> = {
   scan: "strong",
   projection: "strong",
   research: "strong",
+  insights: "strong",
+  chat: "strong",
 };
 
 /** Tudo que um motor precisa saber para rodar uma tarefa. */
@@ -99,7 +102,7 @@ export function aiSettings(settings: Pick<Settings, "ai">): AiSettings {
 export function aiFor(settings: Settings, task: AiTaskName): AiTask {
   const ai = aiSettings(settings);
   const setting =
-    task === "refine" || task === "prompt" ? settings.extraction : settings[task];
+    task === "refine" || task === "prompt" ? settings.extraction : task === "insights" || task === "chat" ? settings.research : settings[task];
   const model =
     ai.provider === "claude" ? setting.model : ai.models[ai.provider][TASK_TIER[task]].trim() || undefined;
   return { task, provider: ai.provider, auth: ai.auth, model, effort: setting.effort, language: settings.language };

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import {
-  Activity, ArrowLeftRight, Car, Ellipsis, Hexagon, Landmark, LineChart as LineChartIcon, Loader2, Radar, Scale,
+  Activity, ArrowLeftRight, Car, Ellipsis, Hexagon, History as HistoryIcon, Landmark, LineChart as LineChartIcon, Loader2, Radar, Scale,
   Settings as SettingsIcon, Upload, Wallet,
 } from "lucide-react";
+import { HistoryView } from "./components/HistoryView";
 import type { ProjectionResult, RefreshResult, ResearchResult } from "../shared/types";
 import { MarketView } from "./components/MarketView";
 import { useStore } from "./store";
@@ -28,6 +29,7 @@ const TABS = [
   { id: "portfolio", get label() { return L("Carteira", "Portfolio"); }, icon: Wallet },
   { id: "market", get label() { return L("Mercado", "Market"); }, icon: Activity },
   { id: "rebalance", get label() { return L("Rebalancear", "Rebalance"); }, icon: Scale },
+  { id: "history", get label() { return L("Histórico", "History"); }, icon: HistoryIcon },
   { id: "projection", get label() { return L("Projeção", "Projection"); }, icon: LineChartIcon },
   { id: "institutions", get label() { return L("Instituições", "Institutions"); }, icon: Landmark },
   { id: "assets", get label() { return L("Bens", "Assets"); }, icon: Car },
@@ -170,6 +172,7 @@ export function App() {
         {tab === "portfolio" && <Portfolio goImport={() => setTab("import")} goAssets={() => setTab("assets")} refreshJob={refreshJob} />}
         {tab === "market" && <MarketView job={researchJob} />}
         {tab === "rebalance" && <Rebalance goScan={() => setTab("scan")} />}
+        {tab === "history" && <HistoryView />}
         {tab === "projection" && <ProjectionView job={projectionJob} />}
         {tab === "institutions" && <InstitutionsView />}
         {tab === "assets" && <AssetsView />}

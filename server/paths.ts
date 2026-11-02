@@ -11,3 +11,4 @@ export function dataDir(): string {
 export const stateFile = () => path.join(dataDir(), "state.json");
 export const attachmentsRoot = () => path.join(dataDir(), "attachments");
 export const secretsFile = () => path.join(dataDir(), "secrets.json");
+export const historyFile = () => path.join(dataDir(), "history.json");

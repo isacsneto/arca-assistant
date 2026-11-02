@@ -58,6 +58,7 @@ export const api = {
     }).then((r) => json<{ ok: true }>(r)),
   /** Revisão da carteira no servidor (sobe quando o Open Finance automático muda algo). */
   stateRev: () => fetch("/api/state/rev").then((r) => json<{ rev: number }>(r)),
+  history: () => fetch("/api/history").then((r) => json<import("./components/HistoryView").HistoryResponse>(r)),
   getConfig: (refresh = false) => fetch(`/api/config${refresh ? "?refresh=1" : ""}`).then((r) => json<Config>(r)),
   /** Salva (ou remove, com null) a chave de API de um provedor — fica só no servidor. */
   setAiKey: (provider: ProviderId, key: string | null) =>
