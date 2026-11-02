@@ -1,9 +1,6 @@
 node_modules
 dist
 .env
-data/state.json
-data/attachments/
-data/secrets.json
+# Tudo em data/ é seu (carteira, histórico, transações, chaves): nunca vai para o git.
+data/
 demo-data/
-data/logs/
-data/local.pid
