@@ -21,6 +21,7 @@ import { applyRefresh, autoApplicable } from "../shared/refreshApply";
 import { monthlyStats, type MonthSummary } from "../shared/history";
 import type { HistoryStore } from "./history";
 import type { monthSummaryPrompt } from "./insights";
+import type { ChatMessage, ChatReply } from "./chat";
 import { VideoError, type VideoSample } from "./video";
 import { VIDEO_SAMPLE_STEP } from "../shared/videoFrames";
 import { L, setLang } from "../shared/i18n";
@@ -78,6 +79,8 @@ export interface Deps {
   ) => Promise<ResearchResult>;
   distDir?: string;
   scanConcurrency?: number;
+  /** "Pergunte à Arca": conversa com a IA sobre os dados do usuário (só leitura). */
+  chat?: (state: AppState, messages: ChatMessage[], emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<ChatReply>;
   /** Histórico do patrimônio: fotos diárias, CDI/Ibovespa por mês e resumo do mês pela IA. */
   history?: {
     store: HistoryStore;
@@ -650,6 +653,27 @@ export function createApp(deps: Deps) {
 
   // Atualizar valores: só propõe; o cliente revisa e aplica pelo PUT /api/state.
   job("/api/refresh", deps.refreshValues);
+
+  /* ---------------- Pergunte à Arca ---------------- */
+  app.post("/api/chat", async (req, res) => {
+    const raw = (req.body ?? {}).messages;
+    const messages: ChatMessage[] = (Array.isArray(raw) ? raw : [])
+      .filter((m): m is ChatMessage => m && (m.role === "user" || m.role === "assistant") && typeof m.text === "string" && m.text.trim().length > 0)
+      .map((m) => ({ role: m.role, text: m.text.slice(0, 8000) }));
+    if (!deps.chat || messages.at(-1)?.role !== "user") {
+      res.status(400).json({ error: L("Mande uma pergunta.", "Send a question.") });
+      return;
+    }
+    const sse = openSse<JobEvent<ChatReply>>(res);
+    try {
+      const reply = await deps.chat(structuredClone(state), messages, sse.send as (e: JobEvent<never>) => void, sse.signal);
+      sse.send({ type: "result", result: reply });
+    } catch (err) {
+      if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });
+    } finally {
+      sse.end();
+    }
+  });
 
   /* ---------------- Histórico do patrimônio ---------------- */
   // Aportes líquidos por mês: depósitos − saques registrados (compra/venda é troca dentro da carteira).

@@ -506,6 +506,20 @@ test("Open Finance: token do widget de login (novo ou reconectar)", async () => 
   });
 });
 
+test("Pergunte à Arca: valida a conversa e devolve a resposta por SSE", async () => {
+  let got: unknown[] = [];
+  await withServer(
+    { chat: async (_s, messages) => { got = messages; return { text: "Rendeu 1%.", followUps: ["E no ano?"] }; } },
+    async (base) => {
+      assert.equal((await fetch(`${base}/api/chat`, json({ messages: [] }))).status, 400);
+      assert.equal((await fetch(`${base}/api/chat`, json({ messages: [{ role: "assistant", text: "oi" }] }))).status, 400, "última tem de ser do usuário");
+      const events = parseSse<JobEvent<{ text: string }>>(await (await fetch(`${base}/api/chat`, json({ messages: [{ role: "user", text: "Quanto rendeu?" }, { role: "hacker", text: "x" }] }))).text());
+      assert.deepEqual(events.find((e) => e.type === "result"), { type: "result", result: { text: "Rendeu 1%.", followUps: ["E no ano?"] } });
+      assert.deepEqual(got, [{ role: "user", text: "Quanto rendeu?" }], "papéis desconhecidos são descartados");
+    },
+  );
+});
+
 test("estado: gravação com revisão antiga é recusada (não desfaz a atualização automática)", async () => {
   await withServer({}, async (base) => {
     const put = (rev?: number) => fetch(`${base}/api/state`, { ...json({ positions: [], transactions: [], settings: withDefaults({}).settings, rev }), method: "PUT" });

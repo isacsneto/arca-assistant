@@ -9,6 +9,8 @@ import { bcbSource } from "./indexers";
 import { dataDir, historyFile, secretsFile } from "./paths";
 import { backfillHistory, historyStore, withHistory } from "./history";
 import { monthSummaryWithAi } from "./insights";
+import { chatWithAi } from "./chat";
+import { monthlyStats } from "../shared/history";
 import { brDay } from "../shared/history";
 import { fetchConnections, filePluggyCredentials, pluggyClient, switchingClient } from "./pluggy";
 import { pgQuery, securoClient, SECURO_APP_URL, SECURO_DB_URL } from "./securo";
@@ -71,6 +73,7 @@ const app = createApp({
   // A cada 30 min: Open Finance, cotações, Tesouro e Banco Central, aplicados sem confirmação.
   autoRefresh: { everyMs: 30 * 60_000 },
   sampleVideo,
+  chat: (state, messages, emit, signal) => chatWithAi(state, messages, chatExtras(state), emit, signal),
   history: {
     store: history,
     benchmarks: async (from) => {
@@ -92,6 +95,20 @@ const app = createApp({
     summarize: monthSummaryWithAi,
   },
 });
+
+/** Seções extras do contexto do chat (histórico, metas, gastos, IR…). */
+function chatExtras(state: import("../shared/types").AppState): string[] {
+  const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+  const out: string[] = [];
+  const snaps = history.get().snapshots;
+  if (snaps.length > 1) {
+    const months = monthlyStats(snaps).slice(-6);
+    const rows = months.map((m) => `- ${m.month}: fim ${brl(m.end)}, variação ${brl(m.change)}${m.returnPct != null ? `, rendimento ${m.returnPct.toFixed(2)}%` : ""}${m.estimated ? " (estimado)" : ""}`);
+    out.push(["HISTÓRICO (patrimônio investido por mês; \"estimado\" = reconstruído):", ...rows].join("\n"));
+  }
+  void state;
+  return out;
+}
 
 // Histórico novo: reconstrói ~4 meses (estimados) para o gráfico não começar vazio.
 setTimeout(() => {

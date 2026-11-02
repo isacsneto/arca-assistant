@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import {
-  Activity, ArrowLeftRight, Car, Ellipsis, Hexagon, History as HistoryIcon, Landmark, LineChart as LineChartIcon, Loader2, Radar, Scale,
+  Activity, ArrowLeftRight, Car, Ellipsis, Hexagon, History as HistoryIcon, Landmark, MessagesSquare, LineChart as LineChartIcon, Loader2, Radar, Scale,
   Settings as SettingsIcon, Upload, Wallet,
 } from "lucide-react";
 import { HistoryView } from "./components/HistoryView";
+import { ChatView } from "./components/ChatView";
 import type { ProjectionResult, RefreshResult, ResearchResult } from "../shared/types";
 import { MarketView } from "./components/MarketView";
 import { useStore } from "./store";
@@ -27,6 +28,7 @@ import { openFinanceSettings } from "../shared/openFinance";
 // Rótulos são getters: L() só é avaliado na renderização (no idioma atual).
 const TABS = [
   { id: "portfolio", get label() { return L("Carteira", "Portfolio"); }, icon: Wallet },
+  { id: "chat", get label() { return L("Pergunte à Arca", "Ask Arca"); }, icon: MessagesSquare },
   { id: "market", get label() { return L("Mercado", "Market"); }, icon: Activity },
   { id: "rebalance", get label() { return L("Rebalancear", "Rebalance"); }, icon: Scale },
   { id: "history", get label() { return L("Histórico", "History"); }, icon: HistoryIcon },
@@ -41,7 +43,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 /** No celular: abas da barra de baixo; o resto fica em "Mais". */
 const PRIMARY: TabId[] = ["portfolio", "rebalance", "import", "projection"];
-const SHORT = (): Partial<Record<TabId, string>> => ({ rebalance: L("Rebalancear", "Rebalance"), scan: "Scan" });
+const SHORT = (): Partial<Record<TabId, string>> => ({ rebalance: L("Rebalancear", "Rebalance"), scan: "Scan", chat: L("Arca IA", "Ask") });
 
 export function App() {
   const { state, config, loadError, saveError, setProjection, setResearch, view, setView, update } = useStore();
@@ -173,6 +175,10 @@ export function App() {
         {tab === "market" && <MarketView job={researchJob} />}
         {tab === "rebalance" && <Rebalance goScan={() => setTab("scan")} />}
         {tab === "history" && <HistoryView />}
+        {/* Fica montado para a resposta chegar mesmo se você trocar de aba. */}
+        <div hidden={tab !== "chat"}>
+          <ChatView />
+        </div>
         {tab === "projection" && <ProjectionView job={projectionJob} />}
         {tab === "institutions" && <InstitutionsView />}
         {tab === "assets" && <AssetsView />}
