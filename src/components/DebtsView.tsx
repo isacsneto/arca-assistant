@@ -26,7 +26,7 @@ const VERDICT = (): Record<AmortizeVerdict["verdict"], [string, string]> => ({
 
 /** Dívidas e patrimônio líquido: empréstimos do Open Finance + cadastrados, e "amortizar ou investir?". */
 export function DebtsView() {
-  const { state, update, config } = useStore();
+  const { state, update, config, savedAt } = useStore();
   const planning = planningOf(state!.planning);
   const [data, setData] = useState<DebtsResponse | null>(null);
   const [adding, setAdding] = useState(false);
@@ -36,7 +36,7 @@ export function DebtsView() {
 
   useEffect(() => {
     api.debts().then(setData).catch(() => setData(null));
-  }, [state?.rev, state?.planning, state?.positions, state?.assets]);
+  }, [state?.rev, savedAt]);
 
   return (
     <>

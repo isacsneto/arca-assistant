@@ -24,7 +24,7 @@ const KIND = (k: string) => {
 
 /** IR do investidor: DARF mensal de renda variável, Bens e Direitos, proventos e checklist da IA. Estimativa — confira com os informes. */
 export function TaxView({ goSettings }: { goSettings: () => void }) {
-  const { state, update, config } = useStore();
+  const { state, update, config, savedAt } = useStore();
   const planning = planningOf(state!.planning);
   const [year, setYear] = useState(new Date().getFullYear());
   const [view, setView] = useState<View | null>(null);
@@ -34,7 +34,7 @@ export function TaxView({ goSettings }: { goSettings: () => void }) {
 
   useEffect(() => {
     api.tax(year).then(setView).catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [year, state?.rev]);
+  }, [year, state?.rev, savedAt]);
 
   const copy = (id: string, text: string) => {
     void navigator.clipboard?.writeText(text).then(() => {

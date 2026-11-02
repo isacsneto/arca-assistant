@@ -64,3 +64,25 @@ test("sincroniza contas, cartão (faturas + aberta), movimentações; depois é 
   const todo = needsAi(d2, state);
   assert.deepEqual(todo.map((t) => t.desc), ["pix enviado joao"], "só o que nem regra nem banco resolvem");
 });
+
+test("falha passageira não apaga o que já estava guardado; categorias antigas da IA valem até serem refeitas", async () => {
+  const state = withDefaults({ settings: { openFinance: { connections: [{ itemId: "aaaaaaaaaa", owner: "PF" }] } } as never });
+  const ok = fakeClient({ from: [] });
+  const d1 = await syncLedger(ok, state, structuredClone(EMPTY_LEDGER), { now: new Date("2026-11-01T15:00:00Z") });
+  const broken: PluggyClient = {
+    ...ok,
+    bills: async () => { throw new Error("503"); },
+    investmentTransactions: async () => { throw new Error("503"); },
+  };
+  const d2 = await syncLedger(broken, state, d1, { now: new Date("2026-11-02T15:00:00Z"), slow: true });
+  assert.equal(d2.bills.length, 1, "faturas anteriores ficam");
+  assert.equal(d2.investTx.length, 1, "movimentações anteriores ficam");
+  assert.match(d2.error ?? "", /503/);
+  assert.equal(d2.lastSlowSync, d1.lastSlowSync, "não marca como sincronizado");
+
+  const desc = "pix enviado joao";
+  const old = { ...d2, aiCategories: { [desc]: "transferencia" }, aiCatVersion: {} };
+  assert.deepEqual(needsAi(old, state).map((t) => t.desc), [desc], "decidida com instruções antigas: refaz");
+  assert.equal(old.aiCategories[desc], "transferencia", "…mas continua valendo até a nova chegar");
+  assert.deepEqual(needsAi({ ...old, aiCatVersion: { [desc]: 99 } }, state), []);
+});

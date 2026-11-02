@@ -37,6 +37,8 @@ export type LedgerStore = ReturnType<typeof ledgerStore>;
 const DAY = 86_400_000;
 /** 2 = transações com a fatura em que caem (billMonth). */
 export const LEDGER_VERSION = 2;
+/** Muda quando as instruções da IA para categorias mudam: o que ela decidiu antes é refeito. */
+export const AI_CATEGORIES_VERSION = 2;
 
 /** Transação da Pluggy → do app. No cartão a compra vem positiva; aqui saída é sempre negativa. */
 export function toBankTx(t: PluggyTransaction, acc: { id: string; name: string; type: "BANK" | "CREDIT" }, ctx: { itemId: string; institution: string; owner: "PF" | "PJ" }): BankTx {
@@ -77,8 +79,12 @@ export async function syncLedger(
   const of = openFinanceSettings(state.settings.openFinance);
   const known = [...new Set(state.positions.map((p) => p.institution))];
   const data: LedgerData = structuredClone(prev);
-  // Formato novo (fatura de cada lançamento): busca as transações do zero uma vez.
-  if ((prev.version ?? 1) < LEDGER_VERSION) data.lastTxSync = {};
+  // Formato novo (fatura de cada lançamento): busca as transações do zero uma vez. A versão já fica gravada:
+  // conta que falhar agora não tem lastTxSync e busca do zero sozinha na próxima — sem refazer as outras.
+  if ((prev.version ?? 1) < LEDGER_VERSION) {
+    data.lastTxSync = {};
+    data.version = LEDGER_VERSION;
+  }
   const slow = opts.slow ?? (!prev.lastSlowSync || now.getTime() - Date.parse(prev.lastSlowSync) >= 20 * 3_600_000);
   const errors: string[] = [];
 
@@ -98,15 +104,23 @@ export async function syncLedger(
         data.bankTx = [...data.bankTx.filter((t) => t.accountId !== acc.id || t.date < from), ...txs];
         data.lastTxSync[acc.id] = today;
         if (type === "CREDIT") {
-          const closed = await client.bills(acc.id, opts.signal).catch(() => []);
-          const bills: (Bill & { open?: boolean })[] = closed.map((b) => ({ id: b.id, accountId: acc.id, accountName: a.name, institution, owner: conn.owner, dueDate: b.dueDate.slice(0, 10), total: b.totalAmount, minimum: b.minimumPaymentAmount ?? null }));
-          // A fatura aberta sai das transações (cardBills): o saldo do cartão é o total devedor, com parcelas futuras.
-          data.bills = [...data.bills.filter((b) => b.accountId !== acc.id), ...bills];
+          // Falha passageira não apaga o que já estava guardado (fica o anterior e o erro aparece).
+          try {
+            const closed = await client.bills(acc.id, opts.signal);
+            const bills: (Bill & { open?: boolean })[] = closed.map((b) => ({ id: b.id, accountId: acc.id, accountName: a.name, institution, owner: conn.owner, dueDate: b.dueDate.slice(0, 10), total: b.totalAmount, minimum: b.minimumPaymentAmount ?? null }));
+            // A fatura aberta sai das transações (cardBills): o saldo do cartão é o total devedor, com parcelas futuras.
+            data.bills = [...data.bills.filter((b) => b.accountId !== acc.id), ...bills];
+          } catch (e) {
+            errors.push(`${a.name} (faturas): ${(e as Error).message}`);
+          }
         }
       }
       if (slow) {
-        const loans = await client.loans(conn.itemId, opts.signal).catch(() => []);
-        data.loans = [
+        const loans = await client.loans(conn.itemId, opts.signal).catch((e: unknown) => {
+          errors.push(`${institution} (empréstimos): ${(e as Error).message}`);
+          return null;
+        });
+        if (loans) data.loans = [
           ...data.loans.filter((l) => l.itemId !== conn.itemId),
           ...loans.map((l): LoanRecord => {
             const rate = l.interestRates?.find((r) => r.preFixedRate != null)?.preFixedRate ?? null;
@@ -136,8 +150,12 @@ export async function syncLedger(
         // Movimentações de ações, FIIs, ETFs e BDRs (para preço médio e IR).
         const invs = allInvs.filter((i) => ["EQUITY", "ETF"].includes((i.type ?? "").toUpperCase()));
         const records: InvestTxRecord[] = [];
+        const failed = new Set<string>();
         await mapPool(invs, 4, async (inv) => {
-          const txs = await client.investmentTransactions(inv.id, opts.signal).catch(() => []);
+          const txs = await client.investmentTransactions(inv.id, opts.signal).catch(() => {
+            failed.add(inv.id);
+            return [];
+          });
           for (const t of txs) {
             const kind = (t.type ?? "").toUpperCase();
             const quantity = Math.abs(t.quantity ?? 0);
@@ -154,7 +172,9 @@ export async function syncLedger(
             });
           }
         });
-        data.investTx = [...data.investTx.filter((t) => t.itemId !== conn.itemId), ...records];
+        // Investimento cuja consulta falhou mantém as movimentações que já tinha.
+        data.investTx = [...data.investTx.filter((t) => t.itemId !== conn.itemId || failed.has(t.investmentId)), ...records];
+        if (failed.size) errors.push(`${institution}: ${failed.size} investimentos sem movimentações agora`);
       }
     } catch (e) {
       errors.push(`${conn.itemId.slice(0, 8)}: ${(e as Error).message}`);
@@ -164,7 +184,6 @@ export async function syncLedger(
   data.bankTx.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   if (slow && !errors.length) data.lastSlowSync = now.toISOString();
   data.syncedAt = now.toISOString();
-  if (!errors.length) data.version = LEDGER_VERSION;
   data.error = errors.length ? errors.join(" · ") : null;
   return data;
 }
@@ -176,7 +195,9 @@ export function needsAi(data: LedgerData, state: AppState, limit = 150): { desc:
   for (const t of data.bankTx) {
     if (fromPluggyCategory(t.pluggyCategory)) continue;
     const d = normDesc(t.description);
-    if (!d || data.aiCategories[d] || categorize(t, rules, {}).source === "rule") continue;
+    // Categoria da IA de instruções antigas é refeita (e continua valendo até a nova chegar).
+    const fresh = data.aiCategories[d] && (data.aiCatVersion?.[d] ?? 1) >= AI_CATEGORIES_VERSION;
+    if (!d || fresh || categorize(t, rules, {}).source === "rule") continue;
     const s = seen.get(d);
     if (s) s.count += 1;
     else seen.set(d, { desc: d, sample: t.description, amount: t.amount, pluggyCategory: t.pluggyCategory, count: 1 });

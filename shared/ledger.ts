@@ -54,6 +54,8 @@ export interface LedgerData {
   lastTxSync: Record<string, string>;
   /** Versão do formato: mudou = busca as transações de novo, do zero. */
   version?: number;
+  /** Com que versão das instruções a IA decidiu cada categoria (antiga = refeita aos poucos, sem perder a atual). */
+  aiCatVersion?: Record<string, number>;
   /** Última sincronização "lenta" (empréstimos, movimentações de investimento): 1x por dia. */
   lastSlowSync?: string | null;
   syncedAt?: string | null;
@@ -82,10 +84,16 @@ const median = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b);
   return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : 0;
 };
+/** Mesmo dia no mês seguinte, sem transbordar (31/01 → 28/02, não 03/03). */
 const addMonth = (iso: string) => {
-  const d = new Date(`${iso}T12:00:00Z`);
-  d.setUTCMonth(d.getUTCMonth() + 1);
-  return d.toISOString().slice(0, 10);
+  const [y, m, d] = iso.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(y, m, Math.min(d, last))).toISOString().slice(0, 10);
+};
+/** Dia `day` dentro do mês (AAAA-MM), limitado ao último dia. */
+const dayIn = (month: string, day: number) => {
+  const [y, m] = month.split("-").map(Number);
+  return `${month}-${String(Math.min(day, new Date(Date.UTC(y, m, 0)).getUTCDate())).padStart(2, "0")}`;
 };
 
 /**
@@ -193,22 +201,30 @@ export function cardBills(ledger: Pick<LedgerData, "bankTx" | "bills">, today: s
     const closed = ledger.bills.filter((b) => b.accountId === accountId && !b.open).sort((a, b) => (a.dueDate < b.dueDate ? -1 : 1));
     const last = closed.at(-1);
     const dueDay = last ? Number(last.dueDate.slice(8, 10)) : 10;
-    // Primeira fatura ainda não fechada: a seguinte à última fechada (ou a do mês, se não houver histórico).
+    const lastDayOf = (month: string) => { const [y, m] = month.split("-").map(Number); return new Date(Date.UTC(y, m, 0)).getUTCDate(); };
+    const billTx = (month: string) => txs.filter((t) => t.billMonth === month && !isBillPayment(t)).sort((a, b) => (a.date < b.date ? 1 : -1));
+    const installmentsOf = (list: BankTx[]) => list.filter((t) => t.installment).reduce((s, t) => s - t.amount, 0);
+    const bills: CardBill[] = [];
+    // Fatura já fechada mas ainda não vencida: é a próxima a pagar (vale o valor oficial do banco).
+    if (last && last.dueDate >= today) {
+      const list = billTx(last.dueDate.slice(0, 7));
+      bills.push({ accountId, accountName: txs[0].accountName, institution: txs[0].institution, month: last.dueDate.slice(0, 7), dueDate: last.dueDate, total: last.total, installments: installmentsOf(list), open: false, tx: list });
+    }
+    // Faturas ainda não fechadas: da seguinte à última fechada em diante (ou a do mês, se não houver histórico).
     const firstOpen = last ? nextMonth(last.dueDate.slice(0, 7)) : today.slice(0, 7);
-    const months = [...new Set(txs.map((t) => t.billMonth!))].filter((m) => m >= firstOpen).sort();
-    months.forEach((month, i) => {
-      const inBill = txs.filter((t) => t.billMonth === month && !isBillPayment(t));
-      const total = inBill.reduce((s, t) => s - t.amount, 0);
-      if (total <= 0.005) return;
-      const [y, m] = month.split("-").map(Number);
-      const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
-      out.push({
+    for (const month of [...new Set(txs.map((t) => t.billMonth!))].filter((m) => m >= firstOpen).sort()) {
+      const list = billTx(month);
+      const total = list.reduce((s, t) => s - t.amount, 0);
+      if (total <= 0.005) continue;
+      bills.push({
         accountId, accountName: txs[0].accountName, institution: txs[0].institution, month,
-        dueDate: `${month}-${String(Math.min(dueDay, lastDay)).padStart(2, "0")}`,
-        total, installments: inBill.filter((t) => t.installment).reduce((s, t) => s - t.amount, 0),
-        open: i === 0, tx: inBill.sort((a, b) => (a.date < b.date ? 1 : -1)),
+        dueDate: `${month}-${String(Math.min(dueDay, lastDayOf(month))).padStart(2, "0")}`,
+        total, installments: installmentsOf(list), open: false, tx: list,
       });
-    });
+    }
+    // "Aberta" = a próxima a vencer desse cartão.
+    if (bills.length) bills[0].open = true;
+    out.push(...bills);
   }
   return out.sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : b.total - a.total));
 }
@@ -247,7 +263,7 @@ export function commitments(ledger: Pick<LedgerData, "bankTx" | "bills">, recurr
     const rec = recurring.filter((r) => (i === 0 ? r.nextDate.startsWith(month) && r.nextDate > today : true));
     const items: Commitment["items"] = [
       ...mb.map((b) => ({ kind: "bill" as const, label: b.accountName, detail: `${b.institution} · ${b.tx.length} lançamentos${b.installments ? ` (parcelas ${b.installments.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})` : ""}`, date: b.dueDate, amount: b.total, accountId: b.accountId })),
-      ...rec.map((r) => ({ kind: "recurring" as const, label: r.label, detail: r.account, date: i === 0 ? r.nextDate : `${month}-${r.nextDate.slice(8, 10)}`, amount: r.amount })),
+      ...rec.map((r) => ({ kind: "recurring" as const, label: r.label, detail: r.account, date: i === 0 ? r.nextDate : dayIn(month, Number(r.lastDate.slice(8, 10))), amount: r.amount })),
     ];
     const billsTotal = mb.reduce((s, b) => s + b.total, 0);
     const recTotal = rec.reduce((s, r) => s + r.amount, 0);

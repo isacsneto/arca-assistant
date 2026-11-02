@@ -33,7 +33,7 @@ const signedPct = (n: number | null | undefined) => (n == null ? "—" : `${n >=
 
 /** Histórico do patrimônio: evolução, mês a mês contra CDI e Ibovespa, e o resumo do mês escrito pela IA. */
 export function HistoryView() {
-  const { state, config } = useStore();
+  const { state, config, savedAt } = useStore();
   const [data, setData] = useState<HistoryResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState<(typeof RANGES)[number]["id"]>("6m");
@@ -45,7 +45,7 @@ export function HistoryView() {
   // Recarrega quando a carteira muda (atualização automática, importação…).
   useEffect(() => {
     api.history().then(setData).catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [state?.rev, state?.positions]);
+  }, [state?.rev, savedAt]);
 
   const snaps = useMemo(() => {
     if (!data) return [];

@@ -17,6 +17,12 @@ test("categoria: regra do usuário > IA > banco > genérico pelo sinal", () => {
   assert.deepEqual(categorize({ description: "SALARIO", pluggyCategory: "Salary", amount: -50 }, [], {}).source, "default", "categoria de receita num débito não vale");
   assert.equal(normDesc("MP *SAMSUNG       18/18"), "mp *samsung");
   assert.equal(fromPluggyCategory("Income taxes"), "impostos", "imposto de renda é gasto, não receita");
+  // Regra vale só para o sinal em que foi criada, e trecho curto não casa com tudo.
+  const rules = [{ match: "pix", category: "restaurantes", sign: -1 as const }];
+  assert.equal(categorize({ description: "PIX 123456", pluggyCategory: null, amount: -30 }, rules, {}).category, "restaurantes");
+  assert.equal(categorize({ description: "PIX 123456", pluggyCategory: null, amount: 5000 }, rules, {}).source, "default", "entrada não pega regra de saída");
+  assert.equal(categorize({ description: "PIX ENVIADO MARIA", pluggyCategory: null, amount: -30 }, rules, {}).source, "default", "'pix' não é trecho específico");
+  assert.equal(categorize({ description: "IFOOD *RESTAURANTE X", pluggyCategory: null, amount: -30 }, [{ match: "ifood *restaurante", category: "restaurantes" }], {}).category, "restaurantes");
 });
 
 test("mês: fatura, transferência e aplicação não contam; estorno reduz gasto; futuro fica de fora", () => {
@@ -45,6 +51,21 @@ test("recorrentes: mesmo estabelecimento em 3+ meses com valor estável; parcela
   const r = detectRecurring(txs, "2026-10-01");
   assert.deepEqual(r.map((x) => [x.label, x.amount, x.months, x.nextDate]), [["NETFLIX.COM", 55.9, 4, "2026-10-05"]]);
   assert.deepEqual(r[0].occurrences.map((o) => o.date), ["2026-09-05", "2026-08-05", "2026-07-05", "2026-06-05"], "histórico de cobranças");
+});
+
+test("próxima cobrança não transborda o mês (31/01 → 28/02)", () => {
+  const txs = ["2025-11-30", "2025-12-31", "2026-01-31"].map((date) => tx({ date, description: "ACADEMIA", amount: -100, category: "saude" }));
+  assert.equal(detectRecurring(txs, "2026-02-10")[0].nextDate, "2026-02-28");
+});
+
+test("fatura fechada e ainda não vencida é a próxima a pagar (valor do banco)", () => {
+  const ledger = {
+    bills: [{ id: "b", accountId: "c", accountName: "Visa", institution: "Itaú", owner: "PF" as const, dueDate: "2026-11-05", total: 4000 }],
+    bankTx: [tx({ accountType: "CREDIT", accountId: "c", accountName: "Visa", billMonth: "2026-12", date: "2026-11-10", amount: -700 })],
+  };
+  const bills = cardBills(ledger, "2026-11-01");
+  assert.deepEqual(bills.map((b) => [b.month, b.dueDate, b.total, b.open]), [["2026-11", "2026-11-05", 4000, true], ["2026-12", "2026-12-05", 700, false]]);
+  assert.equal(commitments(ledger, [], "2026-11-01")[0].bills, 4000, "entra nos compromissos do mês");
 });
 
 test("orçamento: gasto, projeção no ritmo do mês e sugestão pela mediana", () => {

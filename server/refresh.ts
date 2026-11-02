@@ -24,6 +24,8 @@ export interface RefreshDeps {
   tesouro?: (signal: AbortSignal) => Promise<TesouroPrices | null>;
   /** Séries do Banco Central (CDI, IPCA, TR) desde a data dada, para a renda fixa indexada. */
   indexSeries?: (from: string, signal: AbortSignal) => Promise<IndexSeries | null>;
+  /** Rodada automática: o que foi atualizado há menos de 1 dia (e não é estimativa da IA) não vai para a IA. */
+  skipRecentForAi?: boolean;
 }
 
 const DAY = 86_400_000;
@@ -168,8 +170,14 @@ export async function refreshValues(
     if (line) lines.set(p.id, line);
   });
 
-  // O resto (COE, fundos sem índice equivalente, cripto sem ticker…) vai para a IA. Nada fica de fora só por ter sido atualizado há pouco.
-  const forClaude = pending.filter((p) => !lines.has(p.id));
+  // O resto (COE, fundos sem índice equivalente, cripto sem ticker…) vai para a IA. Na rodada manual vai tudo;
+  // na automática, um valor recente que não veio da IA (ex.: digitado à mão) é preservado.
+  const forClaude: Position[] = [];
+  for (const p of pending.filter((x) => !lines.has(x.id))) {
+    const age = now.getTime() - Date.parse(p.updatedAt);
+    if (deps.skipRecentForAi && !p.aiEstimate && Number.isFinite(age) && age < DAY) lines.set(p.id, kept(p, L("Atualizado há menos de 1 dia — mantido na atualização automática.", "Updated less than 1 day ago — kept in the automatic update.")));
+    else forClaude.push(p);
+  }
 
   let ratesUsed: string | undefined;
   // Até 2 rodadas: a segunda pede de novo só o que a IA deixou sem resposta.

@@ -24,6 +24,11 @@ interface Ctx {
   visible: Position[];
   /** Busca de novo o status dos provedores de IA (após salvar chave, instalar CLI…). */
   refreshConfig: () => Promise<void>;
+  /**
+   * Muda a cada gravação confirmada pelo servidor. Telas que pedem dados calculados no servidor (gastos,
+   * dívidas, histórico, IR) recarregam com isto — e não com a mudança local, que ainda não foi salva.
+   */
+  savedAt: number;
 }
 
 const VIEW_KEY = "arca:view";
@@ -43,6 +48,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<Config | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState(0);
   const latest = useRef<AppState | null>(null);
   const [view, setViewState] = useState<View>(readView);
   const setView = useCallback((v: View) => {
@@ -79,7 +85,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!latest.current) return;
       api
         .putState(latest.current)
-        .then(() => setSaveError(null))
+        .then(() => {
+          setSaveError(null);
+          setSavedAt(Date.now());
+        })
         .catch(async (e: Error & { status?: number }) => {
           setSaveError(e.message);
           // O servidor mudou a carteira (Open Finance automático): pega a versão nova.
@@ -156,7 +165,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <StoreCtx.Provider value={{ state, config: effectiveConfig, loadError, saveError, update, setScan, setProjection, setResearch, removeResearch, view, setView, visible, refreshConfig }}>
+    <StoreCtx.Provider value={{ state, config: effectiveConfig, loadError, saveError, update, setScan, setProjection, setResearch, removeResearch, view, setView, visible, refreshConfig, savedAt }}>
       {children}
     </StoreCtx.Provider>
   );

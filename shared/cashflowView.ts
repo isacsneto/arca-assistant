@@ -26,7 +26,19 @@ export interface CashflowView {
 }
 
 /** Caixa com liquidez imediata (para estimar a reserva quando não há meta de reserva). */
-const LIQUID = /liquidez di[aá]ria|d\+0|\bconta\b|saldo|tesouro selic|caixinha|reserva/i;
+/**
+ * Caixa de pessoa física com liquidez imediata (estimativa da reserva quando não há meta de reserva):
+ * pós-fixado de até 100% do CDI (costuma ter liquidez diária), Tesouro Selic/fundos D+0–D+1 e saldo em conta.
+ * LCA/LCI, debêntures, CRI/CRA e prefixados/IPCA+ ficam de fora (carência ou marcação a mercado).
+ */
+export function isLiquid(p: { name: string; subtype: string; assetClass: string; owner: string }): boolean {
+  if (p.assetClass !== "caixa" || p.owner !== "PF") return false;
+  const t = `${p.name} ${p.subtype}`;
+  if (/\b(LCA|LCI|LCD|deb[eê]nture|CRI|CRA|IPCA|pr[eé]|renda\+|educa\+)/i.test(t)) return false;
+  if (/liquidez di[aá]ria|d\+[01]\b|\bconta\b|saldo|selic|caixinha|reserva/i.test(t)) return true;
+  const cdi = /(\d+(?:[.,]\d+)?)\s*%\s*(?:do\s+)?CDI/i.exec(t);
+  return !!cdi && Number(cdi[1].replace(",", ".")) <= 100;
+}
 
 export function cashflowView(state: AppState, ledger: LedgerData, month: string | null, today: string): CashflowView {
   const planning = planningOf(state.planning);
@@ -36,7 +48,8 @@ export function cashflowView(state: AppState, ledger: LedgerData, month: string 
   });
   const flows = monthlyFlows(tx, today).slice(-13);
   const current = today.slice(0, 7);
-  const selected = month ?? current;
+  // Começo do mês sem lançamentos ainda: abre no último mês completo.
+  const selected = month ?? (flows.some((f) => f.month === current) ? current : (flows.at(-1)?.month ?? current));
   const recurring = detectRecurring(tx, today);
   const capacity = savingsCapacity(flows, current);
   const done = flows.filter((f) => f.month < current).slice(-3);
@@ -45,7 +58,7 @@ export function cashflowView(state: AppState, ledger: LedgerData, month: string 
   const reserveGoal = planning.goals.find((g) => g.kind === "reserva");
   const reserveValue = reserveGoal
     ? goalStatus(reserveGoal, state).current
-    : state.positions.filter((p) => p.assetClass === "caixa" && LIQUID.test(`${p.name} ${p.subtype}`)).reduce((s, p) => s + toBRL(p, state.settings.fx), 0);
+    : state.positions.filter(isLiquid).reduce((s, p) => s + toBRL(p, state.settings.fx), 0);
 
   return {
     hasData: ledger.bankTx.length > 0,

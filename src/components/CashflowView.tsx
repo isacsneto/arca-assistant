@@ -19,7 +19,7 @@ const SOURCE = (): Record<ResolvedTx["categorySource"], string> => ({ rule: L("s
 
 /** Gastos e receitas (conta e cartão, via Open Finance): tudo clicável para o detalhe — meses, faturas, recorrentes. */
 export function CashflowView({ goSettings }: { goSettings: () => void }) {
-  const { state, update, config } = useStore();
+  const { state, update, config, savedAt } = useStore();
   const planning = planningOf(state!.planning);
   const [view, setView] = useState<View | null>(null);
   const [month, setMonth] = useState<string | null>(null);
@@ -33,7 +33,7 @@ export function CashflowView({ goSettings }: { goSettings: () => void }) {
   // Regras mudam a categoria: recarrega a visão (o servidor resolve com as regras salvas).
   useEffect(() => {
     api.cashflow(month).then(setView).catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [month, state?.rev, state?.planning]);
+  }, [month, state?.rev, savedAt]);
 
   const sync = async () => {
     setBusy(true);
@@ -60,7 +60,11 @@ export function CashflowView({ goSettings }: { goSettings: () => void }) {
   };
   const setCategory = (t: ResolvedTx, category: string) =>
     // Vale para esta e para as próximas com a mesma descrição (a IA também aprende com isso).
-    setPlanning((p) => ({ ...p, categoryRules: [...p.categoryRules.filter((r) => normDesc(r.match) !== normDesc(t.description)), { match: normDesc(t.description), category }] }));
+    setPlanning((p) => {
+      const sign = t.amount >= 0 ? 1 : -1;
+      const match = normDesc(t.description);
+      return { ...p, categoryRules: [...p.categoryRules.filter((r) => !(normDesc(r.match) === match && (r.sign ?? sign) === sign)), { match, category, sign }] };
+    });
 
   if (error && !view) return <Banner kind="bad">{error}</Banner>;
   if (!view) return <p className="muted">{L("Carregando…", "Loading…")}</p>;

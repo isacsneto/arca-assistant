@@ -87,7 +87,7 @@ export interface Deps {
   distDir?: string;
   scanConcurrency?: number;
   /** "Pergunte à Arca": conversa com a IA sobre os dados do usuário (só leitura). */
-  chat?: (state: AppState, messages: ChatMessage[], emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<ChatReply>;
+  chat?: (state: AppState, messages: ChatMessage[], emit: (e: JobEvent<never>) => void, signal: AbortSignal, screen?: string | null) => Promise<ChatReply>;
   /** Transações, faturas, empréstimos (Open Finance): razão local, sincronização e análise dos gastos pela IA. */
   ledger?: {
     store: LedgerStore;
@@ -690,7 +690,8 @@ export function createApp(deps: Deps) {
     }
     const sse = openSse<JobEvent<ChatReply>>(res);
     try {
-      const reply = await deps.chat(structuredClone(state), messages, sse.send as (e: JobEvent<never>) => void, sse.signal);
+      const screen = typeof req.body?.screen === "string" ? req.body.screen.slice(0, 80) : null;
+      const reply = await deps.chat(structuredClone(state), messages, sse.send as (e: JobEvent<never>) => void, sse.signal, screen);
       sse.send({ type: "result", result: reply });
     } catch (err) {
       if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });

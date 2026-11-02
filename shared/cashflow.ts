@@ -124,7 +124,12 @@ export type CategorySource = "rule" | "ai" | "pluggy" | "default";
 /** Categoria final de uma transação + de onde veio. */
 export function categorize(tx: Pick<BankTx, "description" | "pluggyCategory" | "amount">, rules: CategoryRule[], aiMap: Record<string, string>): { category: string; source: CategorySource } {
   const d = normDesc(tx.description);
-  const rule = rules.find((r) => d.includes(normDesc(r.match)));
+  const sign = tx.amount >= 0 ? 1 : -1;
+  // Descrição igual; trecho só quando é específico (8+ letras) — "pix" sozinho não pode pegar tudo.
+  const rule = rules.find((r) => {
+    const m = normDesc(r.match);
+    return (r.sign == null || r.sign === sign) && (d === m || (m.length >= 8 && d.includes(m)));
+  });
   if (rule && CATEGORY_IDS.includes(rule.category)) return { category: rule.category, source: "rule" };
   const ai = aiMap[d];
   if (ai && CATEGORY_IDS.includes(ai)) return { category: ai, source: "ai" };

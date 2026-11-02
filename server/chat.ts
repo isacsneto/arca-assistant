@@ -57,9 +57,11 @@ export function chatContext(state: AppState, extra: string[] = []): string {
   ].filter(Boolean).join("\n\n");
 }
 
-export function chatPrompt(context: string, messages: ChatMessage[]): string {
+export function chatPrompt(context: string, messages: ChatMessage[], screen?: string | null): string {
   const convo = messages.slice(-12).map((m) => `${m.role === "user" ? "USUÁRIO" : "ARCA"}: ${m.text}`).join("\n\n");
-  return `DADOS DO USUÁRIO\n${context}\n\nCONVERSA\n${convo}\n\nResponda à última mensagem do USUÁRIO.`;
+  // O chat é flutuante: "isso aqui" costuma se referir à tela aberta.
+  const where = screen ? `\n\nTELA QUE O USUÁRIO ESTÁ VENDO NO APP: ${screen}` : "";
+  return `DADOS DO USUÁRIO\n${context}${where}\n\nCONVERSA\n${convo}\n\nResponda à última mensagem do USUÁRIO.`;
 }
 
 export async function chatWithAi(
@@ -68,11 +70,12 @@ export async function chatWithAi(
   extra: string[],
   emit: (e: JobEvent<never>) => void,
   signal: AbortSignal,
+  screen?: string | null,
 ): Promise<ChatReply> {
   emit({ type: "status", text: L("Pensando…", "Thinking…") });
   const { data } = await runAi(aiFor(state.settings, "chat"), {
     system: CHAT_SYSTEM,
-    prompt: chatPrompt(chatContext(state, extra), messages),
+    prompt: chatPrompt(chatContext(state, extra), messages, screen),
     schema: ChatReplySchema,
     web: true,
     maxTurns: 25,

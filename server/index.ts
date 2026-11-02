@@ -7,7 +7,7 @@ import { yahooQuote } from "./quotes";
 import { tesouroSource } from "./tesouro";
 import { bcbSource } from "./indexers";
 import { dataDir, historyFile, ledgerFile, secretsFile } from "./paths";
-import { ledgerStore, needsAi, syncLedger } from "./ledger";
+import { AI_CATEGORIES_VERSION, ledgerStore, needsAi, syncLedger } from "./ledger";
 import { cashflowView } from "../shared/cashflowView";
 import { taxView } from "../shared/taxView";
 import { categoryOf } from "../shared/cashflow";
@@ -69,8 +69,13 @@ const app = createApp({
         const of = openFinanceSettings(s.settings.openFinance);
         const conns = opts?.auto ? autoSyncConnections(of) : of.connections;
         if (!of.sourceOfTruth || !conns.length || (!pluggyCredentials.get() && !(await securoUp()))) return null;
-        return fetchConnections(pluggy, conns, { includeAccounts: of.includeAccounts, signal: sig });
+        const data = await fetchConnections(pluggy, conns, { includeAccounts: of.includeAccounts, signal: sig });
+        // Sem revisão, conexão que voltou vazia (item ainda atualizando, consentimento renovando…) fica de fora:
+        // senão a instituição inteira "sairia" da carteira. Na revisão manual o usuário vê e decide.
+        return opts?.auto ? data.filter((d) => d.error || d.investments.length > 0 || (of.includeAccounts && d.accounts.length > 0)) : data;
       },
+      // Automático: posição atualizada há menos de 1 dia (ex.: valor digitado à mão) não vai para a estimativa da IA.
+      skipRecentForAi: !!opts?.auto,
     }, emit, signal);
     if (opts?.auto && aiRan) lastAutoAi = Date.now();
     return { ...result, aiRan };
@@ -82,7 +87,7 @@ const app = createApp({
   // A cada 30 min: Open Finance, cotações, Tesouro e Banco Central, aplicados sem confirmação.
   autoRefresh: { everyMs: 30 * 60_000 },
   sampleVideo,
-  chat: (state, messages, emit, signal) => chatWithAi(state, messages, chatExtras(state), emit, signal),
+  chat: (state, messages, emit, signal, screen) => chatWithAi(state, messages, chatExtras(state), emit, signal, screen),
   goalsAdvice: goalsAdviceWithAi,
   debts: {
     // CDI ao ano a partir do último CDI diário publicado.
@@ -130,7 +135,12 @@ function syncLedgerNow(state: import("../shared/types").AppState): Promise<void>
     if (todo.length) {
       try {
         const map = await categorizeWithAi(state, todo);
-        ledger.set({ ...ledger.get(), aiCategories: { ...ledger.get().aiCategories, ...map } });
+        const cur = ledger.get();
+        ledger.set({
+          ...cur,
+          aiCategories: { ...cur.aiCategories, ...map },
+          aiCatVersion: { ...cur.aiCatVersion, ...Object.fromEntries(Object.keys(map).map((k) => [k, AI_CATEGORIES_VERSION])) },
+        });
       } catch (e) {
         console.warn(`Categorias pela IA: ${(e as Error).message}`);
       }

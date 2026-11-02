@@ -1,7 +1,7 @@
 import type { Position, RefreshLine } from "../shared/types";
 import { L, locale } from "../shared/i18n";
 import { closeAt, type FetchQuote } from "./quotes";
-import { accrue, type IndexSeries } from "./indexers";
+import { accrue, brDate as brDay, type IndexSeries } from "./indexers";
 
 /*
  * Fundos sem cota pública fácil: estimativa pela variação de um ETF da B3 que segue o mesmo índice
@@ -45,11 +45,18 @@ export async function priceByProxy(
     return { ...l, ai: true, note: L(`Fundo sem cota pública: rendimento do CDI no período (${l.note}) · ${mark}`, `Fund without a public quota: CDI return over the period (${l.note}) · ${mark}`) };
   }
   const q = await deps.fetchQuote(proxy.symbol).catch(() => null);
-  const then = q && closeAt(q.history, p.updatedAt);
-  if (!q || !then) return null;
-  const change = q.price / then - 1;
+  if (!q) return null;
+  // Só pregões já fechados, de fechamento a fechamento: o valor passa a valer no fechamento do último
+  // pregão (asOf). Rodando a cada 30 min, sem isso a variação do dia seria contada de novo ou perdida.
+  const bars = q.history.filter((h) => brDay(new Date(h.t * 1000)) < deps.today);
+  const last = bars.at(-1);
+  const then = closeAt(bars, p.updatedAt);
+  if (!last || !then) return null;
+  const lastDay = brDay(new Date(last.t * 1000));
+  const change = lastDay > brDay(new Date(p.updatedAt)) ? last.close / then - 1 : 0;
   const since = new Date(p.updatedAt).toLocaleDateString(locale());
   return {
+    asOf: `${lastDay}T21:00:00.000Z`,
     id: p.id,
     name: p.name,
     currency: p.currency,

@@ -3,7 +3,6 @@ import type { AssetClass, ExtractedItem, ExtractionResult, FileReading, Owner, P
 import { norm, posKey } from "./importMerge";
 import { parseFileName } from "./fileHints";
 import { L, locale } from "./i18n";
-import { applyRefresh, autoApplicable } from "./refreshApply";
 
 /*
  * Open Finance via Pluggy (Meu Pluggy). O servidor busca os investimentos e contas de
@@ -608,29 +607,3 @@ export function autoSyncConnections(of: OpenFinanceSettings): OpenFinanceConnect
   return of.sourceOfTruth && of.autoSync ? of.connections.filter((c) => c.syncedAt) : [];
 }
 
-export interface AutoSyncResult {
-  positions: Position[];
-  /** Linhas aplicadas (mudanças de valor, entradas e saídas). */
-  applied: RefreshLine[];
-  warnings: string[];
-}
-
-/**
- * Atualização automática: o mesmo cálculo do "Atualizar valores", aplicado sem revisão — só para conexões já
- * revisadas. Conexão com erro, ou que voltou vazia, fica de fora (não apaga nada por uma falha da Pluggy).
- */
-export function autoSyncOpenFinance(
-  positions: Position[],
-  data: ConnectionData[],
-  opts: { includeAccounts: boolean; now: string },
-): AutoSyncResult {
-  const usable = data.filter((d) => !d.error && (d.investments.length > 0 || (opts.includeAccounts && d.accounts.length > 0)));
-  const skipped = data.filter((d) => !usable.includes(d)).map((d) => d.error ?? L(`conexão ${d.connection.itemId} voltou vazia`, `connection ${d.connection.itemId} came back empty`));
-  const r = openFinanceRefresh(positions, usable, { includeAccounts: opts.includeAccounts });
-  const applied = autoApplicable(positions, r.lines);
-  return {
-    positions: applied.length ? applyRefresh(positions, r.lines, new Set(applied.map((l) => l.id)), opts.now) : positions,
-    applied,
-    warnings: [...r.warnings, ...skipped],
-  };
-}

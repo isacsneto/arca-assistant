@@ -25,11 +25,17 @@ test("índice de referência do fundo pelo nome; com ticker, em dólar ou sem eq
 });
 
 test("estima pela variação do ETF desde a última atualização e marca como estimativa", async () => {
+  const bar = (d: string, close: number) => ({ t: Date.parse(`${d}T13:00:00Z`) / 1000, close });
+  // O pregão de hoje (em andamento) não conta: vale de fechamento a fechamento.
   const fetchQuote = async (s: string) =>
-    s === "SMAL11.SA" ? { symbol: s, price: 99, currency: "BRL", history: [{ t: Date.parse("2026-10-09T13:00:00Z") / 1000, close: 110 }] } : null;
+    s === "SMAL11.SA" ? { symbol: s, price: 50, currency: "BRL", history: [bar("2026-10-09", 110), bar("2026-10-30", 99), bar("2026-11-01", 50)] } : null;
   const l = (await priceByProxy(p({}), { kind: "etf", symbol: "SMAL11.SA", label: "SMAL11" }, { fetchQuote, series: null, today: "2026-11-01" }))!;
   assert.ok(Math.abs(l.newValue - 900) < 1e-9);
+  assert.equal(l.asOf, "2026-10-30T21:00:00.000Z", "vale no fechamento do último pregão");
   assert.equal(l.ai, true);
+  // Rodando de novo depois de aplicado (updatedAt = asOf): sem pregão novo, não muda nada.
+  const again = (await priceByProxy(p({ value: 900, updatedAt: l.asOf! }), { kind: "etf", symbol: "SMAL11.SA", label: "SMAL11" }, { fetchQuote, series: null, today: "2026-11-01" }))!;
+  assert.equal(again.newValue, 900);
   assert.match(l.note, /−|-10,00%/);
   assert.equal(await priceByProxy(p({}), { kind: "etf", symbol: "XXXX11.SA", label: "X" }, { fetchQuote, series: null, today: "2026-11-01" }), null);
 });

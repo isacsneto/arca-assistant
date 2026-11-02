@@ -123,7 +123,12 @@ export async function categorizeWithAi(
 Catálogo:
 ${catalog}
 
-Dicas: PIX/TED para a própria pessoa ou entre contas dela = transferencia; PIX para outra pessoa ou empresa = o gasto correspondente (se não der para saber, "outros"); "APLICAÇÃO", "RESGATE", "CDB", "TESOURO", corretora = investimento; pagamento de fatura = fatura; valor positivo de salário/pró-labore = salario. Use as correções do usuário como exemplo do gosto dele.`,
+Dicas:
+- PIX/TED entre contas da PRÓPRIA PESSOA (mesmo nome de pessoa física dos dois lados) = transferencia.
+- ENTRADA vinda de uma EMPRESA (nome com LTDA, ME, EIRELI, S.A., COMERCIO, ECOMMERCE, SERVICOS, CNPJ…) = salario — é renda da pessoa física (salário, pró-labore ou distribuição de lucros), MESMO QUE a empresa seja do próprio usuário. Não classifique como transferencia.
+- SAÍDA por PIX para outra pessoa ou empresa = o gasto correspondente (se não der para saber, "outros").
+- "APLICAÇÃO", "RESGATE", "CDB", "TESOURO", corretora = investimento; pagamento de fatura = fatura.
+- Use as correções do usuário como exemplo do gosto dele.`,
     prompt: `${examples ? `Correções do usuário (siga o padrão):\n${examples}\n\n` : ""}Transações (desc normalizada | exemplo original | sinal | categoria do banco | ocorrências):\n${items
       .map((i) => `- ${i.desc} | ${i.sample} | ${i.amount < 0 ? "saída" : "entrada"} | ${i.pluggyCategory ?? "-"} | ${i.count}`)
       .join("\n")}`,

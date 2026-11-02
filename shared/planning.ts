@@ -38,6 +38,8 @@ export interface Budget {
 export interface CategoryRule {
   match: string;
   category: string;
+  /** Só para entradas (1) ou saídas (−1); vazio = as duas. */
+  sign?: 1 | -1;
 }
 
 export interface Debt {

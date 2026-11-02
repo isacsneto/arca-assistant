@@ -151,6 +151,27 @@ test("renda fixa indexada sai pelo Banco Central (não vai para a IA); sem as ta
   assert.match(down.warnings![0], /Banco Central/);
 });
 
+test("automático: valor recente que não veio da IA (ex.: digitado à mão) não vai para a estimativa", async () => {
+  const positions = [
+    p({ id: "manual", name: "COE X", assetClass: "outros", value: 5000, updatedAt: "2026-10-09T10:00:00Z" }),
+    p({ id: "velho", name: "COE Y", assetClass: "outros", value: 5000, updatedAt: "2026-10-01T10:00:00Z" }),
+    p({ id: "ia", name: "COE Z", assetClass: "outros", value: 5000, updatedAt: "2026-10-09T10:00:00Z", aiEstimate: true }),
+  ];
+  let toAi: string[] = [];
+  const deps: RefreshDeps = {
+    fetchQuote: async () => null, now: () => NOW, skipRecentForAi: true,
+    claudeRefresh: async (ps) => {
+      toAi = ps.map((x) => x.id);
+      return { updates: [], ratesUsed: "" };
+    },
+  };
+  const r = await refreshValues(withDefaults({ positions }), deps, () => undefined, new AbortController().signal);
+  assert.deepEqual(toAi, ["velho", "ia"]);
+  assert.match(r.lines.find((l) => l.id === "manual")!.note, /menos de 1 dia/);
+  await refreshValues(withDefaults({ positions }), { ...deps, skipRecentForAi: false }, () => undefined, new AbortController().signal);
+  assert.deepEqual(toAi, ["manual", "velho", "ia"], "na rodada manual vai tudo");
+});
+
 test("títulos do Tesouro saem pelo PU oficial; sem o arquivo, vão para a IA com aviso", async () => {
   const positions = [
     p({ id: "renda", name: "Tesouro Renda+ 2084", subtype: "Tesouro Renda+ · venc. 15/12/2084", assetClass: "caixa", value: 2481.8, quantity: 10 }),

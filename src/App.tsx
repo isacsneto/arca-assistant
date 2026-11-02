@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import {
-  Activity, ArrowLeftRight, Car, Ellipsis, Hexagon, FileText, HandCoins, History as HistoryIcon, Landmark, MessagesSquare, Receipt, Target, LineChart as LineChartIcon, Loader2, Radar, Scale,
+  Activity, ArrowLeftRight, Car, Ellipsis, Hexagon, FileText, HandCoins, History as HistoryIcon, Landmark, Receipt, Target, LineChart as LineChartIcon, Loader2, Radar, Scale,
   Settings as SettingsIcon, Upload, Wallet,
 } from "lucide-react";
 import { HistoryView } from "./components/HistoryView";
-import { ChatView } from "./components/ChatView";
+import { ChatFab } from "./components/ChatView";
 import { GoalsView } from "./components/GoalsView";
 import { CashflowView } from "./components/CashflowView";
 import { TaxView } from "./components/TaxView";
@@ -32,7 +32,6 @@ import { openFinanceSettings } from "../shared/openFinance";
 // Rótulos são getters: L() só é avaliado na renderização (no idioma atual).
 const TABS = [
   { id: "portfolio", get label() { return L("Carteira", "Portfolio"); }, icon: Wallet },
-  { id: "chat", get label() { return L("Pergunte à Arca", "Ask Arca"); }, icon: MessagesSquare },
   { id: "market", get label() { return L("Mercado", "Market"); }, icon: Activity },
   { id: "rebalance", get label() { return L("Rebalancear", "Rebalance"); }, icon: Scale },
   { id: "history", get label() { return L("Histórico", "History"); }, icon: HistoryIcon },
@@ -45,13 +44,21 @@ const TABS = [
   { id: "assets", get label() { return L("Bens", "Assets"); }, icon: Car },
   { id: "import", get label() { return L("Importar", "Import"); }, icon: Upload },
   { id: "scan", get label() { return L("Scan de ativos", "Asset scan"); }, icon: Radar },
-  { id: "tx", get label() { return L("Transações", "Transactions"); }, icon: ArrowLeftRight },
+  { id: "tx", get label() { return L("Movimentações", "Activity"); }, icon: ArrowLeftRight },
   { id: "settings", get label() { return L("Ajustes", "Settings"); }, icon: SettingsIcon },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
+/** Menu em grupos (16 telas numa lista só ficava difícil de achar). */
+const GROUPS: { label: () => string; tabs: TabId[] }[] = [
+  { label: () => L("Patrimônio", "Wealth"), tabs: ["portfolio", "history", "institutions", "assets", "debts"] },
+  { label: () => L("Planejar", "Plan"), tabs: ["rebalance", "goals", "projection"] },
+  { label: () => L("Dia a dia", "Everyday"), tabs: ["cashflow", "tax"] },
+  { label: () => L("Inteligência", "Intelligence"), tabs: ["market", "scan"] },
+  { label: () => L("Dados", "Data"), tabs: ["import", "tx", "settings"] },
+];
 /** No celular: abas da barra de baixo; o resto fica em "Mais". */
-const PRIMARY: TabId[] = ["portfolio", "rebalance", "import", "projection"];
-const SHORT = (): Partial<Record<TabId, string>> => ({ rebalance: L("Rebalancear", "Rebalance"), scan: "Scan", chat: L("Arca IA", "Ask") });
+const PRIMARY: TabId[] = ["portfolio", "cashflow", "history", "rebalance"];
+const SHORT = (): Partial<Record<TabId, string>> => ({ rebalance: L("Rebalancear", "Rebalance"), scan: "Scan", tax: "IR", tx: L("Movim.", "Activity") });
 
 export function App() {
   const { state, config, loadError, saveError, setProjection, setResearch, view, setView, update } = useStore();
@@ -143,7 +150,14 @@ export function App() {
           Arca Assistant
         </div>
         {viewSwitch}
-        {TABS.map(navButton)}
+        <div className="nav-scroll">
+          {GROUPS.map((g) => (
+            <div key={g.label()} className="nav-group">
+              <div className="nav-group-title">{g.label()}</div>
+              {g.tabs.map((id) => navButton(TABS.find((t) => t.id === id)!))}
+            </div>
+          ))}
+        </div>
         {footer}
       </nav>
       {/* Celular: topo compacto com a visão PF/PJ */}
@@ -183,10 +197,6 @@ export function App() {
         {tab === "market" && <MarketView job={researchJob} />}
         {tab === "rebalance" && <Rebalance goScan={() => setTab("scan")} />}
         {tab === "history" && <HistoryView />}
-        {/* Fica montado para a resposta chegar mesmo se você trocar de aba. */}
-        <div hidden={tab !== "chat"}>
-          <ChatView />
-        </div>
         {tab === "projection" && <ProjectionView job={projectionJob} />}
         {tab === "goals" && <GoalsView />}
         {tab === "cashflow" && <CashflowView goSettings={() => setTab("settings")} />}
@@ -220,12 +230,22 @@ export function App() {
         <div className="sheet-backdrop" onClick={() => setMoreOpen(false)}>
           <div className="sheet" role="dialog" aria-label={L("Mais opções", "More options")} onClick={(e) => e.stopPropagation()}>
             <div className="sheet-grip" />
-            {TABS.filter((t) => !PRIMARY.includes(t.id)).map(navButton)}
+            {GROUPS.map((g) => {
+              const tabs = g.tabs.filter((id) => !PRIMARY.includes(id));
+              return tabs.length ? (
+                <div key={g.label()} className="nav-group">
+                  <div className="nav-group-title">{g.label()}</div>
+                  {tabs.map((id) => navButton(TABS.find((t) => t.id === id)!))}
+                </div>
+              ) : null;
+            })}
             {footer}
           </div>
         </div>
       )}
       <RemindersDialog onUpdate={(t) => { setImportTarget(t); setTab("import"); }} />
+      {/* "Pergunte à Arca": flutuante em todas as telas; sabe qual tela está aberta. */}
+      <ChatFab screen={TABS.find((t) => t.id === tab)!.label} />
     </div>
   );
 }

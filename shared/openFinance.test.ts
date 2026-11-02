@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { autoSyncConnections, autoSyncOpenFinance, classifyInvestment, institutionName, openFinanceSettings, tickerOf, toImport, withSyncedConnections, type ConnectionData, type PluggyInvestment } from "./openFinance";
+import { autoSyncConnections, classifyInvestment, institutionName, openFinanceSettings, tickerOf, toImport, withSyncedConnections, type ConnectionData, type PluggyInvestment } from "./openFinance";
 
 const inv = (o: Partial<PluggyInvestment>): PluggyInvestment => ({ id: "x", name: "Investimento", balance: 1000, ...o });
 
@@ -164,22 +164,6 @@ test("automático: só conexões revisadas, com fonte da verdade e automático l
   assert.deepEqual(autoSyncConnections(openFinanceSettings({ connections: conns, sourceOfTruth: false })), []);
 });
 
-test("automático aplica o que veio da Pluggy; conexão com erro ou vazia não apaga nada", () => {
-  const pos = (id: string, name: string, institution: string, value: number) =>
-    ({ id, name, institution, owner: "PF" as const, assetClass: "caixa" as const, subtype: "CDB", currency: "BRL" as const, value, updatedAt: "2026-10-01", source: "print" });
-  const positions = [pos("btg", "CDB BTG", "BTG Pactual", 1000), pos("inter", "CDB Inter", "Banco Inter", 500), pos("itau", "CDB Itaú", "Itaú", 300)];
-  const conn = (itemId: string, institution: string) => ({ itemId, owner: "PF" as const, institution, syncedAt: "2026-10-10" });
-  const data: ConnectionData[] = [
-    { connection: conn("a", "BTG Pactual"), item: { id: "a" }, investments: [{ id: "1", name: "CDB BTG", type: "FIXED_INCOME", subtype: "CDB", balance: 1010 }], accounts: [] },
-    { connection: conn("b", "Banco Inter"), item: { id: "b" }, investments: [], accounts: [] },
-    { connection: conn("c", "Itaú"), item: null, investments: [], accounts: [], error: "LOGIN_ERROR" },
-  ];
-  const r = autoSyncOpenFinance(positions, data, { includeAccounts: false, now: "2026-11-01T12:00:00Z" });
-  assert.deepEqual(r.positions.map((p) => [p.id, p.value]), [["btg", 1010], ["inter", 500], ["itau", 300]]);
-  assert.equal(r.positions[0].updatedAt, "2026-11-01T12:00:00Z");
-  assert.equal(r.applied.length, 1);
-  assert.equal(r.warnings.length, 2);
-});
 
 test("MeuPluggy: o banco sai das contas (mais peso) e dos investimentos, não do conector", () => {
   const known = ["BTG Pactual", "Itaú", "Nubank", "Vest"];
@@ -230,14 +214,3 @@ test("nomes legíveis para renda fixa da corretora; lotes do mesmo CDB viram uma
   assert.ok(got("CDB BTG"), "nome que não é da corretora fica");
 });
 
-test("automático não apaga o que não veio do Open Finance (cripto, COE, print)", () => {
-  const pos = (id: string, name: string, source: string) =>
-    ({ id, name, institution: "BTG Pactual", owner: "PF" as const, assetClass: "caixa" as const, subtype: "", currency: "BRL" as const, value: 100, updatedAt: "2026-10-01", source });
-  const positions = [pos("of", "CDB Velho", "Open Finance · BTG Pactual PF"), pos("btc", "Bitcoin", "print"), pos("cdb", "CDB Pine", "Open Finance · BTG Pactual PF")];
-  const data: ConnectionData[] = [{
-    connection: { itemId: "a", owner: "PF", institution: "BTG Pactual", syncedAt: "2026-10-10" }, item: { id: "a" }, accounts: [],
-    investments: [{ id: "1", name: "CDB Pine", type: "FIXED_INCOME", subtype: "CDB", balance: 120 }],
-  }];
-  const r = autoSyncOpenFinance(positions, data, { includeAccounts: false, now: "2026-11-01T12:00:00Z" });
-  assert.deepEqual(r.positions.map((p) => [p.id, p.value]), [["btc", 100], ["cdb", 120]], "saiu só o que era do Open Finance");
-});

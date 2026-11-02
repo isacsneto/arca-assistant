@@ -40,6 +40,13 @@ test("data de referência do indexador vira o updatedAt; valor da IA fica marcad
   assert.equal(again[1].aiEstimate, undefined, "atualizado por fonte oficial deixa de ser estimativa");
 });
 
+test("aplicação automática: entra tudo que mudou, mas só sai o que veio do Open Finance", async () => {
+  const { autoApplicable } = await import("./refreshApply");
+  const positions = [{ ...p("of", 100), source: "Open Finance · BTG Pactual PF" }, { ...p("btc", 100), source: "print" }];
+  const lines = [line("of", 100, 0, "removido"), line("btc", 100, 0, "removido"), { ...line("x", 0, 50, "openfinance"), add: {} as never }];
+  assert.deepEqual(autoApplicable(positions, lines).map((l) => l.id), ["of", "x"]);
+});
+
 test("isChange ignora mantidos e diferenças de centavos", () => {
   assert.equal(isChange(line("a", 100, 100.001, "cotacao")), false);
   assert.equal(isChange(line("a", 100, 101, "cotacao")), true);
