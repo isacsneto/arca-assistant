@@ -451,17 +451,18 @@ test("as tarefas recebem o provedor/modelo do Codex quando ele está escolhido",
 
 function fakePluggy(opts: { valid?: boolean } = {}) {
   let creds: { clientId: string; clientSecret: string } | null = null;
+  const self = { dataAt: "2026-11-01T03:00:00Z" };
   const client: NonNullable<Deps["pluggy"]>["client"] = {
     check: async () => {
       if (opts.valid === false) throw new PluggyError("A Pluggy recusou o Client ID/Client Secret.", 401);
     },
     listItems: async () => [{ id: "aaaaaaaaaa", status: "UPDATED", connector: { name: "Banco BTG Pactual" } }],
-    getItem: async (id) => ({ id, status: "UPDATED", connector: { name: "Banco BTG Pactual" } }),
+    getItem: async (id) => ({ id, status: "UPDATED", lastUpdatedAt: self.dataAt, connector: { name: "Banco BTG Pactual" } }),
     investments: async () => [{ id: "1", name: "CDB BTG", type: "FIXED_INCOME", subtype: "CDB", balance: 1000 }],
     accounts: async () => [],
     connectToken: async (itemId) => `tok${itemId ? `-${itemId}` : ""}`,
   };
-  return { credentials: { get: () => creds, set: (c: typeof creds) => void (creds = c) }, client };
+  return Object.assign(self, { credentials: { get: () => creds, set: (c: typeof creds) => void (creds = c) }, client });
 }
 
 test("Open Finance: credenciais validadas, nunca devolvidas, e recusadas não ficam salvas", async () => {
@@ -529,6 +530,12 @@ test("Open Finance automático: aplica as conexões revisadas e sobe a revisão;
       const r2 = await (await fetch(`${base}/api/openfinance/auto-sync`, { method: "POST" })).json();
       assert.deepEqual([r2.ran, r2.applied], [true, 0]);
       assert.equal(store.saved!.rev, 1, "nada mudou: revisão igual");
+      // Checagem normal: banco sem sincronização nova na Pluggy não tem os investimentos buscados de novo.
+      const r3 = await (await fetch(`${base}/api/openfinance/auto-sync?force=0`, { method: "POST" })).json();
+      assert.deepEqual([r3.ran, r3.fetched], [true, 0]);
+      pluggy.dataAt = "2026-11-02T03:00:00Z";
+      const r4 = await (await fetch(`${base}/api/openfinance/auto-sync?force=0`, { method: "POST" })).json();
+      assert.equal(r4.fetched, 1, "dado novo no banco: busca na hora");
     },
     {
       positions: [{ id: "p", name: "CDB BTG", institution: "BTG Pactual", owner: "PF", assetClass: "caixa", subtype: "CDB", currency: "BRL", value: 900, updatedAt: "2026-10-01", source: "" }],

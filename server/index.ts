@@ -48,8 +48,8 @@ const app = createApp({
   researchAsset,
   estimateAsset,
   pluggy: { credentials: pluggyCredentials, client: pluggy, securo: { available: securoUp, url: process.env.SECURO_APP_URL || SECURO_APP_URL } },
-  // Checa de hora em hora; aplica no máximo a cada 6 h (o Meu Pluggy atualiza os bancos 1x por dia).
-  openFinanceAutoSync: { checkEveryMs: 60 * 60_000, minIntervalMs: 6 * 60 * 60_000 },
+  // A cada 30 min pergunta à Pluggy se algum banco tem dado novo; se tiver, aplica na hora.
+  openFinanceAutoSync: { checkEveryMs: 30 * 60_000 },
   sampleVideo,
 });
 

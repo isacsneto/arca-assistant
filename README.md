@@ -180,7 +180,7 @@ With **"Use Open Finance as the source of truth"** on (default), each connection
 
 - **on import**, what you had at that institution and owner is replaced by what came from Open Finance;
 - in the Portfolio's **Update values**, that scope's values come from Pluggy instead of quotes or the AI. New assets show up to be added and missing ones to be removed. You review before applying.
-- **on its own** ("Update on its own", on by default): every 6 hours the app applies what comes from connections you have already imported once, with no review. A connection with an error, or one that comes back empty, never deletes anything.
+- **on its own** ("Update on its own", on by default): every 30 minutes the app asks Pluggy whether a bank has new data and, if so, applies it right away for connections you have already imported once, with no review. A connection with an error, or one that comes back empty, never deletes anything, and positions that didn't come from Open Finance (crypto, structured notes, screenshots) are only removed in a reviewed import.
 - **Nothing outside the scope is touched.** Example: a **BTG PF** connection replaces and updates only BTG PF. **BTG PJ** stays intact (with values from screenshots, text, quotes or the AI) unless you also have a **BTG PJ** connection returning data. A failing connection changes nothing in its scope.
 
 Meu Pluggy's free plan covers up to 5 connections of the same owner, refreshed every 24 h. Brokers outside Brazil aren't part of Open Finance; for those, use screenshots, video or text. Credentials stay on the server only (`data/secrets.json` or `PLUGGY_CLIENT_ID` / `PLUGGY_CLIENT_SECRET`).

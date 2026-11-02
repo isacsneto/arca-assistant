@@ -57,8 +57,8 @@ export interface Deps {
     /** Securo no PC como fonte alternativa (sem credenciais no Arca). */
     securo?: { available: () => Promise<boolean>; url: string };
   };
-  /** Open Finance automático: de quanto em quanto tempo checar (sem valor = só pela rota, como nos testes). */
-  openFinanceAutoSync?: { checkEveryMs: number; minIntervalMs: number };
+  /** Open Finance automático: de quanto em quanto tempo perguntar à Pluggy se há dado novo (sem valor = só pela rota, como nos testes). */
+  openFinanceAutoSync?: { checkEveryMs: number };
   /** Amostras de um vídeo via ffmpeg (quando o navegador não decodifica o formato). */
   sampleVideo?: (bytes: Buffer, opts: { step: number; signal?: AbortSignal }) => Promise<VideoSample[]>;
   /** Aba Mercado: cotação do dia e busca de ativos (padrão: Yahoo Finance). */
@@ -378,14 +378,28 @@ export function createApp(deps: Deps) {
 
   // Open Finance automático: aplica sem revisão o que vier das conexões já revisadas numa importação.
   let autoSyncRunning: ReturnType<typeof autoSync> | null = null;
-  let lastAutoSyncRun = 0; // em memória: checar sem mudar nada não grava nem invalida o que o navegador tem
-  async function autoSync(force = false): Promise<{ ran: boolean; applied: number; warnings: string[] }> {
+  // Em memória: data da sincronização do banco (Pluggy) já aplicada, por conexão. Checar sem novidade não
+  // grava nem invalida o que o navegador tem; depois de reiniciar, a primeira checagem busca tudo.
+  const appliedDataAt = new Map<string, string>();
+  let lastFullSync = 0;
+  async function autoSync(force = false): Promise<{ ran: boolean; fetched: number; applied: number; warnings: string[] }> {
     const of = openFinanceSettings(state.settings.openFinance);
     const conns = autoSyncConnections(of);
-    const due = force || Date.now() - lastAutoSyncRun >= (deps.openFinanceAutoSync?.minIntervalMs ?? 0);
-    if (!deps.pluggy || !conns.length || !due || !(await ofSource())) return { ran: false, applied: 0, warnings: [] };
-    const data = await fetchConnections(deps.pluggy.client, conns, { includeAccounts: of.includeAccounts });
-    lastAutoSyncRun = Date.now();
+    if (!deps.pluggy || !conns.length || !(await ofSource())) return { ran: false, fetched: 0, applied: 0, warnings: [] };
+    const { client } = deps.pluggy;
+    // Pergunta só a data da última sincronização de cada banco (barato) e busca os investimentos de quem mudou.
+    // Uma vez por dia busca tudo, como rede de segurança.
+    const full = force || Date.now() - lastFullSync >= 86_400_000;
+    const todo = full
+      ? conns
+      : (await Promise.all(conns.map(async (c) => {
+          const item = await client.getItem(c.itemId).catch(() => null);
+          return item && (item.lastUpdatedAt ?? "") !== appliedDataAt.get(c.itemId) ? c : null;
+        }))).filter((c): c is (typeof conns)[number] => c !== null);
+    if (!todo.length) return { ran: true, fetched: 0, applied: 0, warnings: [] };
+    const data = await fetchConnections(client, todo, { includeAccounts: of.includeAccounts });
+    if (full) lastFullSync = Date.now();
+    for (const d of data) if (!d.error && d.item?.lastUpdatedAt) appliedDataAt.set(d.connection.itemId, d.item.lastUpdatedAt);
     const now = new Date().toISOString();
     // Estado relido depois da rede: uma edição feita enquanto a Pluggy respondia não se perde.
     const r = autoSyncOpenFinance(state.positions, data, { includeAccounts: of.includeAccounts, now });
@@ -400,7 +414,7 @@ export function createApp(deps: Deps) {
       console.log(L(`Open Finance automático: ${r.applied.length} posições atualizadas.`, `Automatic Open Finance: ${r.applied.length} positions updated.`));
     }
     for (const w of r.warnings) console.warn(`Open Finance: ${w}`);
-    return { ran: true, applied: r.applied.length, warnings: r.warnings };
+    return { ran: true, fetched: todo.length, applied: r.applied.length, warnings: r.warnings };
   }
   const runAutoSync = (force = false) => {
     autoSyncRunning ??= autoSync(force).finally(() => (autoSyncRunning = null));
@@ -412,10 +426,11 @@ export function createApp(deps: Deps) {
     setInterval(tick, deps.openFinanceAutoSync.checkEveryMs).unref();
   }
 
-  app.post("/api/openfinance/auto-sync", async (_req, res) => {
+  // ?force=0 faz a checagem normal (só quem tem dado novo); sem ele, busca tudo agora.
+  app.post("/api/openfinance/auto-sync", async (req, res) => {
     if (!deps.pluggy) return noPluggy(res);
     try {
-      res.json(await runAutoSync(true));
+      res.json(await runAutoSync(req.query.force !== "0"));
     } catch (err) {
       pluggyFail(res, err);
     }

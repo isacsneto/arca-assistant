@@ -60,12 +60,12 @@ function toReview(res: ExtractionResult, previous?: Draft[], source: Review["sou
   };
 }
 
-export function ImportView({ done, target, goSettings }: { done: () => void; target?: { institution: string; owner: Owner } | null; goSettings?: () => void }) {
+export function ImportView({ done, target, goSettings, initialMode }: { done: () => void; target?: { institution: string; owner: Owner } | null; goSettings?: () => void; initialMode?: "openfinance" }) {
   const { state, update, config, view } = useStore();
   const ai = useAi();
   const aiName = ai.name;
   const { files, setFiles, addFiles, toUpload, error, setError, notice, progress } = useUploads();
-  const [mode, setMode] = useState<"files" | "text" | "openfinance">("files");
+  const [mode, setMode] = useState<"files" | "text" | "openfinance">(initialMode ?? "files");
   const [busy, setBusy] = useState<string | null>(null);
   const [review, setReview] = useState<Review | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});

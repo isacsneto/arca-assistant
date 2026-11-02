@@ -237,8 +237,8 @@ export function OpenFinanceSettings() {
         <input type="checkbox" checked={of.autoSync} disabled={!of.sourceOfTruth} onChange={(e) => set({ autoSync: e.target.checked })} style={{ marginTop: 2 }} />
         <span>
           {L(
-            "Atualizar sozinho: a cada 6 horas o app aplica, sem precisar de revisão, o que vier das conexões já importadas uma vez. Conexão com erro ou que volte vazia não apaga nada.",
-            "Update on its own: every 6 hours the app applies, without review, what comes from connections already imported once. A connection with an error, or one that comes back empty, never deletes anything.",
+            "Atualizar sozinho: a cada 30 minutos o app pergunta à Pluggy se algum banco tem dado novo e aplica na hora, sem revisão, nas conexões já importadas uma vez. Conexão com erro ou que volte vazia não apaga nada, e cripto/COE/posições de print nunca são removidos sem você.",
+            "Update on its own: every 30 minutes the app asks Pluggy whether any bank has new data and applies it right away, without review, for connections already imported once. A connection with an error, or one that comes back empty, never deletes anything, and crypto/structured notes/screenshot positions are never removed without you.",
           )}
           {of.lastAutoSyncAt && <span className="muted"> {L("Última atualização automática:", "Last automatic update:")} {new Date(of.lastAutoSyncAt).toLocaleString(locale())}.</span>}
         </span>

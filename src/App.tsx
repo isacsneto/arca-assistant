@@ -21,6 +21,7 @@ import { RemindersDialog } from "./components/RemindersDialog";
 import { Transactions } from "./components/Transactions";
 import { SettingsView } from "./components/SettingsView";
 import { L, LANGS, getLang, type Lang } from "../shared/i18n";
+import { openFinanceSettings } from "../shared/openFinance";
 
 // Rótulos são getters: L() só é avaliado na renderização (no idioma atual).
 const TABS = [
@@ -43,6 +44,7 @@ const SHORT = (): Partial<Record<TabId, string>> => ({ rebalance: L("Rebalancear
 export function App() {
   const { state, config, loadError, saveError, setProjection, setResearch, view, setView, update } = useStore();
   const [importTarget, setImportTarget] = useState<{ institution: string; owner: Owner } | null>(null);
+  const [importMode, setImportMode] = useState<"openfinance" | null>(null);
 
   // Primeiro uso: começa a contar o prazo da revisão periódica a partir de hoje.
   const needsReviewStart = state != null && state.settings.lastReviewAt == null;
@@ -150,6 +152,20 @@ export function App() {
             <button className="btn sm" onClick={() => setTab("settings")}>{L("Configurar IA", "Set up AI")}</button>
           </Banner>
         )}
+        {(() => {
+          // Conexão do Open Finance sem a primeira importação revisada ainda não se atualiza sozinha.
+          const of = state ? openFinanceSettings(state.settings.openFinance) : null;
+          const waiting = of && of.sourceOfTruth && of.autoSync ? of.connections.filter((c) => !c.syncedAt).length : 0;
+          return waiting > 0 && !(tab === "import" && importMode === "openfinance") ? (
+            <Banner kind="warn">
+              {L(
+                `Open Finance: ${waiting} ${waiting === 1 ? "conexão aguarda" : "conexões aguardam"} a primeira importação. Revise uma vez e daí em diante tudo se atualiza sozinho.`,
+                `Open Finance: ${waiting} connection${waiting === 1 ? " is" : "s are"} waiting for the first import. Review it once and from then on everything updates on its own.`,
+              )}{" "}
+              <button className="btn sm primary" onClick={() => { setImportMode("openfinance"); setTab("import"); }}>{L("Importar agora", "Import now")}</button>
+            </Banner>
+          ) : null;
+        })()}
         {saveError && <Banner kind="bad">{L("Falha ao salvar no servidor", "Failed to save to the server")}: {saveError}</Banner>}
         {tab === "portfolio" && <Portfolio goImport={() => setTab("import")} goAssets={() => setTab("assets")} refreshJob={refreshJob} />}
         {tab === "market" && <MarketView job={researchJob} />}
@@ -157,7 +173,7 @@ export function App() {
         {tab === "projection" && <ProjectionView job={projectionJob} />}
         {tab === "institutions" && <InstitutionsView />}
         {tab === "assets" && <AssetsView />}
-        {tab === "import" && <ImportView done={() => { setImportTarget(null); setTab("portfolio"); }} target={importTarget} goSettings={() => setTab("settings")} />}
+        {tab === "import" && <ImportView key={importMode ?? "files"} initialMode={importMode ?? undefined} done={() => { setImportTarget(null); setImportMode(null); setTab("portfolio"); }} target={importTarget} goSettings={() => setTab("settings")} />}
         {/* Fica montado para o scan continuar mostrando progresso se você trocar de aba. */}
         <div hidden={tab !== "scan"}>
           <ScanView />

@@ -171,7 +171,7 @@ Com **"Usar o Open Finance como fonte da verdade"** ligado (padrão), cada conex
 
 - **ao importar**, o que você tinha naquela instituição e titular é substituído pelo que veio do Open Finance;
 - no **Atualizar valores** da Carteira, os valores daquele escopo vêm da Pluggy, e não da cotação nem da IA. Ativos novos aparecem para entrar e os que sumiram aparecem para sair. Você revisa antes de aplicar.
-- **sozinho** ("Atualizar sozinho", ligado por padrão): a cada 6 horas o app aplica, sem revisão, o que vier das conexões que você já importou uma vez. Conexão com erro ou que volte vazia não apaga nada.
+- **sozinho** ("Atualizar sozinho", ligado por padrão): a cada 30 minutos o app pergunta à Pluggy se algum banco tem dado novo e, se tiver, aplica na hora, sem revisão, nas conexões que você já importou uma vez. Conexão com erro ou que volte vazia não apaga nada, e o que não veio do Open Finance (cripto, COE, prints) só sai numa importação revisada.
 - **Nada fora do escopo é tocado.** Exemplo: uma conexão **BTG PF** substitui e atualiza só o BTG PF. O **BTG PJ** continua intacto (com valores de print, texto, cotação ou IA), a não ser que você tenha também uma conexão **BTG PJ** trazendo dados. Uma conexão com erro não muda nada no escopo dela.
 
 O plano gratuito do Meu Pluggy cobre até 5 conexões do mesmo titular, atualizadas a cada 24 h. Corretoras de fora do Brasil não fazem parte do Open Finance; para elas, use print, vídeo ou texto. As credenciais ficam só no servidor (`data/secrets.json` ou `PLUGGY_CLIENT_ID` / `PLUGGY_CLIENT_SECRET`).
