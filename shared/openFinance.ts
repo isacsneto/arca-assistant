@@ -84,6 +84,8 @@ export interface PluggyInvestment {
   fixedAnnualRate?: number | null;
   dueDate?: string | null;
   issuer?: string | null;
+  /** Instituição do produto (emissor/administrador), quando a Pluggy informa. */
+  institution?: { name?: string | null } | null;
   date?: string | null;
 }
 
@@ -145,10 +147,14 @@ function rateLabel(inv: PluggyInvestment): string | null {
     const s = String(Math.round(x * 100) / 100);
     return L(s.replace(".", ","), s);
   };
+  // "CDI + x%" chega como rate 100 + fixedAnnualRate x; "110% do CDI", como rate 110.
+  if (t === "CDI" && inv.fixedAnnualRate && inv.fixedAnnualRate > 0) return `CDI + ${fmt(inv.fixedAnnualRate)}%`;
   if (t === "CDI" && inv.rate) return `${fmt(inv.rate)}% CDI`;
   if (t === "SELIC") return inv.rate ? `${fmt(inv.rate)}% Selic` : "Selic";
   if (t === "IPCA") return inv.fixedAnnualRate ? `IPCA + ${fmt(inv.fixedAnnualRate)}%` : "IPCA+";
-  if ((t === "PRE_FIXADO" || t === "PREFIXADO") && (inv.fixedAnnualRate ?? inv.rate)) return `${fmt((inv.fixedAnnualRate ?? inv.rate)!)}% ${L("a.a.", "p.a.")}`;
+  if ((t === "PRE_FIXADO" || t === "PREFIXADO") && (inv.fixedAnnualRate ?? inv.rate)) return `${L("Pré", "Fixed")} ${fmt((inv.fixedAnnualRate ?? inv.rate)!)}% ${L("a.a.", "p.a.")}`;
+  // Sem indexador informado (ex.: TR + 1%, que a corretora manda só com a taxa): não dá para afirmar que é pré.
+  if (!t && inv.fixedAnnualRate && inv.fixedAnnualRate > 0) return `${fmt(inv.fixedAnnualRate)}% ${L("a.a.", "p.a.")}`;
   return null;
 }
 
@@ -216,10 +222,15 @@ export function tickerOf(code: string | null | undefined): string | null {
  * Nome da instituição na carteira: o configurado pelo usuário; senão, o nome do
  * conector reaproveitando o nome já usado na carteira (ex.: "Banco BTG Pactual" → "BTG Pactual").
  */
-export function institutionName(conn: OpenFinanceConnection, item: PluggyItem | null, known: string[]): string {
+export function institutionName(
+  conn: OpenFinanceConnection,
+  item: PluggyItem | null,
+  known: string[],
+  data?: Pick<ConnectionData, "investments" | "accounts">,
+): string {
   if (conn.institution) return conn.institution;
   const raw = item?.connector?.name?.trim() ?? "";
-  if (!raw || /meu ?pluggy/i.test(raw)) return "Open Finance";
+  if (!raw || /meu ?pluggy/i.test(raw)) return bankFromData(data, known) ?? "Open Finance";
   const cleaned = raw.replace(/\b(open finance|pessoa (f[ií]sica|jur[ií]dica)|empresas?|pj|pf)\b/gi, "").replace(/\s{2,}/g, " ").trim() || raw;
   const n = norm(cleaned);
   const exact = known.find((k) => norm(k) === n);
@@ -234,12 +245,85 @@ export function institutionName(conn: OpenFinanceConnection, item: PluggyItem | 
   return cleaned;
 }
 
+/** Instituição só quando reconhecida com segurança: nome da carteira como palavra inteira, ou apelido conhecido. */
+function sureInstitution(text: string, known: string[]): string | null {
+  const words = (s: string) => norm(s).replace(/[^a-z0-9]+/g, " ").trim();
+  const n = words(text);
+  if (!n) return null;
+  const word = known.find((k) => words(k).length >= 2 && ` ${n} `.includes(` ${words(k)} `));
+  if (word) return word;
+  for (const token of n.split(" ")) {
+    const viaHint = parseFileName(`${token}-pf`).institution;
+    if (viaHint && viaHint.toLowerCase() !== token) return known.find((k) => norm(k) === norm(viaHint)) ?? viaHint;
+  }
+  return null;
+}
+
+/**
+ * Conexões via MeuPluggy chegam com o conector "MeuPluggy": o banco sai dos próprios dados. As contas
+ * ("BTG Banking", "itau", "Nu Pagamentos") pesam mais que os investimentos, cujo emissor pode ser outro
+ * banco (CDB do Pine guardado no BTG).
+ */
+function bankFromData(data: Pick<ConnectionData, "investments" | "accounts"> | undefined, known: string[]): string | null {
+  const votes = new Map<string, number>();
+  const vote = (text: string | null | undefined, weight: number) => {
+    const name = text && sureInstitution(text, known);
+    if (name) votes.set(name, (votes.get(name) ?? 0) + weight);
+  };
+  for (const a of data?.accounts ?? []) vote(a.marketingName || a.name, 10);
+  for (const i of data?.investments ?? []) vote(i.institution?.name ?? i.issuer, 1);
+  return [...votes.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
+
 /* ---------------- conversão ---------------- */
 
 const money = (x: number) => x.toLocaleString(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 
 /** Itens (posições) de uma conexão: investimentos com saldo e, se pedido, contas. */
+/** Título do Tesouro pelo código que a corretora manda (NTN-B1, NTNB-P…) e pelo vencimento. */
+function treasuryTitle(inv: PluggyInvestment): string | null {
+  const t = `${inv.name} ${inv.code ?? ""}`.toUpperCase();
+  const year = Number(inv.dueDate?.slice(0, 4));
+  // NTN-B1 é Renda+ (vence de 2049 em diante) ou Educa+ (até 2048).
+  if (/NTN-?B1\b/.test(t)) return year >= 2049 ? "Tesouro Renda+" : "Tesouro Educa+";
+  if (/NTN-?B-?P\b|NTN-?B PRINCIPAL/.test(t)) return "Tesouro IPCA+";
+  if (/NTN-?B\b/.test(t)) return L("Tesouro IPCA+ com Juros Semestrais", "Tesouro IPCA+ with semiannual interest");
+  if (/NTN-?F\b/.test(t)) return L("Tesouro Prefixado com Juros Semestrais", "Tesouro Prefixado with semiannual interest");
+  if (/\bLTN\b/.test(t)) return "Tesouro Prefixado";
+  if (/\bLFT\b/.test(t)) return "Tesouro Selic";
+  return null;
+}
+
+/** "BANCO AGIBANK S.A" → "Agibank"; "NU FINANCEIRA S.A. - SOCIEDADE DE CRÉDITO…" → "Nu". */
+function shortIssuer(issuer: string | null | undefined): string {
+  const core = (issuer ?? "").split(" - ")[0]
+    .replace(/\b(BANCO|S\.?\s?A\.?|S\/A|LTDA|FINANCEIRA|CREDITO|CRÉDITO|FINANCIAMENTO|INVESTIMENTO|SOCIEDADE|DE|E)\b/gi, " ")
+    .replace(/[.,]/g, " ").replace(/\s+/g, " ").trim();
+  return core.split(" ").slice(0, 2).map((w) => (w.length <= 3 && w !== "NU" ? w : w[0] + w.slice(1).toLowerCase())).join(" ").replace(/^Nu$|^NU$/, "Nu");
+}
+
+const brDue = (iso: string | null | undefined) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : null);
+
+/** Nome e subtipo legíveis para renda fixa (os da corretora são "CDB - BANCO X S.A.", "TESOURO DIRETO - NTN-B1"). */
+function fixedIncomeNaming(inv: PluggyInvestment, c: Classification): { name: string; subtype: string } {
+  const due = brDue(inv.dueDate);
+  const year = inv.dueDate?.slice(0, 4) ?? "";
+  const withDue = (sub: string) => (due && !sub.includes(due) ? `${sub} · ${L("venc.", "due")} ${due}` : sub);
+  // Só o padrão da corretora ("CDB - BANCO X S.A.", "TESOURO DIRETO - NTN-B1") é renomeado; nome legível fica.
+  const raw = inv.name.trim();
+  const brokerStyle = /^[A-ZÀ-Ú0-9 ]+ - /.test(raw);
+  if ((inv.subtype ?? "").toUpperCase() === "TREASURY") {
+    const title = treasuryTitle(inv) ?? /^(tesouro\s.+?)\s+\d{4}$/i.exec(raw)?.[1] ?? null;
+    return { name: title && brokerStyle ? `${title} ${year}`.trim() : raw, subtype: withDue(title ?? c.subtype) };
+  }
+  if (!brokerStyle) return { name: raw, subtype: withDue(c.subtype) };
+  const label = FIXED_INCOME_LABEL[(inv.subtype ?? "").toUpperCase()] ?? L("Renda fixa", "Fixed income");
+  // Debênture/CRI/CRA: o código do papel identifica melhor que o "emissor" (que às vezes é a corretora).
+  const id = /DEBENTURES|CRI|CRA/i.test(inv.subtype ?? "") && inv.code && !/\s/.test(inv.code) ? inv.code : shortIssuer(inv.issuer);
+  return { name: [label, id, year].filter(Boolean).join(" "), subtype: withDue(c.subtype) };
+}
+
 function connectionItems(d: ConnectionData, institution: string, source: string, includeAccounts: boolean): ExtractedItem[] {
   const items: ExtractedItem[] = [];
   const base = { kind: "position" as const, sourceFile: source, institution, owner: d.connection.owner, txType: null };
@@ -247,13 +331,15 @@ function connectionItems(d: ConnectionData, institution: string, source: string,
     const value = inv.balance ?? inv.amount ?? 0;
     if (inv.status === "TOTAL_WITHDRAWAL" || !(value > 0)) continue;
     const c = classifyInvestment(inv);
-    const ticker = tickerOf(inv.code);
+    const fixed = (inv.type ?? "").toUpperCase() === "FIXED_INCOME";
+    const ticker = fixed ? null : tickerOf(inv.code);
+    const naming = fixed ? fixedIncomeNaming(inv, c) : { name: inv.name.trim() || ticker || "Investimento", subtype: c.subtype };
     items.push({
       ...base,
-      name: inv.name.trim() || ticker || "Investimento",
+      name: naming.name,
       ticker,
       assetClass: c.assetClass,
-      subtype: c.subtype,
+      subtype: naming.subtype,
       currency: toCurrency(inv.currencyCode),
       value: Math.round(value * 100) / 100,
       quantity: inv.quantity ?? null,
@@ -281,7 +367,54 @@ function connectionItems(d: ConnectionData, institution: string, source: string,
       });
     }
   }
-  return items;
+  return mergeLots(items);
+}
+
+/**
+ * Lotes do mesmo papel (mesmo produto, emissor, taxa e vencimento — o Itaú manda um por aplicação) viram uma
+ * linha só, somando valor e quantidade. Nomes iguais com produto diferente ganham o vencimento ou a taxa no nome.
+ * Sem isso, itens com o mesmo nome se sobrescreveriam ao salvar.
+ */
+function mergeLots(items: ExtractedItem[]): ExtractedItem[] {
+  // CDB/LCA/LCI do mesmo emissor e mesma taxa juntam mesmo com vencimentos diferentes (o banco manda uma
+  // linha por aplicação); Tesouro e debêntures, não — cada vencimento é outro papel.
+  const DEPOSIT = /^(CDB|LCA|LCI|LCD|LC|RDB)\b/;
+  const dueOf = (sub: string) => / · .*?(\d{2}\/\d{2}\/\d{4})$/.exec(sub)?.[1] ?? null;
+  const rateOf = (sub: string) => sub.split(" · ")[0];
+  const groups = new Map<string, ExtractedItem & { lots: number; dues: string[] }>();
+  for (const it of items) {
+    const deposit = !it.ticker && DEPOSIT.test(it.name);
+    const key = deposit
+      ? ["dep", it.name.replace(/\s+\d{4}$/, ""), rateOf(it.subtype), it.currency].join("|")
+      : [it.name, it.ticker ?? "", it.subtype, it.currency].join("|");
+    const due = dueOf(it.subtype);
+    const g = groups.get(key);
+    if (!g) groups.set(key, { ...it, lots: 1, dues: due ? [due] : [] });
+    else {
+      g.value = Math.round((g.value + it.value) * 100) / 100;
+      g.quantity = g.quantity != null && it.quantity != null ? g.quantity + it.quantity : null;
+      g.lots += 1;
+      if (due && !g.dues.includes(due)) g.dues.push(due);
+    }
+  }
+  const iso = (br: string) => br.split("/").reverse().join("-");
+  for (const g of groups.values()) {
+    if (g.dues.length < 2) continue;
+    const sorted = [...g.dues].sort((a, b) => (iso(a) < iso(b) ? -1 : 1));
+    g.name = g.name.replace(/\s+\d{4}$/, "");
+    g.subtype = `${rateOf(g.subtype)} · ${L(`${sorted.length} vencimentos, de ${sorted[0]} a ${sorted.at(-1)}`, `${sorted.length} maturities, ${sorted[0]} to ${sorted.at(-1)}`)}`;
+  }
+  const out = [...groups.values()].map(({ dues, ...it }) => it);
+  const byName = (n: string) => out.filter((x) => x.name === n && !x.ticker).length;
+  for (const it of out) {
+    if (it.ticker || byName(it.name) < 2) continue;
+    const due = / · .*?(\d{2}\/\d{2}\/\d{4})$/.exec(it.subtype)?.[1];
+    it.name = `${it.name} (${due ?? it.subtype})`;
+  }
+  for (const it of out) {
+    if (!it.ticker && byName(it.name) >= 2) it.name = `${it.name} · ${it.subtype.split(" · ")[0]}`;
+  }
+  return out.map(({ lots, ...it }) => (lots > 1 ? { ...it, notes: [it.notes, L(`${lots} aplicações somadas`, `${lots} lots combined`)].filter(Boolean).join(" · ") } : it));
 }
 
 /** Resultado da busca no Open Finance: itens para revisão + qual conexão gerou cada bloco. */
@@ -298,7 +431,7 @@ export function toImport(data: ConnectionData[], positions: Pick<Position, "inst
   const connections: OpenFinanceImport["connections"] = [];
 
   for (const d of data) {
-    const institution = institutionName(d.connection, d.item, known);
+    const institution = institutionName(d.connection, d.item, known, d);
     const owner = d.connection.owner;
     const source = `Open Finance · ${institution} ${owner}`;
     if (d.error) {
@@ -354,7 +487,7 @@ export function openFinanceRefresh(positions: Position[], data: ConnectionData[]
   const warnings: string[] = [];
 
   for (const d of data) {
-    const institution = institutionName(d.connection, d.item, known);
+    const institution = institutionName(d.connection, d.item, known, d);
     const owner = d.connection.owner;
     if (d.error) {
       warnings.push(L(`Open Finance · ${institution} (${owner}): ${d.error} — usei cotação/IA para esta instituição.`, `Open Finance · ${institution} (${owner}): ${d.error} — used quotes/AI for this institution instead.`));
@@ -440,7 +573,10 @@ export function autoSyncOpenFinance(
   const usable = data.filter((d) => !d.error && (d.investments.length > 0 || (opts.includeAccounts && d.accounts.length > 0)));
   const skipped = data.filter((d) => !usable.includes(d)).map((d) => d.error ?? L(`conexão ${d.connection.itemId} voltou vazia`, `connection ${d.connection.itemId} came back empty`));
   const r = openFinanceRefresh(positions, usable, { includeAccounts: opts.includeAccounts });
-  const applied = r.lines.filter(isChange);
+  // Sem revisão, só sai o que entrou pelo Open Finance: cripto, COE ou posição cadastrada por print/à mão
+  // na mesma instituição (e que o Open Finance não traz) fica — só a revisão manual pode tirar.
+  const fromOf = new Set(positions.filter((p) => /^open finance/i.test(p.source)).map((p) => p.id));
+  const applied = r.lines.filter((l) => isChange(l) && (l.method !== "removido" || fromOf.has(l.id)));
   return {
     positions: applied.length ? applyRefresh(positions, r.lines, new Set(applied.map((l) => l.id)), opts.now) : positions,
     applied,

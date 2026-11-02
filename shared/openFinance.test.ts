@@ -180,3 +180,64 @@ test("automático aplica o que veio da Pluggy; conexão com erro ou vazia não a
   assert.equal(r.applied.length, 1);
   assert.equal(r.warnings.length, 2);
 });
+
+test("MeuPluggy: o banco sai das contas (mais peso) e dos investimentos, não do conector", () => {
+  const known = ["BTG Pactual", "Itaú", "Nubank", "Vest"];
+  const meu = { id: "i", connector: { name: "MeuPluggy" } };
+  const inst = (accounts: { name: string }[], investments: { issuer: string }[] = []) =>
+    institutionName({ itemId: "i", owner: "PF" }, meu, known, {
+      accounts: accounts.map((a, k) => ({ id: String(k), type: "BANK", ...a })),
+      investments: investments.map((x, k) => ({ id: String(k), name: "CDB", ...x })),
+    });
+  assert.equal(inst([{ name: "BTG Investimentos" }, { name: "BTG Banking" }], [{ issuer: "BANCO PINE S.A." }, { issuer: "BANCO PINE S.A." }]), "BTG Pactual", "'Investimentos' não vira 'Vest'");
+  assert.equal(inst([{ name: "itau" }, { name: "LATAM PASS ITAU VISA INFINITE" }]), "Itaú");
+  assert.equal(inst([{ name: "Nu Pagamentos S.A. - Instituição de Pagamento" }]), "Nubank");
+  assert.equal(inst([], [{ issuer: "ITAU UNIBANCO S.A." }]), "Itaú", "sem contas, pelos investimentos");
+  assert.equal(inst([{ name: "ultraviolet-black" }]), "Open Finance", "sem pista: não inventa");
+});
+
+test("nomes legíveis para renda fixa da corretora; lotes do mesmo CDB viram uma linha", () => {
+  const fi = (o: Partial<PluggyInvestment>): PluggyInvestment => ({ id: Math.random().toString(36), name: "x", type: "FIXED_INCOME", balance: 100, ...o });
+  const d: ConnectionData = {
+    connection: { itemId: "i", owner: "PF", institution: "BTG Pactual" },
+    item: null,
+    accounts: [],
+    investments: [
+      fi({ name: "TESOURO DIRETO - NTN-B1", subtype: "TREASURY", code: "BRSTNCNAP0C7", dueDate: "2084-12-15", rateType: "IPCA", fixedAnnualRate: 7.2, balance: 1000 }),
+      fi({ name: "TESOURO DIRETO - NTN-B1", subtype: "TREASURY", dueDate: "2035-12-15", rateType: "IPCA", balance: 500 }),
+      fi({ name: "TESOURO DIRETO - NTNB-P", subtype: "TREASURY", dueDate: "2029-05-15", rateType: "IPCA", balance: 300 }),
+      fi({ name: "Tesouro Renda+ Aposentadoria Extra 2065", subtype: "TREASURY", dueDate: "2084-12-15", rateType: "IPCA", balance: 50 }),
+      fi({ name: "CDB - BANCO AGIBANK S.A", subtype: "CDB", issuer: "BANCO AGIBANK S.A", dueDate: "2032-08-16", rate: 100, rateType: "IPCA", fixedAnnualRate: 7.6, balance: 200 }),
+      fi({ name: "DEBENTURES - BANCO BTG PACTUAL S.A.", subtype: "DEBENTURES", code: "KRSA21", dueDate: "2030-10-30", rate: 100, rateType: "CDI", fixedAnnualRate: 5.63, balance: 40 }),
+      fi({ name: "CDB - ITAU UNIBANCO S.A.", subtype: "CDB", issuer: "ITAU UNIBANCO S.A.", dueDate: "2031-05-08", rate: 100, rateType: "CDI", balance: 10, quantity: 1 }),
+      fi({ name: "CDB - ITAU UNIBANCO S.A.", subtype: "CDB", issuer: "ITAU UNIBANCO S.A.", dueDate: "2031-05-08", rate: 100, rateType: "CDI", balance: 20, quantity: 2 }),
+      fi({ name: "CDB - ITAU UNIBANCO S.A.", subtype: "CDB", issuer: "ITAU UNIBANCO S.A.", dueDate: "2031-09-18", rate: 100, rateType: "CDI", balance: 30, quantity: 3 }),
+      fi({ name: "CDB BTG", subtype: "CDB", rate: 110, rateType: "CDI", balance: 7 }),
+    ],
+  };
+  const items = toImport([d], [], { includeAccounts: false }).items;
+  const got = (name: string) => items.find((i) => i.name === name);
+  assert.equal(got("Tesouro Renda+ 2084")?.subtype, "Tesouro Renda+ · venc. 15/12/2084", "NTN-B1 de 2049 em diante é Renda+");
+  assert.equal(got("Tesouro Educa+ 2035")?.value, 500, "NTN-B1 até 2048 é Educa+");
+  assert.ok(got("Tesouro IPCA+ 2029"), "NTNB-P é IPCA+ sem cupom");
+  assert.equal(got("Tesouro Renda+ Aposentadoria Extra 2065")?.subtype, "Tesouro Renda+ Aposentadoria Extra · venc. 15/12/2084", "nome legível fica");
+  assert.equal(got("CDB Agibank 2032")?.subtype, "CDB IPCA + 7,6% · venc. 16/08/2032");
+  assert.equal(got("Debênture KRSA21 2030")?.subtype, "Debênture CDI + 5,63% · venc. 30/10/2030");
+  assert.equal(got("Debênture KRSA21 2030")?.ticker, null, "código de debênture não vira ticker de bolsa");
+  const itau = got("CDB Itau Unibanco")!;
+  assert.deepEqual([itau.value, itau.quantity], [60, 6], "lotes somados, sem um sobrescrever o outro");
+  assert.match(itau.subtype, /2 vencimentos, de 08\/05\/2031 a 18\/09\/2031/);
+  assert.ok(got("CDB BTG"), "nome que não é da corretora fica");
+});
+
+test("automático não apaga o que não veio do Open Finance (cripto, COE, print)", () => {
+  const pos = (id: string, name: string, source: string) =>
+    ({ id, name, institution: "BTG Pactual", owner: "PF" as const, assetClass: "caixa" as const, subtype: "", currency: "BRL" as const, value: 100, updatedAt: "2026-10-01", source });
+  const positions = [pos("of", "CDB Velho", "Open Finance · BTG Pactual PF"), pos("btc", "Bitcoin", "print"), pos("cdb", "CDB Pine", "Open Finance · BTG Pactual PF")];
+  const data: ConnectionData[] = [{
+    connection: { itemId: "a", owner: "PF", institution: "BTG Pactual", syncedAt: "2026-10-10" }, item: { id: "a" }, accounts: [],
+    investments: [{ id: "1", name: "CDB Pine", type: "FIXED_INCOME", subtype: "CDB", balance: 120 }],
+  }];
+  const r = autoSyncOpenFinance(positions, data, { includeAccounts: false, now: "2026-11-01T12:00:00Z" });
+  assert.deepEqual(r.positions.map((p) => [p.id, p.value]), [["btc", 100], ["cdb", 120]], "saiu só o que era do Open Finance");
+});

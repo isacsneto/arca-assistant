@@ -6,7 +6,7 @@ import {
 import type { ExtractedItem, ExtractionResult, FileReading, ImportAnswer, ImportQuestion } from "../../shared/types";
 import { CLASS_META, OWNERS, type Owner } from "../../shared/types";
 import { parseFileName } from "../../shared/fileHints";
-import { mergeImport, posKey } from "../../shared/importMerge";
+import { mergeImport, posKey, stalePositions } from "../../shared/importMerge";
 import { api } from "../api";
 import { useStore } from "../store";
 import type { PreparedFile } from "../lib/files";
@@ -39,6 +39,9 @@ interface Review {
 
 const toItem = ({ _id: _i, include: _c, ...item }: Draft): ExtractedItem => item;
 
+/** O Open Finance não traz cripto nem COE: ao substituir a instituição, eles ficam a não ser que o usuário tire. */
+const keptByDefault = (p: { name: string; subtype: string }) => /cripto|crypto|bitcoin|\bCOE\b/i.test(`${p.name} ${p.subtype}`);
+
 /** Converte a resposta da IA em rascunhos editáveis. */
 function toReview(res: ExtractionResult, previous?: Draft[], source: Review["source"] = "files"): Review {
   const asked = new Set(res.questions.flatMap((q) => q.itemIndexes));
@@ -68,6 +71,8 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [skipQuestions, setSkipQuestions] = useState(false);
   const [removeStale, setRemoveStale] = useState(false);
+  // Posições que sairiam ao substituir a instituição: ids cuja escolha o usuário inverteu.
+  const [flipped, setFlipped] = useState<Set<string>>(new Set());
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const abort = useRef<AbortController | null>(null);
@@ -147,9 +152,10 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
     const replace = removeStale || forceReplace;
     const chosen = review.drafts.filter((d) => d.include).map(toItem);
     const touched = chosen.map((d) => ({ institution: d.institution, owner: d.owner ?? fallbackOwner }));
+    const keep = new Set(stalePositions(state!.positions, chosen, fallbackOwner).filter((p) => keptByDefault(p) !== flipped.has(p.id)).map((p) => p.id));
     update((s) => ({
       ...s,
-      ...mergeImport(s, chosen, { removeStale: replace, now: new Date().toISOString(), newId: uid, defaultOwner: fallbackOwner }),
+      ...mergeImport(s, chosen, { removeStale: replace, keep, now: new Date().toISOString(), newId: uid, defaultOwner: fallbackOwner }),
       // Importou dados da instituição: ela deixa de estar desatualizada.
       settings: {
         ...s.settings,
@@ -165,6 +171,14 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
     const { drafts } = review;
     const positions = drafts.filter((d) => d.kind === "position");
     const txs = drafts.filter((d) => d.kind === "transaction");
+    const stale = removeStale || forceReplace ? stalePositions(state!.positions, drafts.filter((d) => d.include).map(toItem), fallbackOwner) : [];
+    const keeps = (p: { id: string; name: string; subtype: string }) => keptByDefault(p) !== flipped.has(p.id);
+    const flip = (id: string) => setFlipped((f) => {
+      const n = new Set(f);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
     const included = drafts.filter((d) => d.include).length;
     const pending = review.questions.length;
     const answered = review.questions.filter((q) => answers[q.id]?.trim()).length;
@@ -335,6 +349,37 @@ export function ImportView({ done, target, goSettings }: { done: () => void; tar
                       </tr>
                     );
                   })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {stale.length > 0 && (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-head">
+              <div>
+                <h2>{L("Saem da carteira", "Leaving the portfolio")} ({stale.filter((p) => !keeps(p)).length} {L("de", "of")} {stale.length})</h2>
+                <p className="muted small">
+                  {L(
+                    "Estavam nessas instituições e não vieram agora. Marque Manter no que existe mas não aparece aqui (cripto e COE, por exemplo, não fazem parte do Open Finance).",
+                    "They were at these institutions and didn't come in now. Tick Keep for what exists but doesn't show up here (crypto and structured notes, for example, aren't part of Open Finance).",
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="table-wrap">
+              <table className="mc t-stale">
+                <thead><tr><th>{L("Manter", "Keep")}</th><th>{L("Ativo", "Asset")}</th><th>{L("Instituição", "Institution")}</th><th className="right">{L("Valor", "Value")}</th></tr></thead>
+                <tbody>
+                  {stale.map((p) => (
+                    <tr key={p.id} style={{ opacity: keeps(p) ? 1 : 0.6 }}>
+                      <td className="ga-chk"><input type="checkbox" checked={keeps(p)} onChange={() => flip(p.id)} aria-label={L(`Manter ${p.name}`, `Keep ${p.name}`)} /></td>
+                      <td className="ga-main"><b style={{ textDecoration: keeps(p) ? "none" : "line-through" }}>{p.ticker ? `${p.ticker} · ` : ""}{p.name}</b><div className="muted small">{p.subtype}</div></td>
+                      <td className="muted small ga-sub">{p.institution} {p.owner}</td>
+                      <td className="right num ga-val">{money(p.value, p.currency)}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

@@ -15,10 +15,25 @@ const txSig = (t: Pick<Transaction, "date" | "type" | "amount" | "description" |
 export interface MergeOptions {
   /** Remove posições das instituições (do mesmo titular) importadas que não vieram neste import. */
   removeStale: boolean;
+  /** Posições (ids) que o usuário escolheu manter mesmo com removeStale. */
+  keep?: Set<string>;
   /** Titular usado quando nem o arquivo nem o documento indicam PF/PJ. */
   defaultOwner?: Owner;
   now: string;
   newId: () => string;
+}
+
+/** Posições que sairiam com removeStale: do mesmo titular + instituição de algum item, sem item correspondente. */
+export function stalePositions(positions: Position[], items: ExtractedItem[], defaultOwner: Owner = "PF"): Position[] {
+  const scopes = new Set<string>();
+  const keys = new Set<string>();
+  for (const d of items) {
+    if (d.kind !== "position") continue;
+    const owner = d.owner ?? defaultOwner;
+    scopes.add(scopeKey(owner, d.institution));
+    keys.add(posKey(owner, d.institution, d.ticker, d.name));
+  }
+  return positions.filter((p) => scopes.has(scopeKey(p.owner, p.institution)) && !keys.has(posKey(p.owner, p.institution, p.ticker, p.name)));
 }
 
 /**
@@ -28,7 +43,7 @@ export interface MergeOptions {
 export function mergeImport(
   current: { positions: Position[]; transactions: Transaction[] },
   items: ExtractedItem[],
-  { removeStale, now, newId, defaultOwner = "PF" }: MergeOptions,
+  { removeStale, keep, now, newId, defaultOwner = "PF" }: MergeOptions,
 ): { positions: Position[]; transactions: Transaction[] } {
   let positions = [...current.positions];
   const importedKeys = new Set<string>();
@@ -60,7 +75,7 @@ export function mergeImport(
 
   if (removeStale)
     positions = positions.filter(
-      (p) => !institutions.has(scopeKey(p.owner, p.institution)) || importedKeys.has(posKey(p.owner, p.institution, p.ticker, p.name)),
+      (p) => keep?.has(p.id) || !institutions.has(scopeKey(p.owner, p.institution)) || importedKeys.has(posKey(p.owner, p.institution, p.ticker, p.name)),
     );
 
   const seen = new Set(current.transactions.map(txSig));

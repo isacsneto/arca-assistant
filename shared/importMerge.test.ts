@@ -105,3 +105,14 @@ test("sem titular no item usa o padrão (PF), ou o informado", () => {
   const b = mergeImport({ positions: [], transactions: [] }, [item({})], { ...opts(), defaultOwner: "PJ" });
   assert.equal(b.positions[0].owner, "PJ");
 });
+
+test("substituir instituição: lista o que sai e mantém o que o usuário escolheu", async () => {
+  const { stalePositions } = await import("./importMerge");
+  const pos = (id: string, name: string, institution = "BTG Pactual") =>
+    ({ id, name, institution, owner: "PF" as const, assetClass: "caixa" as const, subtype: "", currency: "BRL" as const, value: 10, updatedAt: "", source: "print" });
+  const current = { positions: [pos("cdb", "CDB Velho"), pos("btc", "Bitcoin"), pos("x", "CDB Pine"), pos("itau", "CDB Itaú", "Itaú")], transactions: [] };
+  const items = [{ kind: "position" as const, name: "CDB Pine", ticker: null, institution: "BTG Pactual", owner: "PF" as const, assetClass: "caixa" as const, subtype: "CDB", currency: "BRL" as const, value: 12, quantity: null, date: null, confidence: "alta" as const, notes: null, sourceFile: "of", txType: null }];
+  assert.deepEqual(stalePositions(current.positions, items).map((p) => p.id), ["cdb", "btc"], "só a instituição importada");
+  const out = mergeImport(current, items, { removeStale: true, keep: new Set(["btc"]), now: "n", newId: () => "new" });
+  assert.deepEqual(out.positions.map((p) => p.id).sort(), ["btc", "itau", "x"]);
+});
