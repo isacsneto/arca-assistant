@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
 import { positionLabel } from "../../shared/label";
-import { BellOff, BellRing, ChevronRight, Landmark } from "lucide-react";
+import { BellOff, BellRing, ChevronRight, Landmark, Trash2 } from "lucide-react";
 import { isStale, markStale, unmarkStale } from "../../shared/reminders";
 import { ALL_CLASSES, CLASS_META, type AssetClass, type Owner, type Position } from "../../shared/types";
 import { toBRL } from "../../shared/arca";
 import { VIEW_LABEL } from "../../shared/owner";
 import { useStore } from "../store";
-import { amt, pct } from "../lib/format";
+import { amt, money, pct, displayCurrency } from "../lib/format";
+import { useHideValues } from "../lib/privacy";
+import { fromOpenFinance, patchPosition, removePosition } from "../lib/positions";
+import { CURRENCIES } from "../../shared/currency";
 import { ClassDot, Empty, PageHead } from "./ui";
 import { L } from "../../shared/i18n";
 
@@ -35,6 +38,14 @@ export function InstitutionsView() {
   const usd = state!.settings.fx;
   const [open, setOpen] = useState<string | null>(null);
   const [splitOwner, setSplitOwner] = useState(false);
+  const [hidden] = useHideValues();
+  /** Apagar pede um segundo clique (o primeiro só arma o botão). */
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const patch = (id: string, changes: Partial<Position>) => update((s) => patchPosition(s, id, changes));
+  const remove = (id: string) => {
+    setConfirmDel(null);
+    update((s) => removePosition(s, id));
+  };
 
   const groups = useMemo(() => {
     const map = new Map<string, Group>();
@@ -125,15 +136,44 @@ export function InstitutionsView() {
                   {isOpen && (
                     <div className="table-wrap" style={{ marginTop: 12 }}>
                       <table className="mc t-inst">
-                        <thead><tr><th>{L("Ativo", "Asset")}</th><th>{L("Classe", "Class")}</th>{view === "all" && <th>{L("Titular", "Owner")}</th>}<th className="right">{L("Valor", "Value")}</th><th className="right">{L("% na instituição", "% of institution")}</th></tr></thead>
+                        <thead><tr><th>{L("Ativo", "Asset")}</th><th>{L("Classe", "Class")}</th>{view === "all" && <th>{L("Titular", "Owner")}</th>}<th className="right">{L("Valor", "Value")}</th><th className="right">{L("% na instituição", "% of institution")}</th><th aria-label={L("Ações", "Actions")} /></tr></thead>
                         <tbody>
                           {g.items.map(({ p, v }) => (
                             <tr key={p.id}>
-                              <td className="ga-main"><b>{positionLabel(p)}</b><div className="muted small">{p.subtype}</div></td>
+                              <td className="ga-main">
+                                {/* Edita só o nome; o ticker vai na linha de baixo (senão "PETR4 · PETR4 · …"). */}
+                                <input className="cell inst-name" type="text" defaultValue={p.name} key={`${p.id}:${p.name}`}
+                                  onBlur={(e) => { const name = e.target.value.trim(); if (name && name !== p.name) patch(p.id, { name }); }}
+                                  onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                                  aria-label={L(`Nome de ${p.name}`, `Name of ${p.name}`)} />
+                                <div className="muted small">{positionLabel(p) !== p.name ? `${p.ticker} · ` : ""}{p.subtype}</div>
+                                {fromOpenFinance(p) && <div className="muted small">{L("Open Finance: a próxima sincronização volta a trazer o valor do banco.", "Open Finance: the next sync brings back the bank's value.")}</div>}
+                              </td>
                               <td className="ga-sub"><span className="row" style={{ gap: 6 }}><ClassDot c={p.assetClass} />{CLASS_META[p.assetClass].label}{view === "all" && <span className={`chip owner-${p.owner} m-only`}>{p.owner}</span>}</span></td>
                               {view === "all" && <td className="mc-hide"><span className={`chip owner-${p.owner}`}>{p.owner}</span></td>}
-                              <td className="right num ga-val">{amt(v)}</td>
+                              <td className="right ga-val" style={{ minWidth: 130 }}>
+                                {hidden ? (
+                                  <div className="num masked-value">{money(p.value, p.currency)}</div>
+                                ) : (
+                                  <input className="cell num right" type="number" step="0.01" min="0" defaultValue={p.value.toFixed(2)} key={`${p.id}:${p.value}`}
+                                    onBlur={(e) => { const val = Number(e.target.value); if (e.target.value !== "" && Number.isFinite(val) && val >= 0 && val !== p.value) patch(p.id, { value: val }); }}
+                                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                                    aria-label={L(`Valor de ${p.name} (${p.currency})`, `Value of ${p.name} (${p.currency})`)} />
+                                )}
+                                {p.currency !== displayCurrency() && <div className="muted small num">{CURRENCIES[p.currency].symbol} · ≈ {amt(v)}</div>}
+                              </td>
                               <td className="right num muted ga-side">{pct((v / g.total) * 100)}</td>
+                              <td className="right ga-act">
+                                {confirmDel === p.id ? (
+                                  <button type="button" className="btn sm danger" onClick={() => remove(p.id)} onBlur={() => setConfirmDel(null)} autoFocus>
+                                    <Trash2 size={14} /> {L("Apagar", "Delete")}
+                                  </button>
+                                ) : (
+                                  <button type="button" className="btn ghost icon danger" title={L("Apagar esta posição", "Delete this position")} aria-label={L(`Apagar ${p.name}`, `Delete ${p.name}`)} onClick={() => setConfirmDel(p.id)}>
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>

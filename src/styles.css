@@ -130,6 +130,7 @@ input[type="text"], input[type="password"], input[type="number"], select, textar
 input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 input.cell, select.cell { padding: 4px 6px; border-color: transparent; background: transparent; }
 input.cell:hover, select.cell:hover { border-color: var(--border); }
+input.cell.inst-name { width: 100%; font-weight: 600; color: var(--text); margin-left: -6px; }
 textarea { resize: vertical; min-height: 70px; }
 ol.steps { margin: 4px 0 14px; padding-left: 20px; display: grid; gap: 3px; }
 label.field { display: flex; flex-direction: column; gap: 5px; font-weight: 500; }
@@ -508,7 +509,9 @@ label.btn.disabled { opacity: 0.6; pointer-events: none; }
   /* cada tabela escolhe a sua disposição */
   table.t-pos tr:not(.group) { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "main val act" "sub a a"; }
   table.t-cls tr { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main val" "a side"; }
-  table.t-inst tr { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main val" "sub side"; }
+  table.t-inst tr { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "main main act" "sub val side"; align-items: center; }
+  table.t-inst input.cell.num { max-width: 120px; }
+  table.t-inst input.cell.inst-name { margin-left: 0; }
   table.t-assets tr:not(.est-row) { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "main main act" "a b val" "c c c" "d d d"; }
   table.t-tx tr { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "main main val" "sub a act"; }
   table.t-review tr { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "chk main main" "chk a b" "chk c c" "chk val d" "chk e e"; }

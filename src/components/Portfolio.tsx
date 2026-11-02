@@ -14,6 +14,7 @@ import { useStore } from "../store";
 import { L, locale } from "../../shared/i18n";
 import { amt, amt0, MASK, money, pct, signedPp, uid, displayCurrency } from "../lib/format";
 import { useHideValues } from "../lib/privacy";
+import { patchPosition, removePosition } from "../lib/positions";
 import { ClassDot, ClassLabel, ClassSelect, Empty, PageHead } from "./ui";
 
 const statusLabel = () => ({ ok: L("Em equilíbrio", "Balanced"), warn: L("Atenção", "Watch"), bad: L("Fora da meta", "Off target") }) as const;
@@ -60,13 +61,8 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
     `${p.name} ${p.ticker ?? ""} ${p.institution} ${p.subtype}`.toLowerCase().includes(query.toLowerCase()),
   );
 
-  const patch = (id: string, changes: Partial<Position>) =>
-    update((s) => ({
-      ...s,
-      // Valor digitado à mão deixa de ser estimativa da IA.
-      positions: s.positions.map((p) => (p.id === id ? { ...p, ...changes, ...("value" in changes && { aiEstimate: undefined }), updatedAt: new Date().toISOString() } : p)),
-    }));
-  const remove = (id: string) => update((s) => ({ ...s, positions: s.positions.filter((p) => p.id !== id) }));
+  const patch = (id: string, changes: Partial<Position>) => update((s) => patchPosition(s, id, changes));
+  const remove = (id: string) => update((s) => removePosition(s, id));
 
   if (positions.length === 0 && !adding) {
     return (
