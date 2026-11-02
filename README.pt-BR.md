@@ -53,9 +53,9 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 | 🏦 **Por instituição** | Quanto você tem em cada banco/corretora. Marque uma como desatualizada e o app lembra você de atualizar. |
 | 🚗 **Bens físicos** | Carros, imóveis, joias e eletrônicos fora dos investimentos, com **estimativa de valor por IA** (FIPE, anúncios de novos e usados, cotação do ouro) e anexos (fotos, nota fiscal). |
 | 📜 **Histórico** | Uma foto do patrimônio por dia: evolução por classe, mês a mês contra CDI e Ibovespa, e o **resumo do mês escrito pela IA** (o que mais pesou e por quê). Começa com ~4 meses reconstruídos. |
-| 💬 **Pergunte à Arca** | Chat com a IA sobre os seus dados — carteira, histórico, metas, gastos, IR e dívidas — com busca na web. Só lê; não altera nada. |
+| 💬 **Pergunte à Arca** | Chat **flutuante** (botão no canto de todas as telas) com a IA sobre os seus dados — carteira, histórico, metas, gastos, IR e dívidas — com busca na web. Sabe qual tela você está vendo ("explique isso aqui"). Só lê; não altera nada. |
 | 🎯 **Metas** | Aposentadoria, reserva, imóvel…: quanto já tem, o aporte mensal necessário e se o planejado chega lá, em reais de hoje (retorno real da Projeção). Análise das metas pela IA. |
-| 🧾 **Gastos** | Transações de conta e cartão pelo Open Finance, **categorizadas pela IA** (aprende com as suas correções), orçamentos, assinaturas recorrentes, faturas e parcelas dos próximos meses, quantos meses a reserva cobre e a sobra média para investir (vira sugestão no Rebalancear). |
+| 🧾 **Gastos** | Transações de conta e cartão pelo Open Finance, **categorizadas pela IA** (aprende com as suas correções). **Tudo clicável**: cada coluna do gráfico abre o mês por categoria e transação; faturas abertas (calculadas pelos lançamentos de cada fatura, não pelo saldo devedor), compromissos dos próximos meses, assinaturas recorrentes, quantos meses a reserva cobre e a sobra média para investir (vira sugestão no Rebalancear). |
 | 🧮 **Imposto de Renda** | DARF da bolsa mês a mês (isenção de R$ 20 mil, FII 20%, compensação de prejuízo), Bens e Direitos com custo de aquisição e discriminação pronta, proventos isentos e JCP, e checklist da declaração pela IA. |
 | 💳 **Dívidas** | Empréstimos do Open Finance e cadastrados, patrimônio líquido (investimentos + bens − dívidas) e "amortizar ou investir?" contra o CDI líquido, com simulação pela IA. |
 | ⏰ **Lembretes** | Instituições desatualizadas ao abrir o app e revisão periódica ("está tudo atualizado?") a cada 1 ou 2 semanas. |
@@ -195,13 +195,14 @@ flowchart LR
   runAi --> X["Codex<br/>codex exec --output-schema"]
   runAi --> K["Cursor<br/>agent -p --output-format json"]
   API --> Q["Yahoo Finance<br/>(cotações)"]
-  API --> P["Pluggy<br/>(Open Finance)"]
-  API --> D[("data/<br/>state.json · anexos · chaves")]
+  API --> P["Pluggy<br/>(Open Finance: investimentos,<br/>transações, faturas, empréstimos)"]
+  API --> B["Banco Central · Tesouro<br/>(CDI, IPCA, TR · PU dos títulos)"]
+  API --> D[("data/<br/>state.json · history.json · ledger.json<br/>anexos · chaves")]
 ```
 
 - **Uma interface de IA, três motores.** Cada tarefa pede *instruções + tarefa + schema JSON + anexos + busca na web*; o motor do provedor traduz isso (saída estruturada nativa no Claude e no Codex; JSON validado com nova tentativa no Cursor).
 - **A conta é do app, não do modelo.** A IA define premissas e lê documentos; rebalanceamento, projeção, acúmulo de valores e validações (saldo negativo, duplicados, itens perdidos) são calculados em código testado.
-- **Você revisa antes de salvar.** Importações, atualizações de valor e operações por texto sempre mostram antes → depois.
+- **Você revisa o que importa; a rotina roda sozinha.** Importações e operações por texto sempre mostram antes → depois. A cada 30 minutos o app atualiza sozinho valores, Open Finance e transações — mas nada que não veio do Open Finance sai sem revisão, conexão que volta vazia não apaga a instituição e valor digitado à mão não é sobrescrito por estimativa da IA.
 
 ### 📁 Dica: nomeie seus arquivos
 
@@ -222,15 +223,16 @@ flowchart LR
 ## 🛠️ Desenvolvimento
 
 ```bash
-npm test             # 170 testes (node:test + tsx)
+npm test             # 232 testes (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # produção local em http://localhost:3001
 ```
 
 ```
-shared/   regras e tipos (Arca, projeção, importação, duplicados, PF/PJ, IA) — testados
-server/   Express, tarefas de IA (tasks.ts), motores em server/ai/, cotações, anexos
-src/      React: Carteira, Rebalancear, Projeção, Instituições, Bens, Importar, Scan…
+shared/   regras e tipos (Arca, projeção, importação, Open Finance, gastos, faturas, IR, metas, dívidas, histórico) — testados
+server/   Express, tarefas de IA (tasks.ts, insights.ts, chat.ts), motores em server/ai/, cotações, Tesouro, Banco Central,
+          fundos por índice, Pluggy + razão (transações, faturas, empréstimos), histórico, vídeo, anexos
+src/      React: Carteira, Histórico, Rebalancear, Metas, Projeção, Gastos, IR, Dívidas, Importar, Scan, chat flutuante…
 scripts/  demo com carteira fictícia, local.mjs (rodar sempre) e serviços por sistema (windows/, unix/)
 ```
 

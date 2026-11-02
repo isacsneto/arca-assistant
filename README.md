@@ -59,9 +59,9 @@ Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes
 | 🏦 **By institution** | How much you hold at each bank/broker. Mark one as outdated and the app reminds you to update it. |
 | 🚗 **Physical assets** | Cars, real estate, jewelry and electronics outside the portfolio, with **AI value estimates** (FIPE table, new and used listings, gold price) and attachments (photos, invoices). |
 | 📜 **History** | A daily snapshot of your wealth: evolution by class, month by month against CDI and the Ibovespa, and an **AI-written monthly summary** (what weighed most and why). Starts with ~4 rebuilt months. |
-| 💬 **Ask Arca** | Chat with the AI about your own data — portfolio, history, goals, spending, taxes and debts — with web search. Read-only; it never changes anything. |
+| 💬 **Ask Arca** | A **floating** chat (button in the corner of every screen) with the AI about your own data — portfolio, history, goals, spending, taxes and debts — with web search. It knows which screen you're looking at ("explain this"). Read-only; it never changes anything. |
 | 🎯 **Goals** | Retirement, emergency fund, home…: what you have, the monthly contribution needed and whether your plan gets there, in today's money (real return from the Projection). AI goals analysis. |
-| 🧾 **Spending** | Account and card transactions through Open Finance, **categorized by the AI** (it learns from your corrections), budgets, recurring subscriptions, bills and installments for the coming months, how many months your emergency fund covers and the average surplus to invest (suggested in Rebalance). |
+| 🧾 **Spending** | Account and card transactions through Open Finance, **categorized by the AI** (it learns from your corrections). **Everything is clickable**: each chart column opens that month by category and transaction; open card bills (computed from each bill's charges, not the outstanding balance), commitments for the coming months, recurring subscriptions, how many months your emergency fund covers and the average surplus to invest (suggested in Rebalance). |
 | 🧮 **Income tax** | Monthly stock-market DARF (R$ 20k exemption, REITs 20%, loss offset), Bens e Direitos with acquisition cost and ready-made description, exempt income and JCP, and an AI checklist for the return. |
 | 💳 **Debts** | Open Finance and manually added loans, net worth (investments + assets − debts) and "prepay or invest?" against net CDI, with an AI simulation. |
 | ⏰ **Reminders** | Outdated institutions on startup and a periodic "is everything up to date?" check every 1 or 2 weeks. |
@@ -204,13 +204,14 @@ flowchart LR
   runAi --> X["Codex<br/>codex exec --output-schema"]
   runAi --> K["Cursor<br/>agent -p --output-format json"]
   API --> Q["Yahoo Finance<br/>(quotes)"]
-  API --> P["Pluggy<br/>(Open Finance)"]
-  API --> D[("data/<br/>state.json · attachments · keys")]
+  API --> P["Pluggy<br/>(Open Finance: investments,<br/>transactions, bills, loans)"]
+  API --> B["Central Bank · Treasury<br/>(CDI, IPCA, TR · bond prices)"]
+  API --> D[("data/<br/>state.json · history.json · ledger.json<br/>attachments · keys")]
 ```
 
 - **One AI interface, three engines.** Each task asks for *instructions + task + JSON schema + attachments + web search*; each provider's engine translates that (native structured output on Claude and Codex; validated JSON with a retry on Cursor).
 - **The app does the math, not the model.** The AI sets assumptions and reads documents; rebalancing, projection, value accrual and validations (negative balances, duplicates, lost items) are computed in tested code.
-- **You review before saving.** Imports, value updates and text operations always show before → after.
+- **You review what matters; the routine runs on its own.** Imports and text operations always show before → after. Every 30 minutes the app updates values, Open Finance and transactions by itself — but nothing that didn't come from Open Finance is ever removed without a review, an empty connection never wipes an institution, and a value you typed by hand isn't overwritten by an AI estimate.
 
 ### 📁 Tip: name your files
 
@@ -231,7 +232,7 @@ flowchart LR
 ## 🛠️ Development
 
 ```bash
-npm test             # 170 tests (node:test + tsx)
+npm test             # 232 tests (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # local production at http://localhost:3001
 API_PORT=3101 npx vite       # front-end against another instance (e.g. the demo)
@@ -239,8 +240,9 @@ API_PORT=3101 npx vite       # front-end against another instance (e.g. the demo
 
 ```
 shared/   rules and types (Arca, projection, import, duplicates, PF/PJ, AI, Open Finance, i18n, currencies) — tested
-server/   Express, AI tasks (tasks.ts), engines in server/ai/, quotes, Pluggy, video, attachments
-src/      React: Portfolio, Rebalance, Projection, Institutions, Assets, Import, Scan…
+server/   Express, AI tasks (tasks.ts, insights.ts, chat.ts), engines in server/ai/, quotes, Treasury, Central Bank,
+          fund proxies, Pluggy + ledger (transactions, bills, loans), history, video, attachments
+src/      React: Portfolio, History, Rebalance, Goals, Projection, Spending, Income tax, Debts, Import, Scan, floating chat…
 scripts/  demo with a fictional portfolio, local.mjs (always on) and per-OS services (windows/, unix/)
 ```
 
