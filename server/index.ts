@@ -8,7 +8,8 @@ import { tesouroSource } from "./tesouro";
 import { bcbSource } from "./indexers";
 import { dataDir, historyFile, secretsFile } from "./paths";
 import { backfillHistory, historyStore, withHistory } from "./history";
-import { monthSummaryWithAi } from "./insights";
+import { goalsAdviceWithAi, monthSummaryWithAi } from "./insights";
+import { GOAL_KINDS, goalStatus, planningOf } from "../shared/planning";
 import { chatWithAi } from "./chat";
 import { monthlyStats } from "../shared/history";
 import { brDay } from "../shared/history";
@@ -74,6 +75,7 @@ const app = createApp({
   autoRefresh: { everyMs: 30 * 60_000 },
   sampleVideo,
   chat: (state, messages, emit, signal) => chatWithAi(state, messages, chatExtras(state), emit, signal),
+  goalsAdvice: goalsAdviceWithAi,
   history: {
     store: history,
     benchmarks: async (from) => {
@@ -106,7 +108,14 @@ function chatExtras(state: import("../shared/types").AppState): string[] {
     const rows = months.map((m) => `- ${m.month}: fim ${brl(m.end)}, variação ${brl(m.change)}${m.returnPct != null ? `, rendimento ${m.returnPct.toFixed(2)}%` : ""}${m.estimated ? " (estimado)" : ""}`);
     out.push(["HISTÓRICO (patrimônio investido por mês; \"estimado\" = reconstruído):", ...rows].join("\n"));
   }
-  void state;
+  const goals = planningOf(state.planning).goals;
+  if (goals.length) {
+    const rows = goals.map((g) => {
+      const st = goalStatus(g, state);
+      return `- ${g.name} (${GOAL_KINDS()[g.kind]}): alvo ${brl(g.target)} (R$ de hoje) em ${g.targetDate}; hoje ${brl(st.current)} (${(st.progress * 100).toFixed(0)}%); aporte planejado ${brl(g.monthly)}/mês, necessário ${brl(st.required)}/mês; ${st.onTrack ? "no trilho" : "FORA do trilho"} (retorno real ${st.realReturnPct.toFixed(1)}% a.a.)`;
+    });
+    out.push(["METAS:", ...rows].join("\n"));
+  }
   return out;
 }
 

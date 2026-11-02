@@ -19,8 +19,9 @@ import { PluggyError, fetchConnections, type PluggyClient, type PluggyCredential
 import { openFinanceSettings, toImport, type PluggyItem } from "../shared/openFinance";
 import { applyRefresh, autoApplicable } from "../shared/refreshApply";
 import { monthlyStats, type MonthSummary } from "../shared/history";
+import { GOAL_KINDS, goalPositions, goalStatus, planningOf } from "../shared/planning";
 import type { HistoryStore } from "./history";
-import type { monthSummaryPrompt } from "./insights";
+import type { goalsAdviceWithAi, monthSummaryPrompt } from "./insights";
 import type { ChatMessage, ChatReply } from "./chat";
 import { VideoError, type VideoSample } from "./video";
 import { VIDEO_SAMPLE_STEP } from "../shared/videoFrames";
@@ -81,6 +82,8 @@ export interface Deps {
   scanConcurrency?: number;
   /** "Pergunte à Arca": conversa com a IA sobre os dados do usuário (só leitura). */
   chat?: (state: AppState, messages: ChatMessage[], emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<ChatReply>;
+  /** Análise das metas pela IA (texto). */
+  goalsAdvice?: (state: AppState, rows: Parameters<typeof goalsAdviceWithAi>[1], emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<string>;
   /** Histórico do patrimônio: fotos diárias, CDI/Ibovespa por mês e resumo do mês pela IA. */
   history?: {
     store: HistoryStore;
@@ -167,6 +170,8 @@ export function createApp(deps: Deps) {
       settings: body.settings,
       // Cliente antigo sem "assets" não apaga os bens já salvos.
       ...(body.assets !== undefined && { assets: sanitizeAssets(body.assets) }),
+      // Idem para o planejamento (metas, orçamentos, regras, dívidas).
+      ...(body.planning !== undefined && { planning: planningOf(body.planning) }),
     };
     setLang(state.settings.language);
     store.save(state);
@@ -668,6 +673,28 @@ export function createApp(deps: Deps) {
     try {
       const reply = await deps.chat(structuredClone(state), messages, sse.send as (e: JobEvent<never>) => void, sse.signal);
       sse.send({ type: "result", result: reply });
+    } catch (err) {
+      if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });
+    } finally {
+      sse.end();
+    }
+  });
+
+  /* ---------------- Metas ---------------- */
+  app.post("/api/goals/advice", async (_req, res) => {
+    const goals = planningOf(state.planning).goals;
+    if (!deps.goalsAdvice || !goals.length) {
+      res.status(400).json({ error: L("Cadastre ao menos uma meta.", "Add at least one goal.") });
+      return;
+    }
+    const sse = openSse<JobEvent<{ text: string; at: string }>>(res);
+    try {
+      const rows = goals.map((g) => {
+        const st = goalStatus(g, state);
+        return { name: g.name, kind: GOAL_KINDS()[g.kind], target: g.target, targetDate: g.targetDate, current: st.current, months: st.months, monthly: g.monthly, required: st.required, projected: st.projected, realReturnPct: st.realReturnPct, positions: goalPositions(g, state.positions).map((p) => `${p.name} (${p.subtype || p.assetClass})`) };
+      });
+      const text = await deps.goalsAdvice(structuredClone(state), rows, sse.send as (e: JobEvent<never>) => void, sse.signal);
+      sse.send({ type: "result", result: { text, at: new Date().toISOString() } });
     } catch (err) {
       if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });
     } finally {

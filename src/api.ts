@@ -54,7 +54,7 @@ export const api = {
     fetch("/api/state", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ positions: s.positions, transactions: s.transactions, assets: s.assets, settings: s.settings, rev: s.rev ?? 0 }),
+      body: JSON.stringify({ positions: s.positions, transactions: s.transactions, assets: s.assets, settings: s.settings, planning: s.planning, rev: s.rev ?? 0 }),
     }).then((r) => json<{ ok: true }>(r)),
   /** Revisão da carteira no servidor (sobe quando o Open Finance automático muda algo). */
   stateRev: () => fetch("/api/state/rev").then((r) => json<{ rev: number }>(r)),

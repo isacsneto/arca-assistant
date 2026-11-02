@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import {
-  Activity, ArrowLeftRight, Car, Ellipsis, Hexagon, History as HistoryIcon, Landmark, MessagesSquare, LineChart as LineChartIcon, Loader2, Radar, Scale,
+  Activity, ArrowLeftRight, Car, Ellipsis, Hexagon, History as HistoryIcon, Landmark, MessagesSquare, Target, LineChart as LineChartIcon, Loader2, Radar, Scale,
   Settings as SettingsIcon, Upload, Wallet,
 } from "lucide-react";
 import { HistoryView } from "./components/HistoryView";
 import { ChatView } from "./components/ChatView";
+import { GoalsView } from "./components/GoalsView";
 import type { ProjectionResult, RefreshResult, ResearchResult } from "../shared/types";
 import { MarketView } from "./components/MarketView";
 import { useStore } from "./store";
@@ -33,6 +34,7 @@ const TABS = [
   { id: "rebalance", get label() { return L("Rebalancear", "Rebalance"); }, icon: Scale },
   { id: "history", get label() { return L("Histórico", "History"); }, icon: HistoryIcon },
   { id: "projection", get label() { return L("Projeção", "Projection"); }, icon: LineChartIcon },
+  { id: "goals", get label() { return L("Metas", "Goals"); }, icon: Target },
   { id: "institutions", get label() { return L("Instituições", "Institutions"); }, icon: Landmark },
   { id: "assets", get label() { return L("Bens", "Assets"); }, icon: Car },
   { id: "import", get label() { return L("Importar", "Import"); }, icon: Upload },
@@ -180,6 +182,7 @@ export function App() {
           <ChatView />
         </div>
         {tab === "projection" && <ProjectionView job={projectionJob} />}
+        {tab === "goals" && <GoalsView />}
         {tab === "institutions" && <InstitutionsView />}
         {tab === "assets" && <AssetsView />}
         {tab === "import" && <ImportView key={importMode ?? "files"} initialMode={importMode ?? undefined} done={() => { setImportTarget(null); setImportMode(null); setTab("portfolio"); }} target={importTarget} goSettings={() => setTab("settings")} />}

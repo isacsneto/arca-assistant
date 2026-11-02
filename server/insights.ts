@@ -66,3 +66,36 @@ export async function monthSummaryWithAi(
   });
   return data.text;
 }
+
+/* ---------------- metas ---------------- */
+
+export const GOALS_SYSTEM = `Você é o planejador financeiro de um investidor brasileiro e analisa as METAS dele, em português do Brasil.
+
+Os números (valor atual, prazo, aporte necessário, retorno real usado) já foram calculados pelo app — use-os, não recalcule. Pode pesquisar na web (ex.: juros reais atuais, inflação esperada) para julgar se as premissas são realistas.
+
+Formato (markdown simples, até ~300 palavras):
+1. Situação geral em 1–2 frases (quanto precisa aportar por mês no total para todas as metas, e se cabe).
+2. Para cada meta fora do trilho: o que ajustar (aporte, prazo ou valor) com números.
+3. Se as posições ligadas combinam com o prazo (ex.: reserva em ativo sem liquidez diária, aposentadoria longa toda em caixa) — sem indicar ativo específico para comprar.
+4. Ordem de prioridade sugerida entre as metas, com o porquê.`;
+
+export async function goalsAdviceWithAi(
+  state: AppState,
+  rows: { name: string; kind: string; target: number; targetDate: string; current: number; months: number; monthly: number; required: number; projected: number; realReturnPct: number; positions: string[] }[],
+  emit: (e: JobEvent<never>) => void,
+  signal: AbortSignal,
+): Promise<string> {
+  emit({ type: "status", text: L("Analisando as metas…", "Analyzing the goals…") });
+  const lines = rows.map((g) =>
+    `- ${g.name} (${g.kind}): alvo ${brl(g.target)} em ${g.targetDate} (${g.months} meses); hoje ${brl(g.current)}; aporte planejado ${brl(g.monthly)}/mês; necessário ${brl(g.required)}/mês; chega a ${brl(g.projected)} no prazo; retorno real usado ${g.realReturnPct.toFixed(1)}% a.a.; posições: ${g.positions.join(", ") || "nenhuma"}`);
+  const { data } = await runAi(aiFor(state.settings, "insights"), {
+    system: GOALS_SYSTEM,
+    prompt: `Perfil do investidor: ${state.settings.investorProfile || "não informado"}.\n\nMETAS (valores em reais de hoje):\n${lines.join("\n")}\n\nEscreva a análise.`,
+    schema: TextSchema,
+    web: true,
+    maxTurns: 20,
+    signal,
+    onProgress: emit,
+  });
+  return data.text;
+}

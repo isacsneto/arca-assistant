@@ -560,3 +560,9 @@ label.btn.disabled { opacity: 0.6; pointer-events: none; }
 .chat-msg.assistant .chat-bubble { background: var(--surface-2); border-bottom-left-radius: 4px; }
 .chat-input { display: flex; gap: 8px; align-items: flex-end; margin-top: 12px; position: sticky; bottom: 8px; }
 .chat-input textarea { flex: 1; resize: vertical; min-height: 44px; font: inherit; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+
+/* Metas */
+.goals { display: grid; gap: 12px; }
+.goal .bar { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.goal .bar > div { height: 100%; border-radius: 99px; }
+.goal-pick { max-height: 240px; overflow: auto; display: grid; gap: 4px; margin-top: 8px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; }

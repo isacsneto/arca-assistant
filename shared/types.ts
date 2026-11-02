@@ -396,6 +396,8 @@ export interface AppState {
   rev?: number;
   /** Última atualização automática (servidor): quando, quantas posições mudaram e quando a IA rodou. */
   autoRefresh?: AutoRefreshInfo;
+  /** Metas, orçamentos, regras de categoria e dívidas (editados no app). */
+  planning?: import("./planning").Planning;
 }
 
 export interface AutoRefreshInfo {

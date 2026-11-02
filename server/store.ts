@@ -5,6 +5,7 @@ import { withOwner } from "../shared/owner";
 import { sanitizeAssets } from "../shared/assets";
 import { aiSettings } from "../shared/ai";
 import { openFinanceSettings } from "../shared/openFinance";
+import { planningOf } from "../shared/planning";
 import { toLang } from "../shared/i18n";
 import { fxRates, toCurrency } from "../shared/currency";
 import { stateFile } from "./paths";
@@ -30,6 +31,7 @@ export function withDefaults(raw: Partial<AppState>): AppState {
     research: Array.isArray(raw.research) ? raw.research : [],
     rev: typeof raw.rev === "number" ? raw.rev : 0,
     ...(raw.autoRefresh && { autoRefresh: raw.autoRefresh }),
+    planning: planningOf(raw.planning),
     settings: {
       ...base.settings,
       ...withoutLegacy(raw.settings),
