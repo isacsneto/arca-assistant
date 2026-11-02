@@ -108,6 +108,13 @@ export function Portfolio({ goImport, goAssets, refreshJob }: { goImport: () => 
         }
       />
 
+      {settings.autoRefresh && state!.autoRefresh && !refreshJob.running && !refreshJob.result && (
+        <p className="muted small" style={{ marginTop: -8, marginBottom: 12 }}>
+          {L("Atualizado automaticamente", "Updated automatically")} {new Date(state!.autoRefresh.at).toLocaleString(locale(), { dateStyle: "short", timeStyle: "short" })}
+          {state!.autoRefresh.applied > 0 && L(` · ${state!.autoRefresh.applied} posições mudaram`, ` · ${state!.autoRefresh.applied} positions changed`)}
+          {L(" · a cada 30 min", " · every 30 min")}
+        </p>
+      )}
       <RefreshPanel job={refreshJob} />
 
       <div className="grid kpis" style={{ marginBottom: 16 }}>

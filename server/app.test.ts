@@ -516,32 +516,42 @@ test("estado: gravação com revisão antiga é recusada (não desfaz a atualiza
   }, { rev: 3 });
 });
 
-test("Open Finance automático: aplica as conexões revisadas e sobe a revisão; sem mudança não grava", async () => {
-  const pluggy = fakePluggy();
-  pluggy.credentials.set({ clientId: "11111111-2222-3333-4444-555555555555", clientSecret: "segredo-123" });
+test("atualização automática: aplica sem revisão, sobe a revisão e não apaga o que não veio do Open Finance", async () => {
+  const P = (id: string, name: string, value: number, source: string) =>
+    ({ id, name, institution: "BTG Pactual", owner: "PF", assetClass: "caixa", subtype: "CDB", currency: "BRL", value, updatedAt: "2026-10-01", source });
+  let round = 0;
+  const calls: (boolean | undefined)[] = [];
+  const refreshValues: Deps["refreshValues"] = async (s, _emit, _signal, opts) => {
+    calls.push(opts?.auto);
+    round += 1;
+    const line = (id: string, newValue: number, method: RefreshResult["lines"][number]["method"]) => {
+      const p = s.positions.find((x) => x.id === id)!;
+      return { id, name: p.name, currency: p.currency, oldValue: p.value, newValue, method, note: "" };
+    };
+    return round === 1
+      ? { runAt: "", fx: { USD: 5.4 }, lines: [line("cdb", 1010, "indexador"), line("velho", 0, "removido"), line("btc", 0, "removido")] }
+      : { runAt: "", fx: { USD: 5.4 }, lines: [line("cdb", 1010, "indexador")] };
+  };
   await withServer(
-    { pluggy },
+    { refreshValues },
     async (base, store) => {
-      const r1 = await (await fetch(`${base}/api/openfinance/auto-sync`, { method: "POST" })).json();
-      assert.equal(r1.applied, 1);
-      assert.equal(store.saved!.positions[0].value, 1000);
+      const r1 = await (await fetch(`${base}/api/auto-refresh`, { method: "POST" })).json();
+      assert.equal(r1.applied, 2, "valor novo + saída do que veio do Open Finance");
+      assert.deepEqual(store.saved!.positions.map((p) => [p.id, p.value]), [["cdb", 1010], ["btc", 500]], "Bitcoin de print fica");
+      assert.equal(store.saved!.settings.fx.USD, 5.4);
       assert.equal(store.saved!.rev, 1);
-      assert.ok(store.saved!.settings.openFinance.lastAutoSyncAt);
-      const r2 = await (await fetch(`${base}/api/openfinance/auto-sync`, { method: "POST" })).json();
-      assert.deepEqual([r2.ran, r2.applied], [true, 0]);
+      assert.equal(store.saved!.autoRefresh?.applied, 2);
+      const r2 = await (await fetch(`${base}/api/auto-refresh`, { method: "POST" })).json();
+      assert.equal(r2.applied, 0);
       assert.equal(store.saved!.rev, 1, "nada mudou: revisão igual");
-      // Checagem normal: banco sem sincronização nova na Pluggy não tem os investimentos buscados de novo.
-      const r3 = await (await fetch(`${base}/api/openfinance/auto-sync?force=0`, { method: "POST" })).json();
-      assert.deepEqual([r3.ran, r3.fetched], [true, 0]);
-      pluggy.dataAt = "2026-11-02T03:00:00Z";
-      const r4 = await (await fetch(`${base}/api/openfinance/auto-sync?force=0`, { method: "POST" })).json();
-      assert.equal(r4.fetched, 1, "dado novo no banco: busca na hora");
+      assert.deepEqual(calls, [true, true], "rodada automática");
     },
-    {
-      positions: [{ id: "p", name: "CDB BTG", institution: "BTG Pactual", owner: "PF", assetClass: "caixa", subtype: "CDB", currency: "BRL", value: 900, updatedAt: "2026-10-01", source: "" }],
-      settings: { openFinance: { connections: [{ itemId: "aaaaaaaaaa", owner: "PF", institution: "BTG Pactual", syncedAt: "2026-10-10" }, { itemId: "bbbbbbbbbb", owner: "PF", institution: "Itaú" }], includeAccounts: false, lastSyncAt: null } },
-    } as unknown as Partial<AppState>,
+    { positions: [P("cdb", "CDB Pine", 1000, "Open Finance · BTG Pactual PF"), P("velho", "CDB Velho", 300, "Open Finance · BTG Pactual PF"), P("btc", "Bitcoin", 500, "print")] } as unknown as Partial<AppState>,
   );
+  await withServer({ refreshValues }, async (base, store) => {
+    assert.equal((await (await fetch(`${base}/api/auto-refresh`, { method: "POST" })).json()).ran, false, "desligado nos ajustes");
+    assert.equal(store.saved, null);
+  }, { positions: [P("cdb", "CDB", 1, "x")], settings: { autoRefresh: false } } as unknown as Partial<AppState>);
 });
 
 test("Open Finance: sincronizar exige conexões e devolve itens para revisão (sem salvar)", async () => {

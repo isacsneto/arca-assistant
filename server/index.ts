@@ -9,7 +9,7 @@ import { bcbSource } from "./indexers";
 import { dataDir, secretsFile } from "./paths";
 import { fetchConnections, filePluggyCredentials, pluggyClient, switchingClient } from "./pluggy";
 import { pgQuery, securoClient, SECURO_APP_URL, SECURO_DB_URL } from "./securo";
-import { openFinanceSettings } from "../shared/openFinance";
+import { autoSyncConnections, openFinanceSettings } from "../shared/openFinance";
 import { sampleVideo } from "./video";
 import { PROVIDERS, aiSettings, isAiReady } from "../shared/ai";
 import { L } from "../shared/i18n";
@@ -23,6 +23,7 @@ const securoUp = () => securo.check().then(() => true, () => false);
 const pluggy = switchingClient(() => (pluggyCredentials.get() ? direct : securo));
 const tesouroPrices = tesouroSource();
 const indexSeries = bcbSource();
+let lastAutoAi = 0;
 const app = createApp({
   store,
   aiStatus,
@@ -31,25 +32,39 @@ const app = createApp({
   refineImport,
   interpretPrompt,
   scanClass,
-  refreshValues: (state, emit, signal) =>
-    refreshValues(state, {
+  refreshValues: async (state, emit, signal, opts) => {
+    // Rodada automática: IA (fundos, COE) no máximo 1x por dia — a cota de fundo só muda uma vez por dia.
+    const aiDue = !opts?.auto || Date.now() - lastAutoAi >= 20 * 3_600_000;
+    let aiRan = false;
+    const result = await refreshValues(state, {
       fetchQuote: yahooQuote,
       tesouro: tesouroPrices,
       indexSeries,
-      claudeRefresh: refreshWithAi,
-      // Open Finance como fonte da verdade: as instituições conectadas vêm da Pluggy.
+      claudeRefresh: aiDue
+        ? async (...args) => {
+            const r = await refreshWithAi(...args);
+            aiRan = true;
+            return r;
+          }
+        : async () => ({ updates: [], ratesUsed: "" }),
+      // Open Finance como fonte da verdade: as instituições conectadas vêm da Pluggy
+      // (no automático, só as conexões já revisadas numa importação).
       openFinance: async (s, sig) => {
         const of = openFinanceSettings(s.settings.openFinance);
-        if (!of.sourceOfTruth || !of.connections.length || (!pluggyCredentials.get() && !(await securoUp()))) return null;
-        return fetchConnections(pluggy, of.connections, { includeAccounts: of.includeAccounts, signal: sig });
+        const conns = opts?.auto ? autoSyncConnections(of) : of.connections;
+        if (!of.sourceOfTruth || !conns.length || (!pluggyCredentials.get() && !(await securoUp()))) return null;
+        return fetchConnections(pluggy, conns, { includeAccounts: of.includeAccounts, signal: sig });
       },
-    }, emit, signal),
+    }, emit, signal);
+    if (opts?.auto && aiRan) lastAutoAi = Date.now();
+    return { ...result, aiRan };
+  },
   projectPortfolio: projectWithAi,
   researchAsset,
   estimateAsset,
   pluggy: { credentials: pluggyCredentials, client: pluggy, securo: { available: securoUp, url: process.env.SECURO_APP_URL || SECURO_APP_URL } },
-  // A cada 30 min pergunta à Pluggy se algum banco tem dado novo; se tiver, aplica na hora.
-  openFinanceAutoSync: { checkEveryMs: 30 * 60_000 },
+  // A cada 30 min: Open Finance, cotações, Tesouro e Banco Central, aplicados sem confirmação.
+  autoRefresh: { everyMs: 30 * 60_000 },
   sampleVideo,
 });
 

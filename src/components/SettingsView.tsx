@@ -12,7 +12,7 @@ import { OpenFinanceSettings } from "./OpenFinanceSettings";
 import { aiSettings } from "../../shared/ai";
 import { useStore } from "../store";
 import { Banner, ClassDot, PageHead } from "./ui";
-import { L, LANGS, getLang, type Lang } from "../../shared/i18n";
+import { L, LANGS, getLang, locale, type Lang } from "../../shared/i18n";
 
 export function SettingsView() {
   const { state, config, update } = useStore();
@@ -178,6 +178,22 @@ export function SettingsView() {
             <ModelPicker showModel={isClaude} title={L("Pesquisa de ativo (Mercado)", "Asset research (Market)")} value={settings.research} models={config!.models} onChange={(research) => set({ research })}
               tip={L("Análise completa de um ativo (balanços, qualidade, macro e geopolítica, cenários): Opus 5.5 com esforço alto.", "Full analysis of one asset (financials, quality, macro and geopolitics, scenarios): Opus 5.5 with high effort.")} />
           </div>
+        </section>
+
+        <section className="card">
+          <h2 style={{ marginBottom: 6 }}>{L("Atualização automática", "Automatic update")}</h2>
+          <label className="check small" style={{ alignItems: "flex-start" }}>
+            <input type="checkbox" checked={settings.autoRefresh} onChange={(e) => set({ autoRefresh: e.target.checked })} style={{ marginTop: 2 }} />
+            <span>
+              {L(
+                "A cada 30 minutos o app faz sozinho o Atualizar valores — Open Finance, cotações, Tesouro Direto e taxas do Banco Central — e aplica sem pedir confirmação. Fundos e COE (calculados pela IA) entram 1 vez por dia. Nada que não veio do Open Finance é removido sem você.",
+                "Every 30 minutes the app runs Update values on its own — Open Finance, quotes, Tesouro Direto and Central Bank rates — and applies it without asking. Funds and structured notes (calculated by the AI) are updated once a day. Nothing that didn't come from Open Finance is removed without you.",
+              )}
+              {state!.autoRefresh && (
+                <span className="muted"> {L("Última:", "Last:")} {new Date(state!.autoRefresh.at).toLocaleString(locale())} · {state!.autoRefresh.applied} {L("posições", "positions")}{state!.autoRefresh.error ? ` · ${L("erro", "error")}: ${state!.autoRefresh.error}` : ""}.</span>
+              )}
+            </span>
+          </label>
         </section>
 
         <section className="card">

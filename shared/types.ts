@@ -311,6 +311,8 @@ export interface Settings {
   reviewIntervalDays: 0 | 7 | 14;
   /** Última vez que o usuário confirmou a revisão periódica. */
   lastReviewAt: string | null;
+  /** "Atualizar valores" sozinho, junto com o Open Finance, aplicando sem confirmação. */
+  autoRefresh: boolean;
 }
 
 export interface StaleMark {
@@ -336,6 +338,7 @@ export const DEFAULT_SETTINGS: Settings = {
   staleInstitutions: [],
   reviewIntervalDays: 14,
   lastReviewAt: null,
+  autoRefresh: true,
   language: DEFAULT_LANG,
   investorProfile:
     "Investidor brasileiro de longo prazo (10+ anos), foco em construir patrimônio e renda passiva, tolerância moderada a volatilidade.",
@@ -391,6 +394,16 @@ export interface AppState {
    * automático). Gravação do navegador com revisão antiga é recusada, para não desfazer a atualização.
    */
   rev?: number;
+  /** Última atualização automática (servidor): quando, quantas posições mudaram e quando a IA rodou. */
+  autoRefresh?: AutoRefreshInfo;
+}
+
+export interface AutoRefreshInfo {
+  at: string;
+  applied: number;
+  /** Última vez que a parte da IA (fundos, COE) rodou — 1x por dia. */
+  aiAt?: string | null;
+  error?: string | null;
 }
 
 export type ScanEvent =

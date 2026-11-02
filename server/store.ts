@@ -29,6 +29,7 @@ export function withDefaults(raw: Partial<AppState>): AppState {
     projection: raw.projection,
     research: Array.isArray(raw.research) ? raw.research : [],
     rev: typeof raw.rev === "number" ? raw.rev : 0,
+    ...(raw.autoRefresh && { autoRefresh: raw.autoRefresh }),
     settings: {
       ...base.settings,
       ...withoutLegacy(raw.settings),

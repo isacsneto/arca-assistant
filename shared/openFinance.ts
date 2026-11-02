@@ -3,7 +3,7 @@ import type { AssetClass, ExtractedItem, ExtractionResult, FileReading, Owner, P
 import { norm, posKey } from "./importMerge";
 import { parseFileName } from "./fileHints";
 import { L, locale } from "./i18n";
-import { applyRefresh, isChange } from "./refreshApply";
+import { applyRefresh, autoApplicable } from "./refreshApply";
 
 /*
  * Open Finance via Pluggy (Meu Pluggy). O servidor busca os investimentos e contas de
@@ -573,10 +573,7 @@ export function autoSyncOpenFinance(
   const usable = data.filter((d) => !d.error && (d.investments.length > 0 || (opts.includeAccounts && d.accounts.length > 0)));
   const skipped = data.filter((d) => !usable.includes(d)).map((d) => d.error ?? L(`conexão ${d.connection.itemId} voltou vazia`, `connection ${d.connection.itemId} came back empty`));
   const r = openFinanceRefresh(positions, usable, { includeAccounts: opts.includeAccounts });
-  // Sem revisão, só sai o que entrou pelo Open Finance: cripto, COE ou posição cadastrada por print/à mão
-  // na mesma instituição (e que o Open Finance não traz) fica — só a revisão manual pode tirar.
-  const fromOf = new Set(positions.filter((p) => /^open finance/i.test(p.source)).map((p) => p.id));
-  const applied = r.lines.filter((l) => isChange(l) && (l.method !== "removido" || fromOf.has(l.id)));
+  const applied = autoApplicable(positions, r.lines);
   return {
     positions: applied.length ? applyRefresh(positions, r.lines, new Set(applied.map((l) => l.id)), opts.now) : positions,
     applied,

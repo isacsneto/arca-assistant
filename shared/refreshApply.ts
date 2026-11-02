@@ -78,3 +78,13 @@ export function applyRefresh(positions: Position[], lines: RefreshLine[], approv
     }));
   return [...kept, ...added];
 }
+
+/**
+ * Aplicação automática (sem revisão): tudo o que mudou de valor entra; posições novas do Open Finance entram;
+ * mas só sai o que entrou pelo Open Finance — cripto, COE ou posição de print/manual na mesma instituição
+ * (que o Open Finance não traz) só sai numa revisão.
+ */
+export function autoApplicable(positions: Position[], lines: RefreshLine[]): RefreshLine[] {
+  const fromOf = new Set(positions.filter((p) => /^open finance/i.test(p.source)).map((p) => p.id));
+  return lines.filter((l) => isChange(l) && (l.method !== "removido" || fromOf.has(l.id)));
+}

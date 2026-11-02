@@ -16,7 +16,8 @@ import { attachmentsRoot } from "./paths";
 import { sanitizeAssets, type AssetEstimate, type PhysicalAsset } from "../shared/assets";
 import { AttachmentError, collectGarbage, deleteAttachment, loadForClaude, readAttachment, saveAttachments } from "./attachments";
 import { PluggyError, fetchConnections, type PluggyClient, type PluggyCredentialStore } from "./pluggy";
-import { autoSyncConnections, autoSyncOpenFinance, openFinanceSettings, toImport, type PluggyItem } from "../shared/openFinance";
+import { openFinanceSettings, toImport, type PluggyItem } from "../shared/openFinance";
+import { applyRefresh, autoApplicable } from "../shared/refreshApply";
 import { VideoError, type VideoSample } from "./video";
 import { VIDEO_SAMPLE_STEP } from "../shared/videoFrames";
 import { L, setLang } from "../shared/i18n";
@@ -46,7 +47,8 @@ export interface Deps {
   ) => Promise<AssetEstimate>;
   /** Pasta dos anexos dos bens (padrão: data/attachments). */
   attachmentsDir?: string;
-  refreshValues: (state: AppState, emit: (e: JobEvent<RefreshResult>) => void, signal: AbortSignal) => Promise<RefreshResult>;
+  /** auto = rodada automática: só conexões já revisadas e IA no máximo 1x por dia. */
+  refreshValues: (state: AppState, emit: (e: JobEvent<RefreshResult>) => void, signal: AbortSignal, opts?: { auto?: boolean }) => Promise<RefreshResult & { aiRan?: boolean }>;
   projectPortfolio: (state: AppState, emit: (e: JobEvent<ProjectionResult>) => void, signal: AbortSignal) => Promise<ProjectionResult>;
   /** Cotações atuais das moedas do registro na moeda base. */
   fetchFx?: () => Promise<FxRates>;
@@ -57,8 +59,8 @@ export interface Deps {
     /** Securo no PC como fonte alternativa (sem credenciais no Arca). */
     securo?: { available: () => Promise<boolean>; url: string };
   };
-  /** Open Finance automático: de quanto em quanto tempo perguntar à Pluggy se há dado novo (sem valor = só pela rota, como nos testes). */
-  openFinanceAutoSync?: { checkEveryMs: number };
+  /** Atualização automática de tudo (cotações, Tesouro, BCB, Open Finance): intervalo (sem valor = só pela rota, como nos testes). */
+  autoRefresh?: { everyMs: number };
   /** Amostras de um vídeo via ffmpeg (quando o navegador não decodifica o formato). */
   sampleVideo?: (bytes: Buffer, opts: { step: number; signal?: AbortSignal }) => Promise<VideoSample[]>;
   /** Aba Mercado: cotação do dia e busca de ativos (padrão: Yahoo Finance). */
@@ -376,63 +378,55 @@ export function createApp(deps: Deps) {
     }
   });
 
-  // Open Finance automático: aplica sem revisão o que vier das conexões já revisadas numa importação.
-  let autoSyncRunning: ReturnType<typeof autoSync> | null = null;
-  // Em memória: data da sincronização do banco (Pluggy) já aplicada, por conexão. Checar sem novidade não
-  // grava nem invalida o que o navegador tem; depois de reiniciar, a primeira checagem busca tudo.
-  const appliedDataAt = new Map<string, string>();
-  let lastFullSync = 0;
-  async function autoSync(force = false): Promise<{ ran: boolean; fetched: number; applied: number; warnings: string[] }> {
-    const of = openFinanceSettings(state.settings.openFinance);
-    const conns = autoSyncConnections(of);
-    if (!deps.pluggy || !conns.length || !(await ofSource())) return { ran: false, fetched: 0, applied: 0, warnings: [] };
-    const { client } = deps.pluggy;
-    // Pergunta só a data da última sincronização de cada banco (barato) e busca os investimentos de quem mudou.
-    // Uma vez por dia busca tudo, como rede de segurança.
-    const full = force || Date.now() - lastFullSync >= 86_400_000;
-    const todo = full
-      ? conns
-      : (await Promise.all(conns.map(async (c) => {
-          const item = await client.getItem(c.itemId).catch(() => null);
-          return item && (item.lastUpdatedAt ?? "") !== appliedDataAt.get(c.itemId) ? c : null;
-        }))).filter((c): c is (typeof conns)[number] => c !== null);
-    if (!todo.length) return { ran: true, fetched: 0, applied: 0, warnings: [] };
-    const data = await fetchConnections(client, todo, { includeAccounts: of.includeAccounts });
-    if (full) lastFullSync = Date.now();
-    for (const d of data) if (!d.error && d.item?.lastUpdatedAt) appliedDataAt.set(d.connection.itemId, d.item.lastUpdatedAt);
+  // Atualização automática de tudo — o mesmo "Atualizar valores", aplicado sem revisão (regras em autoApplicable).
+  let autoRunning: ReturnType<typeof autoRefresh> | null = null;
+  async function autoRefresh(): Promise<{ ran: boolean; applied: number; warnings: string[] }> {
+    if (!state.settings.autoRefresh || !state.positions.length) return { ran: false, applied: 0, warnings: [] };
+    const ctrl = new AbortController();
+    const result = await deps.refreshValues(structuredClone(state), () => undefined, ctrl.signal, { auto: true });
     const now = new Date().toISOString();
-    // Estado relido depois da rede: uma edição feita enquanto a Pluggy respondia não se perde.
-    const r = autoSyncOpenFinance(state.positions, data, { includeAccounts: of.includeAccounts, now });
-    if (r.applied.length) {
+    // Estado relido depois da rede: aplica sobre as posições atuais (edições feitas no meio não se perdem).
+    const lines = autoApplicable(state.positions, result.lines);
+    const fx = result.fx && FX_CODES.some((c) => result.fx![c] != null && result.fx![c] !== state.settings.fx[c]) ? result.fx : null;
+    const info = { at: now, applied: lines.length, aiAt: result.aiRan ? now : (state.autoRefresh?.aiAt ?? null), error: null };
+    if (lines.length || fx) {
       state = {
         ...state,
-        positions: r.positions,
-        settings: { ...state.settings, openFinance: { ...openFinanceSettings(state.settings.openFinance), lastAutoSyncAt: now } },
+        positions: lines.length ? applyRefresh(state.positions, result.lines, new Set(lines.map((l) => l.id)), now) : state.positions,
+        settings: { ...state.settings, ...(fx && { fx: { ...state.settings.fx, ...fx } }), openFinance: { ...openFinanceSettings(state.settings.openFinance), lastAutoSyncAt: now } },
+        autoRefresh: info,
         rev: (state.rev ?? 0) + 1,
       };
-      store.save(state);
-      console.log(L(`Open Finance automático: ${r.applied.length} posições atualizadas.`, `Automatic Open Finance: ${r.applied.length} positions updated.`));
+      console.log(L(`Atualização automática: ${lines.length} posições.`, `Automatic update: ${lines.length} positions.`));
+    } else {
+      state = { ...state, autoRefresh: info };
     }
-    for (const w of r.warnings) console.warn(`Open Finance: ${w}`);
-    return { ran: true, fetched: todo.length, applied: r.applied.length, warnings: r.warnings };
+    store.save(state);
+    for (const w of result.warnings ?? []) console.warn(w);
+    return { ran: true, applied: lines.length, warnings: result.warnings ?? [] };
   }
-  const runAutoSync = (force = false) => {
-    autoSyncRunning ??= autoSync(force).finally(() => (autoSyncRunning = null));
-    return autoSyncRunning;
+  const runAutoRefresh = () => {
+    autoRunning ??= autoRefresh()
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        state = { ...state, autoRefresh: { ...(state.autoRefresh ?? { applied: 0 }), at: new Date().toISOString(), error: msg } };
+        store.save(state);
+        throw e;
+      })
+      .finally(() => (autoRunning = null));
+    return autoRunning;
   };
-  if (deps.openFinanceAutoSync) {
-    const tick = () => void runAutoSync().catch((e: unknown) => console.warn(`Open Finance automático: ${e instanceof Error ? e.message : String(e)}`));
+  if (deps.autoRefresh) {
+    const tick = () => void runAutoRefresh().catch((e: unknown) => console.warn(`Atualização automática: ${e instanceof Error ? e.message : String(e)}`));
     setTimeout(tick, 60_000).unref();
-    setInterval(tick, deps.openFinanceAutoSync.checkEveryMs).unref();
+    setInterval(tick, deps.autoRefresh.everyMs).unref();
   }
 
-  // ?force=0 faz a checagem normal (só quem tem dado novo); sem ele, busca tudo agora.
-  app.post("/api/openfinance/auto-sync", async (req, res) => {
-    if (!deps.pluggy) return noPluggy(res);
+  app.post("/api/auto-refresh", async (_req, res) => {
     try {
-      res.json(await runAutoSync(req.query.force !== "0"));
+      res.json(await runAutoRefresh());
     } catch (err) {
-      pluggyFail(res, err);
+      res.status(500).json({ error: explainError(err).message });
     }
   });
 
