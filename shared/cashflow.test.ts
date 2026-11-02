@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { categorize, fromPluggyCategory, monthlyFlows, normDesc, savingsCapacity, type BankTx } from "./cashflow";
-import { budgetStatus, commitments, detectRecurring, suggestBudgets } from "./ledger";
+import { budgetStatus, cardBills, commitments, detectRecurring, suggestBudgets } from "./ledger";
 
 const tx = (o: Partial<BankTx> & { category?: string }): BankTx & { category: string } => ({
   id: Math.random().toString(36), itemId: "i", accountId: "a", accountName: "Conta", accountType: "BANK", institution: "Itaú", owner: "PF",
@@ -44,6 +44,7 @@ test("recorrentes: mesmo estabelecimento em 3+ meses com valor estável; parcela
   ];
   const r = detectRecurring(txs, "2026-10-01");
   assert.deepEqual(r.map((x) => [x.label, x.amount, x.months, x.nextDate]), [["NETFLIX.COM", 55.9, 4, "2026-10-05"]]);
+  assert.deepEqual(r[0].occurrences.map((o) => o.date), ["2026-09-05", "2026-08-05", "2026-07-05", "2026-06-05"], "histórico de cobranças");
 });
 
 test("orçamento: gasto, projeção no ritmo do mês e sugestão pela mediana", () => {
@@ -55,11 +56,26 @@ test("orçamento: gasto, projeção no ritmo do mês e sugestão pela mediana", 
   assert.deepEqual(suggestBudgets(flows, "2026-10"), [{ category: "mercado", limit: 1000 }]);
 });
 
-test("compromissos: fatura aberta pelo vencimento, parcelas futuras e recorrentes", () => {
+test("fatura = lançamentos da fatura − estornos, sem o pagamento da anterior; vence no dia das fechadas", () => {
+  const card = (o: Partial<BankTx>) => tx({ accountType: "CREDIT", accountId: "c", accountName: "Visa Gold", ...o });
   const ledger = {
-    bills: [{ id: "o", accountId: "c", accountName: "Visa", institution: "Itaú", owner: "PF" as const, dueDate: "2026-11-28", total: 3000, open: true }],
-    bankTx: [tx({ accountType: "CREDIT", date: "2026-12-05", amount: -200, installment: { n: 2, total: 3 } }), tx({ accountType: "CREDIT", date: "2027-01-05", amount: -200, installment: { n: 3, total: 3 } })],
+    bills: [{ id: "b", accountId: "c", accountName: "Visa Gold", institution: "Itaú", owner: "PF" as const, dueDate: "2026-10-28", total: 5000 }],
+    bankTx: [
+      card({ billMonth: "2026-10", date: "2026-10-01", amount: -500 }),
+      card({ billMonth: "2026-11", date: "2026-10-25", amount: -8000 }),
+      card({ billMonth: "2026-11", date: "2026-10-26", amount: -1000, installment: { n: 2, total: 3 } }),
+      card({ billMonth: "2026-11", date: "2026-10-27", amount: 50, description: "ESTORNO LOJA" }),
+      card({ billMonth: "2026-11", date: "2026-10-28", amount: 5000, description: "PAGAMENTO DEBITO AUTOMATICO" }),
+      card({ billMonth: "2026-12", date: "2026-12-18", amount: -1000, installment: { n: 3, total: 3 } }),
+    ],
   };
-  const c = commitments(ledger, [{ key: "n", label: "Netflix", category: "assinaturas", amount: 50, lastDate: "", nextDate: "", months: 3, account: "" }], "2026-11-01");
-  assert.deepEqual(c.map((x) => [x.month, x.bills, x.installments, x.total]), [["2026-11", 3000, 0, 3050], ["2026-12", 0, 200, 250], ["2027-01", 0, 200, 250]]);
+  const bills = cardBills(ledger, "2026-11-01");
+  assert.deepEqual(bills.map((b) => [b.month, b.dueDate, Math.round(b.total * 100) / 100, b.installments, b.open]), [
+    ["2026-11", "2026-11-28", 8950, 1000, true],
+    ["2026-12", "2026-12-28", 1000, 1000, false],
+  ], "a de outubro já fechou; o saldo devedor não entra");
+  const rec = { key: "n", label: "Netflix", category: "assinaturas", amount: 50, lastDate: "2026-10-05", nextDate: "2026-11-05", months: 3, account: "", occurrences: [] };
+  const c = commitments(ledger, [rec, { ...rec, key: "x", label: "Já cobrado", nextDate: "2026-12-01" }], "2026-11-01");
+  assert.deepEqual(c.map((x) => [x.month, Math.round(x.bills), x.recurring, Math.round(x.total)]), [["2026-11", 8950, 50, 9000], ["2026-12", 1000, 100, 1100], ["2027-01", 0, 100, 100]]);
+  assert.deepEqual(c[0].items.map((i) => [i.kind, i.label]), [["bill", "Visa Gold"], ["recurring", "Netflix"]], "o detalhe mostra o que compõe o mês");
 });

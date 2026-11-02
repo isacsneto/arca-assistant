@@ -29,7 +29,7 @@ function fakeClient(calls: { from: string[] }): PluggyClient {
     investments: async () => [{ id: "inv", name: "PETROBRAS PN", code: "PETR4", type: "EQUITY", subtype: "STOCK" }],
     transactions: async (accountId, from) => {
       calls.from.push(`${accountId}:${from}`);
-      return accountId === "bank" ? [ptx({ id: `b-${from}`, date: "2026-10-25T03:00:00.000Z", amount: -100, description: "PIX ENVIADO JOAO", category: "Transfer - PIX" })] : [ptx({ id: "c1", amount: 50, category: "Groceries" })];
+      return accountId === "bank" ? [ptx({ id: `b-${from}`, date: "2026-10-25T03:00:00.000Z", amount: -100, description: "PIX ENVIADO JOAO", category: "Transfer - PIX" })] : [ptx({ id: "c1", amount: 50, category: "Groceries", creditCardMetadata: { billForecastDate: "2026-11" } })];
     },
     bills: async () => [{ id: "b1", dueDate: "2026-10-28T00:00:00.000Z", totalAmount: 1500 }],
     loans: async () => [],
@@ -46,7 +46,9 @@ test("sincroniza contas, cartão (faturas + aberta), movimentações; depois é 
   assert.deepEqual(calls.from, ["bank:2025-09-01", "card:2025-09-01"], "primeira vez: ~13 meses");
   assert.equal(d1.bankTx.length, 2);
   assert.equal(d1.bankTx[0].institution, "Itaú", "banco deduzido pelas contas do MeuPluggy");
-  assert.deepEqual(d1.bills.map((b) => [b.dueDate, b.total, !!b.open]), [["2026-10-28", 1500, false], ["2026-11-28", 3000, true]]);
+  assert.deepEqual(d1.bills.map((b) => [b.dueDate, b.total, !!b.open]), [["2026-10-28", 1500, false]], "só faturas fechadas: a aberta sai dos lançamentos (o saldo do cartão é o total devedor)");
+  assert.equal(d1.bankTx.find((t) => t.accountId === "card")?.billMonth, "2026-11");
+  assert.equal(d1.version, 2);
   assert.deepEqual(d1.investTx.map((t) => [t.ticker, t.type, t.quantity, t.price, t.date]), [["PETR4", "BUY", 10, 30, "2026-05-02"]]);
   assert.ok(d1.lastSlowSync);
 
@@ -54,6 +56,10 @@ test("sincroniza contas, cartão (faturas + aberta), movimentações; depois é 
   assert.deepEqual(calls.from.slice(2), ["bank:2026-10-22", "card:2026-10-22"], "depois: desde a última, com 10 dias de folga");
   assert.deepEqual(d2.bankTx.filter((t) => t.accountId === "bank").map((t) => t.id), ["b-2026-10-22"], "janela trocada (pendente → lançada não duplica)");
   assert.equal(d2.investTx.length, 1, "movimentações só 1x por dia");
+  // Formato antigo (sem a fatura de cada lançamento): refaz a busca do zero uma vez.
+  calls.from = [];
+  await syncLedger(fakeClient(calls), state, { ...d2, version: 1 }, { now: new Date("2026-11-02T15:00:00Z") });
+  assert.deepEqual(calls.from, ["bank:2025-09-01", "card:2025-09-01"]);
 
   const todo = needsAi(d2, state);
   assert.deepEqual(todo.map((t) => t.desc), ["pix enviado joao"], "só o que nem regra nem banco resolvem");

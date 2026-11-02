@@ -52,6 +52,8 @@ export interface LedgerData {
   aiCategories: Record<string, string>;
   /** Até que dia cada conta já foi sincronizada. */
   lastTxSync: Record<string, string>;
+  /** Versão do formato: mudou = busca as transações de novo, do zero. */
+  version?: number;
   /** Última sincronização "lenta" (empréstimos, movimentações de investimento): 1x por dia. */
   lastSlowSync?: string | null;
   syncedAt?: string | null;
@@ -72,6 +74,8 @@ export interface Recurring {
   nextDate: string;
   months: number;
   account: string;
+  /** Cobranças dos últimos 6 meses (mais recente primeiro). */
+  occurrences: { date: string; amount: number }[];
 }
 
 const median = (xs: number[]) => {
@@ -111,7 +115,8 @@ export function detectRecurring(txs: (BankTx & { category: string })[], today: s
     // Mais de ~2 lançamentos por mês em média não é assinatura (é hábito: mercado, padaria…).
     if (!stable || list.length > months.size * 2) continue;
     const last = [...list].sort((a, b) => (a.date < b.date ? 1 : -1))[0];
-    out.push({ key, label: last.merchant || last.description, category: last.category, amount: med, lastDate: last.date, nextDate: addMonth(last.date), months: months.size, account: last.accountName });
+    const occurrences = [...list].sort((a, b) => (a.date < b.date ? 1 : -1)).map((t) => ({ date: t.date, amount: -t.amount }));
+    out.push({ key, label: last.merchant || last.description, category: last.category, amount: med, lastDate: last.date, nextDate: addMonth(last.date), months: months.size, account: last.accountName, occurrences });
   }
   return out.sort((a, b) => b.amount - a.amount);
 }
@@ -149,38 +154,104 @@ export function suggestBudgets(flows: MonthFlow[], currentMonth: string): Budget
     .sort((a, b) => b.limit - a.limit);
 }
 
-/* ---------------- compromissos e reserva ---------------- */
+/* ---------------- faturas, compromissos e reserva ---------------- */
 
-export interface Commitment {
+/** Pagamento da fatura anterior lançado no cartão: não reduz a fatura. */
+const isBillPayment = (t: BankTx) => t.amount > 0 && /pagamento|pagto|pgto|debito automatico|débito automático/i.test(t.description);
+
+export interface CardBill {
+  accountId: string;
+  accountName: string;
+  institution: string;
+  /** Mês do vencimento (AAAA-MM). */
   month: string;
-  /** Fatura aberta / fechada a pagar. */
-  bills: number;
-  /** Parcelas de compras já feitas que caem nesse mês. */
-  installments: number;
-  /** Recorrentes esperados. */
-  recurring: number;
+  dueDate: string;
+  /** Compras − estornos (sem o pagamento da fatura anterior). */
   total: number;
+  /** Parte que é parcela de compra antiga. */
+  installments: number;
+  /** A próxima a vencer (aberta); as seguintes são futuras (só parcelas, por enquanto). */
+  open: boolean;
+  tx: BankTx[];
 }
 
 /**
- * O que já está contratado para os próximos `n` meses: faturas abertas (pelo vencimento), parcelas futuras
- * do cartão (pela data da parcela) e os gastos recorrentes.
+ * Faturas a vencer de cada cartão, somando os lançamentos de cada fatura (cada transação diz em que fatura
+ * cai). O saldo do cartão que o banco informa é o total devedor (inclui todas as parcelas futuras) — não serve.
+ * O vencimento repete o dia das faturas fechadas.
  */
+export function cardBills(ledger: Pick<LedgerData, "bankTx" | "bills">, today: string): CardBill[] {
+  const out: CardBill[] = [];
+  const cards = new Map<string, BankTx[]>();
+  for (const t of ledger.bankTx) {
+    if (t.accountType !== "CREDIT" || !t.billMonth) continue;
+    const list = cards.get(t.accountId);
+    if (list) list.push(t);
+    else cards.set(t.accountId, [t]);
+  }
+  for (const [accountId, txs] of cards) {
+    const closed = ledger.bills.filter((b) => b.accountId === accountId && !b.open).sort((a, b) => (a.dueDate < b.dueDate ? -1 : 1));
+    const last = closed.at(-1);
+    const dueDay = last ? Number(last.dueDate.slice(8, 10)) : 10;
+    // Primeira fatura ainda não fechada: a seguinte à última fechada (ou a do mês, se não houver histórico).
+    const firstOpen = last ? nextMonth(last.dueDate.slice(0, 7)) : today.slice(0, 7);
+    const months = [...new Set(txs.map((t) => t.billMonth!))].filter((m) => m >= firstOpen).sort();
+    months.forEach((month, i) => {
+      const inBill = txs.filter((t) => t.billMonth === month && !isBillPayment(t));
+      const total = inBill.reduce((s, t) => s - t.amount, 0);
+      if (total <= 0.005) return;
+      const [y, m] = month.split("-").map(Number);
+      const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      out.push({
+        accountId, accountName: txs[0].accountName, institution: txs[0].institution, month,
+        dueDate: `${month}-${String(Math.min(dueDay, lastDay)).padStart(2, "0")}`,
+        total, installments: inBill.filter((t) => t.installment).reduce((s, t) => s - t.amount, 0),
+        open: i === 0, tx: inBill.sort((a, b) => (a.date < b.date ? 1 : -1)),
+      });
+    });
+  }
+  return out.sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : b.total - a.total));
+}
+
+const nextMonth = (m: string) => {
+  const d = new Date(`${m}-15T12:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + 1);
+  return d.toISOString().slice(0, 7);
+};
+
+export interface Commitment {
+  month: string;
+  /** Faturas de cartão que vencem no mês (já com as parcelas que caem nelas). */
+  bills: number;
+  /** Quanto dessas faturas é parcela de compra antiga. */
+  installments: number;
+  /** Recorrentes esperados no mês que ainda não foram cobrados. */
+  recurring: number;
+  total: number;
+  /** O que compõe o mês (para o detalhe). */
+  items: { kind: "bill" | "recurring"; label: string; detail: string; date: string; amount: number; accountId?: string }[];
+}
+
+/** O que já está contratado para os próximos `n` meses: faturas a vencer e recorrentes ainda não cobrados. */
 export function commitments(ledger: Pick<LedgerData, "bankTx" | "bills">, recurring: Recurring[], today: string, n = 3): Commitment[] {
   const months: string[] = [];
-  const start = new Date(`${today.slice(0, 7)}-15T12:00:00Z`);
+  let m = today.slice(0, 7);
   for (let i = 0; i < n; i += 1) {
-    const d = new Date(start);
-    d.setUTCMonth(d.getUTCMonth() + i);
-    months.push(d.toISOString().slice(0, 7));
+    months.push(m);
+    m = nextMonth(m);
   }
-  const recurringTotal = recurring.reduce((s, r) => s + r.amount, 0);
-  return months.map((month) => {
-    const bills = ledger.bills.filter((b) => b.open && b.dueDate.slice(0, 7) === month && b.dueDate >= today).reduce((s, b) => s + Math.max(0, b.total), 0);
-    const installments = ledger.bankTx
-      .filter((t) => t.accountType === "CREDIT" && t.installment && t.date > today && t.date.slice(0, 7) === month && t.amount < 0)
-      .reduce((s, t) => s - t.amount, 0);
-    return { month, bills, installments, recurring: recurringTotal, total: bills + installments + recurringTotal };
+  const bills = cardBills(ledger, today);
+  return months.map((month, i) => {
+    const mb = bills.filter((b) => b.month === month);
+    // Mês corrente: só o recorrente cuja próxima cobrança ainda vai acontecer; meses seguintes: todos.
+    const rec = recurring.filter((r) => (i === 0 ? r.nextDate.startsWith(month) && r.nextDate > today : true));
+    const items: Commitment["items"] = [
+      ...mb.map((b) => ({ kind: "bill" as const, label: b.accountName, detail: `${b.institution} · ${b.tx.length} lançamentos${b.installments ? ` (parcelas ${b.installments.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})` : ""}`, date: b.dueDate, amount: b.total, accountId: b.accountId })),
+      ...rec.map((r) => ({ kind: "recurring" as const, label: r.label, detail: r.account, date: i === 0 ? r.nextDate : `${month}-${r.nextDate.slice(8, 10)}`, amount: r.amount })),
+    ];
+    const billsTotal = mb.reduce((s, b) => s + b.total, 0);
+    const recTotal = rec.reduce((s, r) => s + r.amount, 0);
+    return { month, bills: billsTotal, installments: mb.reduce((s, b) => s + b.installments, 0), recurring: recTotal, total: billsTotal + recTotal, items };
   });
 }
 

@@ -35,6 +35,8 @@ export function ledgerStore(file: string) {
 export type LedgerStore = ReturnType<typeof ledgerStore>;
 
 const DAY = 86_400_000;
+/** 2 = transações com a fatura em que caem (billMonth). */
+export const LEDGER_VERSION = 2;
 
 /** Transação da Pluggy → do app. No cartão a compra vem positiva; aqui saída é sempre negativa. */
 export function toBankTx(t: PluggyTransaction, acc: { id: string; name: string; type: "BANK" | "CREDIT" }, ctx: { itemId: string; institution: string; owner: "PF" | "PJ" }): BankTx {
@@ -56,6 +58,7 @@ export function toBankTx(t: PluggyTransaction, acc: { id: string; name: string; 
     merchant: t.merchant?.businessName || t.merchant?.name || null,
     pending: (t.status ?? "").toUpperCase() === "PENDING",
     installment: cc?.installmentNumber && cc.totalInstallments && cc.totalInstallments > 1 ? { n: cc.installmentNumber, total: cc.totalInstallments } : null,
+    billMonth: /^\d{4}-\d{2}/.test(cc?.billForecastDate ?? "") ? cc!.billForecastDate!.slice(0, 7) : null,
   };
 }
 
@@ -74,6 +77,8 @@ export async function syncLedger(
   const of = openFinanceSettings(state.settings.openFinance);
   const known = [...new Set(state.positions.map((p) => p.institution))];
   const data: LedgerData = structuredClone(prev);
+  // Formato novo (fatura de cada lançamento): busca as transações do zero uma vez.
+  if ((prev.version ?? 1) < LEDGER_VERSION) data.lastTxSync = {};
   const slow = opts.slow ?? (!prev.lastSlowSync || now.getTime() - Date.parse(prev.lastSlowSync) >= 20 * 3_600_000);
   const errors: string[] = [];
 
@@ -95,9 +100,7 @@ export async function syncLedger(
         if (type === "CREDIT") {
           const closed = await client.bills(acc.id, opts.signal).catch(() => []);
           const bills: (Bill & { open?: boolean })[] = closed.map((b) => ({ id: b.id, accountId: acc.id, accountName: a.name, institution, owner: conn.owner, dueDate: b.dueDate.slice(0, 10), total: b.totalAmount, minimum: b.minimumPaymentAmount ?? null }));
-          const due = acc.creditData?.balanceDueDate?.slice(0, 10);
-          // Fatura aberta = saldo atual do cartão, vencendo na próxima data.
-          if (due && (acc.balance ?? 0) > 0) bills.push({ id: `open-${acc.id}`, accountId: acc.id, accountName: a.name, institution, owner: conn.owner, dueDate: due < today ? brDay(new Date(Date.parse(`${due}T12:00:00Z`) + 31 * DAY)) : due, total: acc.balance ?? 0, minimum: acc.creditData?.minimumPayment ?? null, open: true });
+          // A fatura aberta sai das transações (cardBills): o saldo do cartão é o total devedor, com parcelas futuras.
           data.bills = [...data.bills.filter((b) => b.accountId !== acc.id), ...bills];
         }
       }
@@ -161,6 +164,7 @@ export async function syncLedger(
   data.bankTx.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   if (slow && !errors.length) data.lastSlowSync = now.toISOString();
   data.syncedAt = now.toISOString();
+  if (!errors.length) data.version = LEDGER_VERSION;
   data.error = errors.length ? errors.join(" · ") : null;
   return data;
 }

@@ -1,7 +1,7 @@
 import type { AppState } from "./types";
 import { toBRL } from "./arca";
 import { categorize, monthlyFlows, savingsCapacity, type BankTx, type CategorySource, type MonthFlow } from "./cashflow";
-import { budgetStatus, commitments, detectRecurring, reserveCoverage, suggestBudgets, type BudgetStatus, type Commitment, type LedgerData, type Recurring } from "./ledger";
+import { budgetStatus, cardBills, commitments, detectRecurring, reserveCoverage, suggestBudgets, type BudgetStatus, type CardBill, type Commitment, type LedgerData, type Recurring } from "./ledger";
 import { goalStatus, planningOf } from "./planning";
 
 export type ResolvedTx = BankTx & { category: string; categorySource: CategorySource };
@@ -19,7 +19,8 @@ export interface CashflowView {
   budgets: BudgetStatus[];
   suggestedBudgets: { category: string; limit: number }[];
   commitments: Commitment[];
-  bills: LedgerData["bills"];
+  /** Faturas a vencer de cada cartão (a aberta e as futuras), pelos lançamentos. */
+  cardBills: CardBill[];
   /** Reserva de emergência e quantos meses de gasto ela cobre. */
   reserve: { value: number; source: "goal" | "liquid"; months: number | null; avgExpenses: number };
 }
@@ -58,7 +59,8 @@ export function cashflowView(state: AppState, ledger: LedgerData, month: string 
     budgets: budgetStatus(planning.budgets, flows.find((f) => f.month === selected), today),
     suggestedBudgets: suggestBudgets(flows, current),
     commitments: commitments(ledger, recurring, today),
-    bills: ledger.bills,
+    // Com as transações já categorizadas (o detalhe da fatura mostra a categoria).
+    cardBills: cardBills({ ...ledger, bankTx: tx }, today),
     reserve: { value: reserveValue, source: reserveGoal ? "goal" : "liquid", months: reserveCoverage(reserveValue, avgExpenses), avgExpenses },
   };
 }

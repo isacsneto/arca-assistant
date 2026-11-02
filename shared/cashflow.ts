@@ -27,6 +27,8 @@ export interface BankTx {
   pending?: boolean;
   /** Parcela (cartão): n de total. */
   installment?: { n: number; total: number } | null;
+  /** Cartão: fatura (AAAA-MM do vencimento) em que o lançamento cai. */
+  billMonth?: string | null;
 }
 
 export interface Bill {
