@@ -11,7 +11,7 @@ import { ledgerStore, needsAi, syncLedger } from "./ledger";
 import { cashflowView } from "../shared/cashflowView";
 import { categoryOf } from "../shared/cashflow";
 import { backfillHistory, historyStore, withHistory } from "./history";
-import { categorizeWithAi, goalsAdviceWithAi, monthSummaryWithAi, spendingAdviceWithAi } from "./insights";
+import { categorizeWithAi, goalsAdviceWithAi, monthSummaryWithAi, spendingAdviceWithAi, taxAdviceWithAi } from "./insights";
 import { GOAL_KINDS, goalStatus, planningOf } from "../shared/planning";
 import { chatWithAi } from "./chat";
 import { monthlyStats } from "../shared/history";
@@ -80,7 +80,7 @@ const app = createApp({
   sampleVideo,
   chat: (state, messages, emit, signal) => chatWithAi(state, messages, chatExtras(state), emit, signal),
   goalsAdvice: goalsAdviceWithAi,
-  ledger: { store: ledger, sync: (s) => syncLedgerNow(s), advise: spendingAdviceWithAi },
+  ledger: { store: ledger, sync: (s) => syncLedgerNow(s), advise: spendingAdviceWithAi, taxAdvise: taxAdviceWithAi },
   history: {
     store: history,
     benchmarks: async (from) => {

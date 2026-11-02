@@ -6,6 +6,7 @@ import type { MonthStats, Snapshot } from "../shared/history";
 import { runAi } from "./ai";
 import { CATEGORIES, categoryOf } from "../shared/cashflow";
 import type { CashflowView } from "../shared/cashflowView";
+import type { TaxView } from "../shared/taxView";
 import { planningOf } from "../shared/planning";
 
 /*
@@ -155,6 +156,33 @@ Sem julgamento moral; seja prático.`,
     schema: TextSchema,
     web: false,
     maxTurns: 6,
+    signal,
+    onProgress: emit,
+  });
+  return data.text;
+}
+
+/* ---------------- IR ---------------- */
+
+export async function taxAdviceWithAi(state: AppState, view: TaxView, emit: (e: JobEvent<never>) => void, signal: AbortSignal): Promise<string> {
+  emit({ type: "status", text: L("Montando o checklist do IR…", "Building the tax checklist…") });
+  const bens = view.bens.slice(0, 60).map((b) => `- [${b.kind}] ${b.text}`).join("\n");
+  const darfs = view.darfs.map((d) => `- ${d.month}: vendas de ações ${brl(d.stockSales)} (${d.stocksExempt ? "isento" : "tributável"}); base comum ${brl(d.taxableCommon)}, FII ${brl(d.taxableFii)}; DARF ${brl(d.darf)} vence ${d.dueDate}`).join("\n");
+  const { data } = await runAi(aiFor(state.settings, "insights"), {
+    system: `Você é um contador especializado em IR de pessoa física e investimentos no Brasil. Monte um CHECKLIST prático para a declaração do ano-base informado, em português do Brasil.
+
+Pesquise na web a tabela VIGENTE de grupos/códigos da ficha Bens e Direitos e as regras do ano (não confie na memória) e cite a fonte.
+
+Formato (markdown simples, até ~450 palavras):
+1. "Bens e Direitos": como lançar cada TIPO de investimento listado (grupo/código, o que vai em Discriminação, CNPJ da instituição/emissor quando pedido, situação em 31/12 = custo de aquisição).
+2. "Rendimentos": onde lançar dividendos e rendimentos de FII (isentos), JCP (exclusiva), renda fixa (exclusiva, informe do banco).
+3. "Renda variável": meses com DARF devido ou prejuízo a declarar; se houver DARF em atraso, como pagar com multa/juros (Sicalc).
+4. "Confira": 3–5 pontos onde costuma dar erro para esse perfil.
+Não invente valores: use os dados fornecidos e diga quando faltar algo (ex.: informe de rendimentos do banco).`,
+    prompt: `Ano-base: ${view.year}.\nMovimentações de investimento disponíveis desde: ${view.historyFrom ?? "n/d"}${view.approx ? " (parte do custo médio veio da corretora)" : ""}.\n\nBENS (pessoa física):\n${bens || "- nenhum"}\n\nDARFs / renda variável:\n${darfs || "- nenhuma venda registrada"}\n\nPROVENTOS: isentos ${brl(view.income.exempt)}; JCP ${brl(view.income.jcp)}.\n\nMonte o checklist.`,
+    schema: TextSchema,
+    web: true,
+    maxTurns: 30,
     signal,
     onProgress: emit,
   });

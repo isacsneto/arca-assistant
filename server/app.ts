@@ -25,6 +25,7 @@ import type { goalsAdviceWithAi, monthSummaryPrompt } from "./insights";
 import type { ChatMessage, ChatReply } from "./chat";
 import type { LedgerStore } from "./ledger";
 import { cashflowView, type CashflowView } from "../shared/cashflowView";
+import { taxView, type TaxView } from "../shared/taxView";
 import { brDay } from "../shared/history";
 import { VideoError, type VideoSample } from "./video";
 import { VIDEO_SAMPLE_STEP } from "../shared/videoFrames";
@@ -90,6 +91,8 @@ export interface Deps {
     store: LedgerStore;
     sync: (state: AppState) => Promise<void>;
     advise: (state: AppState, view: CashflowView, emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<string>;
+    /** Checklist do IR pela IA. */
+    taxAdvise?: (state: AppState, view: TaxView, emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<string>;
   };
   /** Análise das metas pela IA (texto). */
   goalsAdvice?: (state: AppState, rows: Parameters<typeof goalsAdviceWithAi>[1], emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<string>;
@@ -711,6 +714,26 @@ export function createApp(deps: Deps) {
     try {
       const text = await deps.ledger.advise(structuredClone(state), view(null), sse.send as (e: JobEvent<never>) => void, sse.signal);
       sse.send({ type: "result", result: { text, at: new Date().toISOString() } });
+    } catch (err) {
+      if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });
+    } finally {
+      sse.end();
+    }
+  });
+
+  /* ---------------- IR do investidor ---------------- */
+  const yearOf = (q: unknown) => (typeof q === "string" && /^\d{4}$/.test(q) ? Number(q) : new Date().getFullYear());
+  app.get("/api/tax", (req, res) => {
+    if (!deps.ledger) return res.json(null);
+    res.json(taxView(state, deps.ledger.store.get(), yearOf(req.query.year)));
+  });
+  app.post("/api/tax/advice", async (req, res) => {
+    if (!deps.ledger?.taxAdvise) return noPluggy(res);
+    const sse = openSse<JobEvent<{ text: string; at: string; year: number }>>(res);
+    try {
+      const v = taxView(state, deps.ledger.store.get(), yearOf(String(req.body?.year ?? "")));
+      const text = await deps.ledger.taxAdvise(structuredClone(state), v, sse.send as (e: JobEvent<never>) => void, sse.signal);
+      sse.send({ type: "result", result: { text, at: new Date().toISOString(), year: v.year } });
     } catch (err) {
       if (!sse.signal.aborted) sse.send({ type: "error", message: explainError(err).message });
     } finally {

@@ -4,9 +4,10 @@ import type { AppState } from "../shared/types";
 import { brDay } from "../shared/history";
 import { categorize, fromPluggyCategory, normDesc, type BankTx, type Bill } from "../shared/cashflow";
 import { EMPTY_LEDGER, type InvestTxRecord, type LedgerData, type LoanRecord } from "../shared/ledger";
-import { institutionName, openFinanceSettings, type OpenFinanceConnection, type PluggyTransaction } from "../shared/openFinance";
+import { institutionName, openFinanceSettings, tickerOf, type OpenFinanceConnection, type PluggyTransaction } from "../shared/openFinance";
 import { planningOf } from "../shared/planning";
 import { mapPool } from "./pool";
+import type { Holding } from "../shared/tax";
 import type { PluggyClient } from "./pluggy";
 
 /** Arquivo do razão (transações, faturas, empréstimos, movimentações). */
@@ -117,8 +118,20 @@ export async function syncLedger(
             };
           }),
         ];
+        const allInvs = await client.investments(conn.itemId, opts.signal);
+        // Custo de aquisição de tudo (Bens e Direitos): a última sincronização do ano vale como 31/12.
+        const year = today.slice(0, 4);
+        const holdings: Holding[] = allInvs
+          .filter((i) => i.status !== "TOTAL_WITHDRAWAL" && (i.balance ?? 0) > 0)
+          .map((i) => ({
+            itemId: conn.itemId, ticker: tickerOf(i.code), name: i.name,
+            kind: `${(i.type ?? "").toUpperCase()}/${(i.subtype ?? "").toUpperCase()}`, quantity: i.quantity ?? null,
+            cost: (i as { amountOriginal?: number | null }).amountOriginal ?? null, value: i.balance ?? 0,
+            institution, owner: conn.owner, isin: (i as { isin?: string | null }).isin ?? null, dueDate: i.dueDate?.slice(0, 10) ?? null,
+          }));
+        data.holdingsByYear = { ...data.holdingsByYear, [year]: [...(data.holdingsByYear?.[year] ?? []).filter((h) => h.itemId !== conn.itemId), ...holdings] };
         // Movimentações de ações, FIIs, ETFs e BDRs (para preço médio e IR).
-        const invs = (await client.investments(conn.itemId, opts.signal)).filter((i) => ["EQUITY", "ETF"].includes((i.type ?? "").toUpperCase()));
+        const invs = allInvs.filter((i) => ["EQUITY", "ETF"].includes((i.type ?? "").toUpperCase()));
         const records: InvestTxRecord[] = [];
         await mapPool(invs, 4, async (inv) => {
           const txs = await client.investmentTransactions(inv.id, opts.signal).catch(() => []);

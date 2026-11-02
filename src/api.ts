@@ -60,6 +60,7 @@ export const api = {
   stateRev: () => fetch("/api/state/rev").then((r) => json<{ rev: number }>(r)),
   cashflow: (month?: string | null) => fetch(`/api/cashflow${month ? `?month=${month}` : ""}`).then((r) => json<import("../shared/cashflowView").CashflowView>(r)),
   cashflowSync: () => fetch("/api/cashflow/sync", { method: "POST" }).then((r) => json<import("../shared/cashflowView").CashflowView>(r)),
+  tax: (year: number) => fetch(`/api/tax?year=${year}`).then((r) => json<import("../shared/taxView").TaxView>(r)),
   history: () => fetch("/api/history").then((r) => json<import("./components/HistoryView").HistoryResponse>(r)),
   getConfig: (refresh = false) => fetch(`/api/config${refresh ? "?refresh=1" : ""}`).then((r) => json<Config>(r)),
   /** Salva (ou remove, com null) a chave de API de um provedor — fica só no servidor. */

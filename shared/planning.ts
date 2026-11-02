@@ -63,6 +63,8 @@ export interface Planning {
   goalsAdvice?: { text: string; at: string } | null;
   /** Última análise dos gastos pela IA. */
   spendingAdvice?: { text: string; at: string } | null;
+  /** Último checklist do IR pela IA. */
+  taxAdvice?: { text: string; at: string; year: number } | null;
 }
 
 export const EMPTY_PLANNING: Planning = { goals: [], budgets: [], categoryRules: [], debts: [] };
@@ -90,6 +92,7 @@ export function planningOf(raw: Partial<Planning> | undefined | null): Planning 
     debts: arr<Debt>(raw?.debts).filter((d) => d && str(d.id) && str(d.name)).map((d) => ({ ...d, balance: Math.max(0, num(d.balance)), owner: d.owner === "PJ" ? "PJ" : "PF" })),
     goalsAdvice: raw?.goalsAdvice ?? null,
     spendingAdvice: raw?.spendingAdvice ?? null,
+    taxAdvice: raw?.taxAdvice ?? null,
   };
 }
 

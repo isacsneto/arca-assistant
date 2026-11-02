@@ -46,6 +46,8 @@ export interface LedgerData {
   bills: (Bill & { open?: boolean })[];
   loans: LoanRecord[];
   investTx: InvestTxRecord[];
+  /** Investimentos com custo de aquisição, por ano (a última sincronização do ano ≈ posição de 31/12). */
+  holdingsByYear?: Record<string, import("./tax").Holding[]>;
   /** Categoria decidida pela IA por descrição normalizada. */
   aiCategories: Record<string, string>;
   /** Até que dia cada conta já foi sincronizada. */
