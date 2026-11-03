@@ -19,7 +19,7 @@ const SOURCE = (): Record<ResolvedTx["categorySource"], string> => ({ rule: L("s
 
 /** Gastos e receitas (conta e cartão, via Open Finance): tudo clicável para o detalhe — meses, faturas, recorrentes. */
 export function CashflowView({ goSettings }: { goSettings: () => void }) {
-  const { state, update, config, savedAt } = useStore();
+  const { state, update, config, savedAt, ledgerAt } = useStore();
   const planning = planningOf(state!.planning);
   const [view, setView] = useState<View | null>(null);
   const [month, setMonth] = useState<string | null>(null);
@@ -33,7 +33,8 @@ export function CashflowView({ goSettings }: { goSettings: () => void }) {
   // Regras mudam a categoria: recarrega a visão (o servidor resolve com as regras salvas).
   useEffect(() => {
     api.cashflow(month).then(setView).catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [month, state?.rev, savedAt]);
+    // ledgerAt: o Open Finance trouxe transações/faturas novas.
+  }, [month, state?.rev, savedAt, ledgerAt]);
 
   const sync = async () => {
     setBusy(true);

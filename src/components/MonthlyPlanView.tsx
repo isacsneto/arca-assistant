@@ -31,7 +31,7 @@ type Open = { kind: "cell"; lineId: string; month: string } | { kind: "line"; li
 
 /** Contas do mês: a planilha de contas a pagar, com o Open Finance marcando o que já saiu. */
 export function MonthlyPlanView() {
-  const { state, update, view, savedAt } = useStore();
+  const { state, update, view, savedAt, ledgerAt } = useStore();
   const today = brDay(new Date());
   const current = today.slice(0, 7);
   const plan = planningOf(state!.planning).monthlyPlan ?? EMPTY_PLAN;
@@ -75,7 +75,8 @@ export function MonthlyPlanView() {
       window.clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [year, planJson, savedAt]);
+    // ledgerAt: fatura/transações novas do Open Finance refazem o cruzamento.
+  }, [year, planJson, savedAt, ledgerAt]);
 
   // Abre já no mês atual (os últimos meses ficam fora da tela à direita).
   useEffect(() => {

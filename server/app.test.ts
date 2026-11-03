@@ -527,7 +527,7 @@ test("Pergunte à Arca: valida a conversa e devolve a resposta por SSE", async (
 test("estado: gravação com revisão antiga é recusada (não desfaz a atualização automática)", async () => {
   await withServer({}, async (base) => {
     const put = (rev?: number) => fetch(`${base}/api/state`, { ...json({ positions: [], transactions: [], settings: withDefaults({}).settings, rev }), method: "PUT" });
-    assert.deepEqual(await (await fetch(`${base}/api/state/rev`)).json(), { rev: 3 });
+    assert.deepEqual(await (await fetch(`${base}/api/state/rev`)).json(), { rev: 3, ledgerAt: null });
     assert.equal((await put(2)).status, 409);
     assert.equal((await put(3)).status, 200);
     assert.equal((await put()).status, 200, "cliente antigo, sem revisão, continua gravando");

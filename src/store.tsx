@@ -29,6 +29,8 @@ interface Ctx {
    * dívidas, histórico, IR) recarregam com isto — e não com a mudança local, que ainda não foi salva.
    */
   savedAt: number;
+  /** Última sincronização das transações/faturas do Open Finance (o cruzamento com o banco refaz quando muda). */
+  ledgerAt: string | null;
 }
 
 const VIEW_KEY = "arca:view";
@@ -49,6 +51,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState(0);
+  const [ledgerAt, setLedgerAt] = useState<string | null>(null);
   const latest = useRef<AppState | null>(null);
   const [view, setViewState] = useState<View>(readView);
   const setView = useCallback((v: View) => {
@@ -103,13 +106,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const check = async () => {
       if (document.hidden || saving.current || !latest.current) return;
       try {
-        const { rev } = await api.stateRev();
+        const { rev, ledgerAt: at } = await api.stateRev();
+        setLedgerAt(at ?? null);
         if (rev !== (latest.current.rev ?? 0) && !saving.current) load(await api.getState());
       } catch {
         /* offline: tenta na próxima */
       }
     };
-    const every = window.setInterval(() => void check(), 5 * 60_000);
+    void check();
+    const every = window.setInterval(() => void check(), 2 * 60_000);
     document.addEventListener("visibilitychange", check);
     return () => {
       window.clearInterval(every);
@@ -165,7 +170,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <StoreCtx.Provider value={{ state, config: effectiveConfig, loadError, saveError, update, setScan, setProjection, setResearch, removeResearch, view, setView, visible, refreshConfig, savedAt }}>
+    <StoreCtx.Provider value={{ state, config: effectiveConfig, loadError, saveError, update, setScan, setProjection, setResearch, removeResearch, view, setView, visible, refreshConfig, savedAt, ledgerAt }}>
       {children}
     </StoreCtx.Provider>
   );

@@ -40,7 +40,7 @@ function FlagChip({ s, m }: { s: Subscription; m: SubMatch | undefined }) {
 
 /** Assinaturas: a lista de serviços mensais, conferida com as faturas dos cartões. */
 export function SubscriptionsView() {
-  const { state, update, savedAt } = useStore();
+  const { state, update, savedAt, ledgerAt } = useStore();
   const today = brDay(new Date());
   const planning = planningOf(state!.planning);
   const subs = planning.subscriptions ?? [];
@@ -72,7 +72,8 @@ export function SubscriptionsView() {
       window.clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subsJson, savedAt]);
+    // ledgerAt: fatura/transações novas do Open Finance refazem o cruzamento.
+  }, [subsJson, savedAt, ledgerAt]);
 
   const usdBrl = state!.settings.fx?.USD ?? 5;
   const monthly = subsMonthly(subs, usdBrl);
@@ -209,7 +210,14 @@ export function SubscriptionsView() {
                           onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} aria-label={L(`Valor de ${s.service}`, `Amount of ${s.service}`)} />
                       </span>
                     </td>
-                    <td className="ga-b small">{s.payment ?? <span className="muted">—</span>}</td>
+                    <td className="ga-b small">
+                      {/* Sem cobrança achada: o pagamento é só o que você escreveu — editável aqui mesmo. */}
+                      {m && (m.flag === "nao-encontrada" || m.flag === "outro-meio") ? (
+                        <input className="cell" type="text" defaultValue={s.payment ?? ""} key={`${s.id}:${s.payment ?? ""}`} placeholder={L("Pix, Wise, cartão…", "Pix, Wise, card…")}
+                          onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== (s.payment ?? null)) patch(s.id, { payment: v }); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} aria-label={L(`Pagamento de ${s.service}`, `Payment of ${s.service}`)} />
+                      ) : (s.payment ?? <span className="muted">—</span>)}
+                    </td>
                     <td className="ga-c">
                       <FlagChip s={s} m={m} />
                       {m?.last && m.flag !== "outro-meio" && <div className="muted small"><CreditCard size={11} /> {m.last.account} · {day(m.last.date)}{m.cadence ? ` · ${m.cadence === "mensal" ? L("mensal", "monthly") : m.cadence === "anual" ? L("anual", "yearly") : L("irregular", "irregular")}` : ""}</div>}
