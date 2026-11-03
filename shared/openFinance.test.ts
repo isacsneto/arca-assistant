@@ -174,10 +174,10 @@ test("MeuPluggy: o banco sai das contas (mais peso) e dos investimentos, não do
       investments: investments.map((x, k) => ({ id: String(k), name: "CDB", ...x })),
     });
   assert.equal(inst([{ name: "BTG Investimentos" }, { name: "BTG Banking" }], [{ issuer: "BANCO PINE S.A." }, { issuer: "BANCO PINE S.A." }]), "BTG Pactual", "'Investimentos' não vira 'Vest'");
-  assert.equal(inst([{ name: "itau" }, { name: "LATAM PASS ITAU VISA INFINITE" }]), "Itaú");
+  assert.equal(inst([{ name: "itau" }, { name: "ITAU UNICLASS VISA GOLD" }]), "Itaú");
   assert.equal(inst([{ name: "Nu Pagamentos S.A. - Instituição de Pagamento" }]), "Nubank");
   assert.equal(inst([], [{ issuer: "ITAU UNIBANCO S.A." }]), "Itaú", "sem contas, pelos investimentos");
-  assert.equal(inst([{ name: "ultraviolet-black" }]), "Open Finance", "sem pista: não inventa");
+  assert.equal(inst([{ name: "cartao-black" }]), "Open Finance", "sem pista: não inventa");
 });
 
 test("nomes legíveis para renda fixa da corretora; lotes do mesmo CDB viram uma linha", () => {

@@ -325,13 +325,13 @@ test("POST /api/import/prompt aceita só anexos, limita a 10 e repassa os arquiv
 });
 
 test("PUT /api/state salva os bens; cliente sem o campo não apaga os existentes", async () => {
-  const car = { id: "c1", type: "carro", name: "Tiggo 8", value: 150000, owner: "PF", updatedAt: "2026-10-10" };
+  const car = { id: "c1", type: "carro", name: "Corolla", value: 150000, owner: "PF", updatedAt: "2026-10-10" };
   await withServer({}, async (base, store) => {
     const state = await (await fetch(`${base}/api/state`)).json();
     assert.deepEqual(state.assets, []);
 
     await fetch(`${base}/api/state`, { ...json({ ...state, assets: [car, { bad: 1 }] }), method: "PUT" });
-    assert.deepEqual(store.saved!.assets.map((a) => a.name), ["Tiggo 8"]);
+    assert.deepEqual(store.saved!.assets.map((a) => a.name), ["Corolla"]);
 
     const { assets: _drop, ...withoutAssets } = state;
     await fetch(`${base}/api/state`, { ...json(withoutAssets), method: "PUT" });
@@ -346,23 +346,23 @@ test("POST /api/assets/estimate valida o bem, usa o modelo dos ajustes e transmi
     {
       estimateAsset: async (asset, ai, emit) => {
         got = [asset.name, asset.type, ai.model];
-        emit({ type: "search", query: "Tiggo 8 Max Drive 2024 FIPE" });
+        emit({ type: "search", query: "Corolla XEi 2.0 2023 FIPE" });
         return { ...est };
       },
     },
     async (base) => {
       assert.equal((await fetch(`${base}/api/assets/estimate`, json({ asset: { id: "1", name: "  " } }))).status, 400);
-      const r = await fetch(`${base}/api/assets/estimate`, json({ asset: { id: "c1", type: "carro", name: "Tiggo 8 Max Drive 2024", value: 150000 } }));
+      const r = await fetch(`${base}/api/assets/estimate`, json({ asset: { id: "c1", type: "carro", name: "Corolla XEi 2.0 2023", value: 150000 } }));
       const events = parseSse<JobEvent<{ estimate: number }>>(await r.text());
       assert.deepEqual(events.map((e) => e.type), ["search", "result", "done"]);
       assert.equal((events[1] as { result: { estimate: number } }).result.estimate, 140000);
-      assert.deepEqual(got, ["Tiggo 8 Max Drive 2024", "carro", "claude-sonnet-5-5"]);
+      assert.deepEqual(got, ["Corolla XEi 2.0 2023", "carro", "claude-sonnet-5-5"]);
     },
   );
 });
 
 test("anexos de bens: enviar, abrir, apagar; estimativa recebe os anexos salvos", async () => {
-  const car = { id: "car1", type: "carro", name: "Tiggo 8", value: 150000, owner: "PF", updatedAt: "2026-10-10" };
+  const car = { id: "car1", type: "carro", name: "Corolla", value: 150000, owner: "PF", updatedAt: "2026-10-10" };
   let filesSeen: string[] = [];
   await withServer(
     {

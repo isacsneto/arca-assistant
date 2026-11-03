@@ -4,7 +4,7 @@ import { fromOpenFinance, patchPosition, removePosition } from "./positions";
 import type { AppState, Position } from "../../shared/types";
 
 const p = (o: Partial<Position>): Position => ({
-  id: "a", name: "CDB", institution: "Bradesco", owner: "PF", assetClass: "caixa", subtype: "", currency: "BRL",
+  id: "a", name: "CDB", institution: "Banco X", owner: "PF", assetClass: "caixa", subtype: "", currency: "BRL",
   value: 100, updatedAt: "2026-11-01T00:00:00Z", source: "extrato.pdf", ...o,
 });
 const st = (positions: Position[]) => ({ positions }) as unknown as AppState;
@@ -16,8 +16,8 @@ test("editar o valor à mão: data nova e deixa de ser estimativa da IA; só a p
 });
 
 test("renomear não mexe na marca de estimativa; apagar tira só a posição", () => {
-  const s = patchPosition(st([p({ aiEstimate: true })]), "a", { name: "Cofrinho" });
-  assert.deepEqual([s.positions[0].name, s.positions[0].aiEstimate], ["Cofrinho", true]);
+  const s = patchPosition(st([p({ aiEstimate: true })]), "a", { name: "Reserva" });
+  assert.deepEqual([s.positions[0].name, s.positions[0].aiEstimate], ["Reserva", true]);
   assert.deepEqual(removePosition(st([p({}), p({ id: "b" })]), "a").positions.map((x) => x.id), ["b"]);
 });
 
