@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LEDGER_VERSION, needsAi, syncLedger, toBankTx } from "./ledger";
+import { LEDGER_VERSION, dedupePending, needsAi, syncLedger, toBankTx } from "./ledger";
 import { withDefaults } from "./store";
 import { EMPTY_LEDGER } from "../shared/ledger";
 import type { PluggyClient } from "./pluggy";
@@ -85,4 +85,11 @@ test("falha passageira não apaga o que já estava guardado; categorias antigas 
   assert.deepEqual(needsAi(old, state).map((t) => t.desc), [desc], "decidida com instruções antigas: refaz");
   assert.equal(old.aiCategories[desc], "transferencia", "…mas continua valendo até a nova chegar");
   assert.deepEqual(needsAi({ ...old, aiCatVersion: { [desc]: 99 } }, state), []);
+});
+
+test("pendentes repetidos (id novo a cada sincronização) ficam um só; e somem quando a compra é lançada", () => {
+  const base = { itemId: "i", accountId: "c", accountName: "Cartão X", accountType: "CREDIT" as const, institution: "Itaú", owner: "PF" as const, currency: "BRL", pluggyCategory: null, billMonth: "2026-11" };
+  const p = (id: string, o: object = {}) => ({ ...base, id, date: "2026-10-22", description: "LOJA ONLINE 01/04", amount: -99.9, pending: true, installment: { n: 1, total: 4 }, ...o });
+  const out = dedupePending([p("a"), p("b"), p("c"), p("x", { amount: -50, description: "OUTRA" }), p("y", { amount: -50, description: "OUTRA" }), { ...p("z", { amount: -50, description: "OUTRA" }), pending: false }]);
+  assert.deepEqual(out.map((t) => t.id), ["c", "z"]);
 });

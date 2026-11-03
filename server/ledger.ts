@@ -17,6 +17,8 @@ export function ledgerStore(file: string) {
     if (cache) return cache;
     try {
       cache = { ...EMPTY_LEDGER, ...(JSON.parse(fs.readFileSync(file, "utf8")) as Partial<LedgerData>) };
+      // Arquivo de antes da correção: limpa já ao abrir (a próxima sincronização grava limpo).
+      cache.bankTx = dedupePending(cache.bankTx);
     } catch {
       cache = structuredClone(EMPTY_LEDGER);
     }
@@ -35,6 +37,19 @@ export function ledgerStore(file: string) {
 export type LedgerStore = ReturnType<typeof ledgerStore>;
 
 const DAY = 86_400_000;
+
+/**
+ * Lançamentos pendentes voltam da Pluggy com id novo a cada sincronização — e os que ficam antes da janela
+ * buscada se acumulavam (a mesma parcela dezenas de vezes na fatura). Fica um por compra; e some quando a compra
+ * aparece lançada.
+ */
+export function dedupePending(txs: BankTx[]): BankTx[] {
+  const key = (t: BankTx) => `${t.accountId}|${t.date}|${t.amount}|${normDesc(t.description)}|${t.installment ? `${t.installment.n}/${t.installment.total}` : ""}`;
+  const posted = new Set(txs.filter((t) => !t.pending).map(key));
+  const lastPending = new Map<string, number>();
+  txs.forEach((t, i) => { if (t.pending) lastPending.set(key(t), i); });
+  return txs.filter((t, i) => !t.pending || (!posted.has(key(t)) && lastPending.get(key(t)) === i));
+}
 /** 2 = transações com a fatura em que caem (billMonth) · 3 = bens com nome legível e custo 0 = desconhecido. */
 export const LEDGER_VERSION = 3;
 /** Muda quando as instruções da IA para categorias mudam: o que ela decidiu antes é refeito. */
@@ -184,6 +199,7 @@ export async function syncLedger(
     }
   });
 
+  data.bankTx = dedupePending(data.bankTx);
   data.bankTx.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   if (slow && !errors.length) data.lastSlowSync = now.toISOString();
   data.syncedAt = now.toISOString();
