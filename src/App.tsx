@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import {
-  Activity, ArrowLeftRight, Car, Ellipsis, Hexagon, FileText, HandCoins, History as HistoryIcon, Landmark, Receipt, Target, LineChart as LineChartIcon, Loader2, Radar, Scale,
+  Activity, ArrowLeftRight, CalendarCheck, Car, Ellipsis, Hexagon, FileText, HandCoins, History as HistoryIcon, Landmark, Receipt, Target, LineChart as LineChartIcon, Loader2, Radar, Scale,
   Settings as SettingsIcon, Upload, Wallet,
 } from "lucide-react";
 import { HistoryView } from "./components/HistoryView";
 import { ChatFab } from "./components/ChatView";
 import { GoalsView } from "./components/GoalsView";
 import { CashflowView } from "./components/CashflowView";
+import { MonthlyPlanView } from "./components/MonthlyPlanView";
 import { TaxView } from "./components/TaxView";
 import { DebtsView } from "./components/DebtsView";
 import type { ProjectionResult, RefreshResult, ResearchResult } from "../shared/types";
@@ -37,6 +38,7 @@ const TABS = [
   { id: "history", get label() { return L("Histórico", "History"); }, icon: HistoryIcon },
   { id: "projection", get label() { return L("Projeção", "Projection"); }, icon: LineChartIcon },
   { id: "goals", get label() { return L("Metas", "Goals"); }, icon: Target },
+  { id: "plan", get label() { return L("Contas do mês", "Monthly bills"); }, icon: CalendarCheck },
   { id: "cashflow", get label() { return L("Gastos", "Spending"); }, icon: Receipt },
   { id: "tax", get label() { return L("Imposto de Renda", "Income tax"); }, icon: FileText },
   { id: "debts", get label() { return L("Dívidas", "Debts"); }, icon: HandCoins },
@@ -52,7 +54,7 @@ type TabId = (typeof TABS)[number]["id"];
 const GROUPS: { label: () => string; tabs: TabId[] }[] = [
   { label: () => L("Patrimônio", "Wealth"), tabs: ["portfolio", "history", "institutions", "assets", "debts"] },
   { label: () => L("Planejar", "Plan"), tabs: ["rebalance", "goals", "projection"] },
-  { label: () => L("Dia a dia", "Everyday"), tabs: ["cashflow", "tax"] },
+  { label: () => L("Dia a dia", "Everyday"), tabs: ["plan", "cashflow", "tax"] },
   { label: () => L("Inteligência", "Intelligence"), tabs: ["market", "scan"] },
   { label: () => L("Dados", "Data"), tabs: ["import", "tx", "settings"] },
 ];
@@ -197,6 +199,7 @@ export function App() {
         {tab === "history" && <HistoryView />}
         {tab === "projection" && <ProjectionView job={projectionJob} />}
         {tab === "goals" && <GoalsView />}
+        {tab === "plan" && <MonthlyPlanView />}
         {tab === "cashflow" && <CashflowView goSettings={() => setTab("settings")} />}
         {tab === "tax" && <TaxView goSettings={() => setTab("settings")} />}
         {tab === "debts" && <DebtsView />}

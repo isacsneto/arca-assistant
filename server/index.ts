@@ -10,7 +10,9 @@ import { dataDir, historyFile, ledgerFile, secretsFile } from "./paths";
 import { AI_CATEGORIES_VERSION, ledgerStore, needsAi, syncLedger } from "./ledger";
 import { cashflowView } from "../shared/cashflowView";
 import { taxView } from "../shared/taxView";
-import { categoryOf } from "../shared/cashflow";
+import { categorize, categoryOf } from "../shared/cashflow";
+import { addMonths, planAuto, planCardBills, planGrid } from "../shared/monthlyPlan";
+import { cardBills } from "../shared/ledger";
 import { backfillHistory, historyStore, withHistory } from "./history";
 import { categorizeWithAi, debtsAdviceWithAi, goalsAdviceWithAi, monthSummaryWithAi, spendingAdviceWithAi, taxAdviceWithAi } from "./insights";
 import { debtRows, totalDebt } from "../shared/debts";
@@ -199,6 +201,25 @@ function chatExtras(state: import("../shared/types").AppState): string[] {
       `- Recorrentes: ${v.recurring.length} (${brl(v.recurring.reduce((s, r) => s + r.amount, 0))}/mês): ${v.recurring.slice(0, 8).map((r) => `${r.label} ${brl(r.amount)}`).join("; ")}`,
       `- Reserva: ${brl(v.reserve.value)} = ${v.reserve.months?.toFixed(1) ?? "?"} meses de gasto médio (${brl(v.reserve.avgExpenses)})`,
       `- Compromissos próximos: ${v.commitments.map((c) => `${c.month} ${brl(c.total)} (faturas ${brl(c.bills)}, parcelas ${brl(c.installments)})`).join("; ")}`,
+    ].join("\n"));
+  }
+  const plan = planningOf(state.planning).monthlyPlan;
+  if (plan?.lines.length) {
+    const today = brDay(new Date());
+    const month = today.slice(0, 7);
+    const rules = planningOf(state.planning).categoryRules;
+    const tx = led.bankTx.map((t) => ({ ...t, category: categorize(t, rules, led.aiCategories).category }));
+    const auto = planAuto(plan, tx, planCardBills(led.bills, cardBills(led, today)), [month, addMonths(month, 1)], today);
+    const g = planGrid(plan, Number(today.slice(0, 4)), auto, today);
+    const i = g.months.indexOf(month);
+    const t = g.totals[i];
+    const items = g.rows.filter((r) => r.line.kind === "expense" && (r.cells[i].amount ?? 0) > 0)
+      .map((r) => `${r.line.owner} ${r.line.name} ${brl(r.cells[i].amount!)} (${r.cells[i].status ?? "sem status"}${r.cells[i].forecast ? ", previsão" : ""})`);
+    out.push([
+      `CONTAS DO MÊS (planilha de contas a pagar, ${month}):`,
+      `- Total ${brl(t.expenses)}; pago ${brl(t.paid)}; em aberto ${brl(t.open)}; renda ${brl(t.income)}; sobra ${brl(t.surplus)}`,
+      `- Contas: ${items.join("; ")}`,
+      `- Ano ${today.slice(0, 4)}: contas ${brl(g.year.expenses)}, renda ${brl(g.year.income)}, sobra ${brl(g.year.surplus)}${g.contention ? `; modo contenção ${brl(g.contention)}/mês` : ""}`,
     ].join("\n"));
   }
   const debts = debtRows(planningOf(state.planning), led);

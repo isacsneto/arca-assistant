@@ -19,7 +19,7 @@ Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
 ![Open Finance](https://img.shields.io/badge/Open%20Finance-Pluggy-6c47ff)
 ![PWA](https://img.shields.io/badge/PWA-iOS%20%26%20Android-5a0fc8)
-![Tests](https://img.shields.io/badge/tests-170%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-247%20passing-2ea44f)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 <br/>
@@ -61,10 +61,11 @@ Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes
 | 📜 **History** | A daily snapshot of your wealth: evolution by class, month by month against CDI and the Ibovespa, and an **AI-written monthly summary** (what weighed most and why). Starts with ~4 rebuilt months. |
 | 💬 **Ask Arca** | A **floating** chat (button in the corner of every screen) with the AI about your own data — portfolio, history, goals, spending, taxes and debts — with web search. It knows which screen you're looking at ("explain this"). Read-only; it never changes anything. |
 | 🎯 **Goals** | Retirement, emergency fund, home…: what you have, the monthly contribution needed and whether your plan gets there, in today's money (real return from the Projection). AI goals analysis. |
+| 📅 **Monthly bills** | Your bills spreadsheet inside the app: one row per bill (PF, PJ or LLC), months in columns, totals, income and surplus per month and per year. **Import your .xlsx** (one tab per year; each cell's color becomes its status — paid, partly paid, awaiting, planned — and the annual totals are checked against the sheet). Bills that show up in Open Finance **mark themselves**: card bills follow the real bill (awaiting once it closes, paid when the payment appears) and account bills are found by description and amount; what you typed always wins. Future months repeat the last amount, a **lean mode** column compares your minimum monthly cost with 1% of your net worth, and on the phone it shows one month at a time. |
 | 🧾 **Spending** | Account and card transactions through Open Finance, **categorized by the AI** (it learns from your corrections). **Everything is clickable**: each chart column opens that month by category and transaction; open card bills (computed from each bill's charges, not the outstanding balance), commitments for the coming months, recurring subscriptions, how many months your emergency fund covers and the average surplus to invest (suggested in Rebalance). |
 | 🧮 **Income tax** | Monthly stock-market DARF (R$ 20k exemption, REITs 20%, loss offset), Bens e Direitos with acquisition cost and ready-made description, exempt income and JCP, and an AI checklist for the return. |
 | 💳 **Debts** | Open Finance and manually added loans, net worth (investments + assets − debts) and "prepay or invest?" against net CDI, with an AI simulation. |
-| ⏰ **Reminders** | Outdated institutions on startup and a periodic "is everything up to date?" check every 1 or 2 weeks. |
+| ⏰ **Reminders** | Outdated institutions on startup and a periodic "is everything up to date?" check every 1 or 2 weeks. In **Institutions** you fix a value right in the list: rename, change the amount or delete a position (two clicks). |
 
 <div align="center">
 <img src="docs/screenshots/carteira.jpg" alt="Portfolio consolidated by the Arca method" width="49%"/>
@@ -232,7 +233,7 @@ flowchart LR
 ## 🛠️ Development
 
 ```bash
-npm test             # 232 tests (node:test + tsx)
+npm test             # 247 tests (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # local production at http://localhost:3001
 API_PORT=3101 npx vite       # front-end against another instance (e.g. the demo)
@@ -241,8 +242,8 @@ API_PORT=3101 npx vite       # front-end against another instance (e.g. the demo
 ```
 shared/   rules and types (Arca, projection, import, duplicates, PF/PJ, AI, Open Finance, i18n, currencies) — tested
 server/   Express, AI tasks (tasks.ts, insights.ts, chat.ts), engines in server/ai/, quotes, Treasury, Central Bank,
-          fund proxies, Pluggy + ledger (transactions, bills, loans), history, video, attachments
-src/      React: Portfolio, History, Rebalance, Goals, Projection, Spending, Income tax, Debts, Import, Scan, floating chat…
+          fund proxies, Pluggy + ledger (transactions, bills, loans), bills spreadsheet import, history, video, attachments
+src/      React: Portfolio, History, Rebalance, Goals, Projection, Monthly bills, Spending, Income tax, Debts, Import, Scan, floating chat…
 scripts/  demo with a fictional portfolio, local.mjs (always on) and per-OS services (windows/, unix/)
 ```
 

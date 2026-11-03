@@ -35,6 +35,10 @@ import { L, setLang } from "../shared/i18n";
 import { BENCHMARKS, SYMBOL_RE, marketSnapshot, yahooDayQuote, yahooSearch, type FetchDayQuote, type SearchAssets } from "./market";
 import { inView } from "../shared/owner";
 import { addResearch } from "../shared/research";
+import { addMonths, mergeSameLink, planAuto, planCardBills, planOf, suggestLinks, yearMonths, type MonthlyPlan } from "../shared/monthlyPlan";
+import { categorize } from "../shared/cashflow";
+import { cardBills } from "../shared/ledger";
+import { planFromSheets, readWorkbook } from "./planImport";
 
 export { mapPool };
 
@@ -727,6 +731,57 @@ export function createApp(deps: Deps) {
     } finally {
       sse.end();
     }
+  });
+
+  /* ---------------- Contas do mês ---------------- */
+  const resolvedTx = () => {
+    const ledger = deps.ledger?.store.get();
+    if (!ledger) return { tx: [], ledger: null };
+    const rules = planningOf(state.planning).categoryRules;
+    return { tx: ledger.bankTx.map((t) => ({ ...t, category: categorize(t, rules, ledger.aiCategories).category })), ledger };
+  };
+  /** Liga ao banco as linhas ainda sem vínculo (pelo que bate em valor e mês). */
+  const withLinks = (plan: MonthlyPlan) => {
+    const { tx, ledger } = resolvedTx();
+    if (!ledger) return { plan, linked: 0 };
+    const links = suggestLinks(plan, tx, ledger.bills);
+    return { plan: mergeSameLink({ ...plan, lines: plan.lines.map((l) => (links[l.id] ? { ...l, link: links[l.id] } : l)) }), linked: Object.keys(links).length };
+  };
+  // A planilha de gastos (.xlsx): vira o plano (não salva — o navegador mostra o resumo e confirma).
+  app.post("/api/plan/import", express.raw({ type: () => true, limit: "20mb" }), (req, res) => {
+    try {
+      if (!Buffer.isBuffer(req.body) || !req.body.length) throw new Error(L("Arquivo vazio.", "Empty file."));
+      const parsed = planFromSheets(readWorkbook(req.body));
+      if (!parsed.plan.lines.length) throw new Error(L("Não achei a tabela de gastos (linha \"Despesa | Janeiro … Dezembro\").", "Couldn't find the expense table (row \"Despesa | Janeiro … Dezembro\")."));
+      const { plan, linked } = withLinks(parsed.plan);
+      res.json({ ...parsed, plan, linked });
+    } catch (err) {
+      res.status(400).json({ error: explainError(err).message });
+    }
+  });
+  // O plano vem do navegador (pode ter edição ainda não salva); devolve com os vínculos — o navegador salva.
+  // Pode juntar linhas da mesma conta.
+  app.post("/api/plan/suggest", (req, res) => {
+    res.json(withLinks(planOf(req.body?.plan)));
+  });
+  // O que o Open Finance diz de cada linha no ano (e dezembro do ano anterior, para a previsão de janeiro).
+  app.post("/api/plan/auto", (req, res) => {
+    const year = Number(req.body?.year) || new Date().getFullYear();
+    const { tx, ledger } = resolvedTx();
+    if (!ledger) return res.json({ auto: {}, cards: [], syncedAt: null });
+    const today = brDay(new Date());
+    const bills = planCardBills(ledger.bills, cardBills(ledger, today));
+    const months = [addMonths(`${year}-01`, -1), ...yearMonths(year)];
+    const cards = [...new Map(ledger.bankTx.filter((t) => t.accountType === "CREDIT").map((t) => [t.accountId, { id: t.accountId, name: t.accountName, institution: t.institution }])).values()];
+    res.json({ auto: planAuto(planOf(req.body?.plan), tx, bills, months, today), cards, syncedAt: ledger.syncedAt ?? null });
+  });
+  // Lançamentos da conta no mês, para ligar uma linha a uma descrição.
+  app.get("/api/plan/tx", (req, res) => {
+    const month = typeof req.query.month === "string" && /^\d{4}-\d{2}$/.test(req.query.month) ? req.query.month : null;
+    if (!month) return res.status(400).json({ error: L("Mês inválido.", "Invalid month.") });
+    const { tx } = resolvedTx();
+    res.json({ tx: tx.filter((t) => t.accountType === "BANK" && t.date.startsWith(month)).sort((a, b) => (a.date < b.date ? -1 : 1))
+      .map((t) => ({ id: t.id, date: t.date, description: t.description, amount: t.amount, account: `${t.institution} · ${t.accountName}`, category: t.category })) });
   });
 
   /* ---------------- Dívidas e patrimônio líquido ---------------- */

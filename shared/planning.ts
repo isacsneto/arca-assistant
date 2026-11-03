@@ -1,6 +1,7 @@
 import { toBRL } from "./arca";
 import type { AppState, ArcaClass, AssetClass, Position } from "./types";
 import { L } from "./i18n";
+import { planOf, type MonthlyPlan } from "./monthlyPlan";
 
 /*
  * Planejamento (editado no app, salvo junto com a carteira): metas, orçamentos, regras de categoria
@@ -67,6 +68,8 @@ export interface Planning {
   spendingAdvice?: { text: string; at: string } | null;
   /** Último checklist do IR pela IA. */
   taxAdvice?: { text: string; at: string; year: number } | null;
+  /** Contas do mês (a planilha de contas a pagar). */
+  monthlyPlan?: MonthlyPlan;
 }
 
 export const EMPTY_PLANNING: Planning = { goals: [], budgets: [], categoryRules: [], debts: [] };
@@ -95,6 +98,7 @@ export function planningOf(raw: Partial<Planning> | undefined | null): Planning 
     goalsAdvice: raw?.goalsAdvice ?? null,
     spendingAdvice: raw?.spendingAdvice ?? null,
     taxAdvice: raw?.taxAdvice ?? null,
+    monthlyPlan: planOf(raw?.monthlyPlan),
   };
 }
 

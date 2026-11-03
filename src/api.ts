@@ -1,3 +1,4 @@
+import type { MonthlyPlan, PlanAuto } from "../shared/monthlyPlan";
 import type { AiStatus, ProviderId } from "../shared/ai";
 import type { FxRates } from "../shared/currency";
 import type { OpenFinanceImport } from "../shared/openFinance";
@@ -42,6 +43,26 @@ export interface OpenFinanceItem {
   lastUpdatedAt: string | null;
 }
 
+export interface PlanAutoResponse {
+  auto: PlanAuto;
+  cards: { id: string; name: string; institution: string }[];
+  syncedAt: string | null;
+}
+export interface PlanTx {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+  account: string;
+  category: string;
+}
+export interface PlanImportResponse {
+  plan: MonthlyPlan;
+  years: { year: number; lines: number; expenses: number; income: number; sheetExpenses: number | null; sheetIncome: number | null }[];
+  skipped: string[];
+  linked: number;
+}
+
 async function json<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error((body as { error?: string }).error ?? L(`Erro ${res.status}`, `Error ${res.status}`)), { status: res.status });
@@ -63,6 +84,13 @@ export const api = {
   tax: (year: number) => fetch(`/api/tax?year=${year}`).then((r) => json<import("../shared/taxView").TaxView>(r)),
   debts: () => fetch("/api/debts").then((r) => json<import("./components/DebtsView").DebtsResponse>(r)),
   history: () => fetch("/api/history").then((r) => json<import("./components/HistoryView").HistoryResponse>(r)),
+  planAuto: (year: number, plan: MonthlyPlan) =>
+    fetch("/api/plan/auto", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ year, plan }) }).then((r) => json<PlanAutoResponse>(r)),
+  planSuggest: (plan: MonthlyPlan) =>
+    fetch("/api/plan/suggest", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ plan }) }).then((r) => json<{ plan: MonthlyPlan; linked: number }>(r)),
+  planTx: (month: string) => fetch(`/api/plan/tx?month=${month}`).then((r) => json<{ tx: PlanTx[] }>(r)),
+  planImport: (file: File) =>
+    fetch("/api/plan/import", { method: "POST", headers: { "content-type": "application/octet-stream" }, body: file }).then((r) => json<PlanImportResponse>(r)),
   getConfig: (refresh = false) => fetch(`/api/config${refresh ? "?refresh=1" : ""}`).then((r) => json<Config>(r)),
   /** Salva (ou remove, com null) a chave de API de um provedor — fica só no servidor. */
   setAiKey: (provider: ProviderId, key: string | null) =>

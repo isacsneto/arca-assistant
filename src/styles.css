@@ -644,3 +644,47 @@ tr.clickable:hover td { background: var(--surface-2); }
   .cf-cat { grid-template-columns: 16px 1fr auto 56px; }
   .cf-cat .cf-cat-bar, .cf-cat .cf-cat-share { display: none; }
 }
+
+/* ---------------- Contas do mês ---------------- */
+.link-btn { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+.chip-btn { border: 1px solid var(--border); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.chip-btn.active { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
+.modal.wide { width: min(760px, 100%); }
+.plan-legend { display: inline-flex; flex-wrap: wrap; gap: 10px; }
+.plan-key { display: inline-flex; align-items: center; gap: 4px; }
+.plan-key.forecast { font-style: italic; }
+.plan-wrap { overflow-x: auto; }
+.plan-grid { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
+.plan-grid th, .plan-grid td { padding: 2px 3px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.plan-grid thead th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: capitalize; padding: 6px 4px; }
+.plan-grid thead th.now { color: var(--accent); font-weight: 700; }
+/* Primeira coluna fixa ao rolar para os lados. */
+.plan-grid .plan-name { position: sticky; left: 0; z-index: 1; background: var(--surface); text-align: left; min-width: 180px; max-width: 240px; }
+.plan-line { display: flex; align-items: center; gap: 6px; width: 100%; background: none; border: 0; padding: 4px 2px; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.plan-line:hover .plan-line-name { color: var(--accent); }
+.plan-line-name { overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.plan-cell { display: flex; align-items: center; justify-content: flex-end; gap: 3px; width: 100%; min-width: 74px; padding: 5px 6px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--text); font: inherit; cursor: pointer; }
+.plan-cell:hover { border-color: var(--accent); }
+.plan-cell.now { background: var(--surface-2); }
+.plan-cell.forecast .num { font-style: italic; color: var(--muted); }
+.plan-ic { display: inline-flex; align-items: center; gap: 1px; min-width: 12px; color: var(--muted); }
+.st-pago .plan-ic, .plan-key.st-pago, .plan-mob-val.st-pago { color: var(--ok); }
+.st-iniciado .plan-ic, .plan-key.st-iniciado, .plan-mob-val.st-iniciado { color: var(--accent); }
+.st-aguardando .plan-ic, .plan-key.st-aguardando, .plan-mob-val.st-aguardando { color: var(--warn); }
+.plan-cell.st-pago { background: var(--ok-soft); }
+.plan-cell.st-aguardando { background: var(--warn-soft); }
+.plan-cell.st-iniciado { background: var(--accent-soft); }
+.plan-total th, .plan-total td { font-weight: 700; background: var(--surface-2); padding: 7px 6px; }
+.plan-total .plan-name { background: var(--surface-2); }
+.plan-total td.now { color: var(--accent); }
+.plan-income .plan-cell .num { color: var(--ok); }
+.plan-section th { padding-top: 16px; font-weight: 600; }
+.plan-tx-list { max-height: 280px; overflow: auto; }
+.plan-mobile { display: none; }
+.plan-months { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; text-transform: capitalize; }
+.plan-mob-val { display: inline-flex; align-items: center; gap: 4px; }
+@media (max-width: 760px) {
+  .plan-desk { display: none; }
+  .plan-mobile { display: block; }
+  .plan-legend { display: none; }
+}
