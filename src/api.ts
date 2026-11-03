@@ -79,7 +79,9 @@ export const api = {
       body: JSON.stringify({ positions: s.positions, transactions: s.transactions, assets: s.assets, settings: s.settings, planning: s.planning, rev: s.rev ?? 0 }),
     }).then((r) => json<{ ok: true }>(r)),
   /** Revisão da carteira no servidor (sobe quando o Open Finance automático muda algo). */
-  stateRev: () => fetch("/api/state/rev").then((r) => json<{ rev: number }>(r)),
+  indicators: (refresh = false) =>
+    fetch(`/api/indicators${refresh ? "?refresh=1" : ""}`).then((r) => json<{ indicators: import("../shared/indicators").Indicators; fixedIncome: import("../shared/indicators").FixedIncomeRow[] }>(r)),
+  stateRev: () => fetch("/api/state/rev").then((r) => json<{ rev: number; ledgerAt: string | null }>(r)),
   cashflow: (month?: string | null) => fetch(`/api/cashflow${month ? `?month=${month}` : ""}`).then((r) => json<import("../shared/cashflowView").CashflowView>(r)),
   cashflowSync: () => fetch("/api/cashflow/sync", { method: "POST" }).then((r) => json<import("../shared/cashflowView").CashflowView>(r)),
   tax: (year: number) => fetch(`/api/tax?year=${year}`).then((r) => json<import("../shared/taxView").TaxView>(r)),

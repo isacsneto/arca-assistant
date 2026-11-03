@@ -40,6 +40,9 @@ export function parseIndexer(p: Pick<Position, "name" | "subtype" | "currency" |
   if ((m = new RegExp(String.raw`\bIPCA\s*\+\s*${NUM}\s*%`, "i").exec(t))) return { kind: "ipcaPlus", real: pctNum(m[1]) };
   if ((m = new RegExp(String.raw`\bTR\s*\+\s*${NUM}\s*%`, "i").exec(t))) return { kind: "trPlus", spread: pctNum(m[1]) };
   if ((m = new RegExp(String.raw`\bpr[eé](?:-?fixad[oa])?\s*${NUM}\s*%`, "i").exec(t))) return { kind: "pre", rate: pctNum(m[1]) };
+  // Prefixado escrito só com a taxa: "CDB 12,5% a.a." (sem CDI, IPCA ou TR no texto). Abaixo de 3% a.a. não é
+  // prefixado de verdade — é o banco que mandou só o spread (ex.: "Debênture 1% a.a." de IPCA + 1%).
+  if (!/\b(CDI|DI|IPCA|TR|SELIC)\b/i.test(t) && (m = new RegExp(String.raw`${NUM}\s*%\s*a\.?\s*a\.?`, "i").exec(t)) && pctNum(m[1]) >= 0.03) return { kind: "pre", rate: pctNum(m[1]) };
   return null;
 }
 

@@ -39,6 +39,8 @@ import { addMonths, mergeSameLink, planAuto, planCardBills, planOf, suggestLinks
 import { categorize } from "../shared/cashflow";
 import { cardBills } from "../shared/ledger";
 import { planFromSheets, readWorkbook, subsFromSheets } from "./planImport";
+import { checkFixedIncome } from "./indicators";
+import type { Indicators } from "../shared/indicators";
 import { matchSubscriptions, subSuggestions, subsOf } from "../shared/subscriptions";
 
 export { mapPool };
@@ -111,9 +113,11 @@ export interface Deps {
   /** Histórico do patrimônio: fotos diárias, CDI/Ibovespa por mês e resumo do mês pela IA. */
   history?: {
     store: HistoryStore;
-    benchmarks: (from: string) => Promise<{ cdi: Record<string, number>; ibov: Record<string, number> }>;
+    benchmarks: (from: string) => Promise<{ cdi: Record<string, number>; ibov: Record<string, number>; ipca?: Record<string, number> }>;
     summarize: (state: AppState, args: Parameters<typeof monthSummaryPrompt>[0], emit: (e: JobEvent<never>) => void, signal: AbortSignal) => Promise<string>;
   };
+  /** Selic, CDI e IPCA do Banco Central (force = buscar agora, sem o cache de 1 h). */
+  indicators?: (force?: boolean) => Promise<Indicators | null>;
 }
 
 async function awesomeApiFx(): Promise<FxRates> {
@@ -172,7 +176,8 @@ export function createApp(deps: Deps) {
 
   // Barato: o navegador confere se o servidor mudou a carteira (Open Finance automático) e recarrega.
   app.get("/api/state/rev", (_req, res) => {
-    res.json({ rev: state.rev ?? 0 });
+    // ledgerAt: quando o Open Finance trouxe transações/faturas — as telas que cruzam com o banco refazem o cruzamento.
+    res.json({ rev: state.rev ?? 0, ledgerAt: deps.ledger?.store.get().syncedAt ?? null });
   });
 
   // O cliente edita posições/transações/bens/ajustes; scans e projeção são gerenciados pelo servidor.
@@ -776,6 +781,21 @@ export function createApp(deps: Deps) {
     const cards = [...new Map(ledger.bankTx.filter((t) => t.accountType === "CREDIT").map((t) => [t.accountId, { id: t.accountId, name: t.accountName, institution: t.institution }])).values()];
     res.json({ auto: planAuto(planOf(req.body?.plan), tx, bills, months, today), cards, syncedAt: ledger.syncedAt ?? null });
   });
+  /* ---------------- Indicadores do Banco Central ---------------- */
+  // Selic, CDI e IPCA (refresh=1 busca agora) e a renda fixa da carteira comparada com o CDI de hoje.
+  app.get("/api/indicators", async (req, res) => {
+    try {
+      const ind = (await deps.indicators?.(req.query.refresh === "1")) ?? null;
+      if (!ind) {
+        res.status(503).json({ error: L("O Banco Central não respondeu agora. Tente de novo em instantes.", "The Central Bank didn't respond. Try again in a moment.") });
+        return;
+      }
+      res.json({ indicators: ind, fixedIncome: checkFixedIncome(state.positions, state.settings.fx, ind, brDay(new Date())) });
+    } catch (err) {
+      res.status(502).json({ error: explainError(err).message });
+    }
+  });
+
   /* ---------------- Assinaturas ---------------- */
   // A aba de assinaturas da planilha (não salva — o navegador mostra e confirma).
   app.post("/api/subs/import", express.raw({ type: () => true, limit: "20mb" }), (req, res) => {

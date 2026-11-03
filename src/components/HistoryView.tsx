@@ -10,12 +10,13 @@ import { amt0, amtCompact, pct } from "../lib/format";
 import { JobProgress } from "./JobProgress";
 import { Banner, PageHead } from "./ui";
 import { L, locale } from "../../shared/i18n";
+import { realGrowth, realOf } from "../../shared/indicators";
 
 export interface HistoryResponse {
   snapshots: Snapshot[];
   summaries: MonthSummary[];
   months: MonthStats[];
-  benchmarks: { cdi: Record<string, number>; ibov: Record<string, number> };
+  benchmarks: { cdi: Record<string, number>; ibov: Record<string, number>; ipca?: Record<string, number> };
 }
 
 const RANGES = [
@@ -89,6 +90,15 @@ export function HistoryView() {
             <div className="card kpi"><div className="label">{L("No período", "In the period")}</div>
               <div className="value num" style={{ color: periodChange >= 0 ? "var(--ok)" : "var(--bad)" }}>{signed(periodChange)}</div>
               <div className="sub">{first ? `${L("desde", "since")} ${new Date(`${first.date}T12:00:00Z`).toLocaleDateString(locale())}` : ""}</div></div>
+            {(() => {
+              // Crescimento real: rendimento (sem aportes) composto contra o IPCA dos mesmos meses.
+              const g = realGrowth(data.months, data.benchmarks.ipca ?? {});
+              return g && (
+                <div className="card kpi"><div className="label">{L("Rendimento real (IPCA)", "Real return (IPCA)")}</div>
+                  <div className="value num" style={{ color: g.real >= 0 ? "var(--ok)" : "var(--bad)" }}>{signedPct(g.real)}</div>
+                  <div className="sub">{L(`${signedPct(g.nominal)} nominal − IPCA ${pct(g.inflation, 2)} · ${g.months} ${g.months === 1 ? "mês" : "meses"}`, `${signedPct(g.nominal)} nominal − IPCA ${pct(g.inflation, 2)} · ${g.months} month${g.months === 1 ? "" : "s"}`)}</div></div>
+              );
+            })()}
           </div>
 
           <div className="card" style={{ marginBottom: 16 }}>
@@ -141,7 +151,7 @@ export function HistoryView() {
                 <tr>
                   <th>{L("Mês", "Month")}</th><th className="right">{L("Fim", "End")}</th><th className="right">{L("Variação", "Change")}</th>
                   <th className="right">{L("Aportes", "Contributions")}</th><th className="right">{L("Rendimento", "Return")}</th>
-                  <th className="right">CDI</th><th className="right">Ibovespa</th><th />
+                  <th className="right">CDI</th><th className="right">Ibovespa</th><th className="right">IPCA</th><th className="right" title={L("Rendimento descontada a inflação do mês", "Return after the month's inflation")}>{L("Real", "Real")}</th><th />
                 </tr>
               </thead>
               <tbody>
@@ -154,6 +164,8 @@ export function HistoryView() {
                     <td className="right num ga-side" data-l={L("rend.", "return")}>{signedPct(m.returnPct)}</td>
                     <td className="right num muted ga-side" data-l="CDI">{signedPct(data.benchmarks.cdi[m.month])}</td>
                     <td className="right num muted ga-side" data-l="Ibov">{signedPct(data.benchmarks.ibov[m.month])}</td>
+                    <td className="right num muted ga-side" data-l="IPCA">{signedPct(data.benchmarks.ipca?.[m.month])}</td>
+                    <td className="right num ga-side" data-l={L("real", "real")} style={{ color: (realOf(m.returnPct, data.benchmarks.ipca?.[m.month]) ?? 0) >= 0 ? undefined : "var(--bad)" }}>{signedPct(realOf(m.returnPct, data.benchmarks.ipca?.[m.month]))}</td>
                     <td className="ga-a">{data.summaries.some((s) => s.month === m.month) && <Sparkles size={14} aria-label={L("tem resumo", "has summary")} />}</td>
                   </tr>
                 ))}
@@ -161,7 +173,7 @@ export function HistoryView() {
             </table>
           </div>
           <p className="muted small" style={{ marginTop: 8 }}>
-            {L("Rendimento = variação menos aportes registrados (depósitos − saques), sobre o valor do início do mês.", "Return = change minus recorded contributions (deposits − withdrawals), over the value at the start of the month.")}
+            {L("Rendimento = variação menos aportes registrados (depósitos − saques), sobre o valor do início do mês. Real = rendimento descontado o IPCA do mês (Banco Central); mês sem IPCA divulgado fica em branco.", "Return = change minus recorded contributions (deposits − withdrawals), over the value at the start of the month. Real = return after the month's IPCA (Central Bank); months without published IPCA are blank.")}
           </p>
         </div>
       )}

@@ -6,6 +6,7 @@ import { refreshValues } from "./refresh";
 import { yahooQuote } from "./quotes";
 import { tesouroSource } from "./tesouro";
 import { bcbSource } from "./indexers";
+import { indicatorsSource } from "./indicators";
 import { dataDir, historyFile, ledgerFile, secretsFile } from "./paths";
 import { AI_CATEGORIES_VERSION, ledgerStore, needsAi, syncLedger } from "./ledger";
 import { cashflowView } from "../shared/cashflowView";
@@ -124,6 +125,9 @@ const app = createApp({
       const cdi: Record<string, number> = {};
       const s = await indexSeries(from);
       for (const { d, r } of s?.cdi ?? []) cdi[d.slice(0, 7)] = ((1 + (cdi[d.slice(0, 7)] ?? 0) / 100) * (1 + r) - 1) * 100;
+      // IPCA do mês (para o rendimento real): só os meses já divulgados.
+      const ipca: Record<string, number> = {};
+      for (const [m, r] of s?.ipca ?? []) ipca[m] = r * 100;
       const ibov: Record<string, number> = {};
       const q = await yahooQuote("^BVSP").catch(() => null);
       const lastClose = new Map<string, number>();
@@ -133,10 +137,11 @@ const app = createApp({
       months.forEach((m, i) => {
         if (i > 0 && m >= from.slice(0, 7)) ibov[m] = (lastClose.get(m)! / lastClose.get(months[i - 1])! - 1) * 100;
       });
-      return { cdi, ibov };
+      return { cdi, ibov, ipca };
     }),
     summarize: monthSummaryWithAi,
   },
+  indicators: indicatorsSource(),
 });
 
 /**
