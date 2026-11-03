@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { linkWithTx, mergeSameLink, planAuto, planCardBills, planGrid, planOf, suggestLinks, type MonthlyPlan, type PlanLine } from "./monthlyPlan";
+import { cardsMissing, linkWithTx, mergeSameLink, planAuto, planCardBills, planCards, planGrid, planOf, suggestLinks, type MonthlyPlan, type PlanLine } from "./monthlyPlan";
 import type { BankTx, Bill } from "./cashflow";
 
 const TODAY = "2026-11-03";
@@ -61,7 +61,7 @@ test("automático: fatura fechada aguardando → paga quando o débito aparece; 
   assert.deepEqual([auto.tel["2026-10"].amount, auto.tel["2026-10"].status], [140, "pago"]);
 });
 
-test("grade: digitado > banco > planejado > previsão; previsão só do mês atual em diante", () => {
+test("grade: digitado > lançamento do banco > planejado > previsão; previsão só do mês atual em diante", () => {
   const plan: MonthlyPlan = { lines: [
     // 0 no mês seguinte: não repete.
     line({ id: "pago", cells: { "2026-10": { amount: 1200, status: "pago", manual: true }, "2026-11": { amount: 0 } } }),
@@ -69,7 +69,7 @@ test("grade: digitado > banco > planejado > previsão; previsão só do mês atu
     line({ id: "renda", kind: "income", cells: { "2026-10": { amount: 200, manual: true }, "2026-11": { amount: 150 } } }),
   ] };
   const auto = {
-    pago: { "2026-10": { amount: 1500, status: "pago" as const, source: "card" as const, tx: [] } },
+    pago: { "2026-10": { amount: 1500, status: "pago" as const, source: "tx" as const, tx: [] } },
     plan: { "2026-11": { amount: 2100, status: "aguardando" as const, source: "card" as const, tx: [] } },
   };
   const g = planGrid(plan, 2026, auto, TODAY);
@@ -88,6 +88,20 @@ test("fatura aberta maior que o planejado vale a do banco; menor fica o planejad
   const f = (amount: number) => ({ amount, status: "previsto" as const, source: "card" as const, forecast: true, tx: [] });
   const g = planGrid(plan, 2026, { c: { "2026-11": f(2100), "2026-12": f(1800) } }, TODAY);
   assert.deepEqual(g.rows[0].cells.slice(10).map((c) => c.amount), [2100, 2500]);
+});
+
+test("cartão segue o Open Finance: fatura fechada vale mais que o digitado; aberta só quando passa do previsto", () => {
+  const plan: MonthlyPlan = { lines: [line({ id: "c", link: { card: "cartao" }, cells: {
+    "2026-10": { amount: 1300, status: "pago", manual: true },
+    "2026-11": { amount: 2000, manual: true },
+    "2026-12": { amount: 2500, manual: true },
+  } })] };
+  const bill = (amount: number, forecast = false) => ({ amount, status: forecast ? "previsto" as const : "pago" as const, source: "card" as const, ...(forecast && { forecast }), tx: [] });
+  const g = planGrid(plan, 2026, { c: { "2026-10": bill(1100), "2026-11": bill(2200, true), "2026-12": bill(900, true) } }, TODAY);
+  const [oct, nov, dec] = g.rows[0].cells.slice(9);
+  assert.deepEqual([oct.amount, oct.planned], [1100, 1300], "fechada: a do banco, a digitada fica como planejado");
+  assert.deepEqual([nov.amount, nov.forecast], [2200, true], "aberta já maior que o digitado: a do banco");
+  assert.equal(dec.amount, 2500, "aberta ainda menor: fica o previsto");
 });
 
 test("linha que acabou (ou ano já planejado sem ela) não recebe banco nem previsão", () => {
@@ -113,4 +127,18 @@ test("ligar à mão um lançamento: a descrição vira padrão e a faixa de valo
   const l = linkWithTx({ patterns: ["pix telefonia"], min: 80, max: 150 }, { description: "PIX QR CODE TELEFONIA 123456", amount: -300 });
   assert.deepEqual(l.patterns, ["pix telefonia", "pix qr code telefonia"]);
   assert.ok(l.min! <= 80 && l.max! >= 300);
+});
+
+test("nova conta: cartões do Open Finance sem linha no plano e com movimento recente", () => {
+  const cards = planCards(
+    [
+      tx({ accountId: "gold", accountName: "CARTAO GOLD", accountType: "CREDIT", date: "2026-10-20" }),
+      tx({ accountId: "velho", accountName: "CARTAO ANTIGO", accountType: "CREDIT", date: "2026-03-01" }),
+      tx({ accountId: "conta", accountType: "BANK" }),
+    ],
+    [bill({ accountId: "black", accountName: "CARTAO BLACK", institution: "Banco Y", owner: "PJ", dueDate: "2026-10-15" }), bill({ accountId: "gold", accountName: "CARTAO GOLD", dueDate: "2026-11-10" })],
+  );
+  assert.deepEqual(cards.map((c) => [c.id, c.last]), [["black", "2026-10-15"], ["velho", "2026-03-01"], ["gold", "2026-11-10"]]);
+  const plan: MonthlyPlan = { lines: [line({ id: "g", link: { card: "gold" } })] };
+  assert.deepEqual(cardsMissing(plan, cards, TODAY).map((c) => [c.id, c.owner]), [["black", "PJ"]], "o ligado e o parado há meses ficam fora");
 });

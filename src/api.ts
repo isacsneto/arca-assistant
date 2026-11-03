@@ -1,4 +1,4 @@
-import type { MonthlyPlan, PlanAuto } from "../shared/monthlyPlan";
+import type { MonthlyPlan, PlanAuto, PlanCard } from "../shared/monthlyPlan";
 import type { SubMatch, SubSuggestion, Subscription } from "../shared/subscriptions";
 import type { AiStatus, ProviderId } from "../shared/ai";
 import type { FxRates } from "../shared/currency";
@@ -46,7 +46,7 @@ export interface OpenFinanceItem {
 
 export interface PlanAutoResponse {
   auto: PlanAuto;
-  cards: { id: string; name: string; institution: string }[];
+  cards: PlanCard[];
   syncedAt: string | null;
 }
 export interface PlanTx {

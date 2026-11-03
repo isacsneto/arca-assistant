@@ -17,7 +17,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 ![Claude](https://img.shields.io/badge/Claude-Agent%20SDK-d97757)
 ![Codex](https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white)
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
-![Testes](https://img.shields.io/badge/testes-261%20passando-2ea44f)
+![Testes](https://img.shields.io/badge/testes-263%20passando-2ea44f)
 ![Licença: MIT](https://img.shields.io/badge/licença-MIT-blue)
 
 <br/>
@@ -56,7 +56,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 | 📜 **Histórico** | Uma foto do patrimônio por dia: evolução por classe, mês a mês contra CDI e Ibovespa, e o **resumo do mês escrito pela IA** (o que mais pesou e por quê). Começa com ~4 meses reconstruídos. |
 | 💬 **Pergunte à Arca** | Chat **flutuante** (botão no canto de todas as telas) com a IA sobre os seus dados — carteira, histórico, metas, gastos, IR e dívidas — com busca na web. Sabe qual tela você está vendo ("explique isso aqui"). Só lê; não altera nada. |
 | 🎯 **Metas** | Aposentadoria, reserva, imóvel…: quanto já tem, o aporte mensal necessário e se o planejado chega lá, em reais de hoje (retorno real da Projeção). Análise das metas pela IA. |
-| 📅 **Contas do mês** | A sua planilha de contas dentro do app: uma linha por conta (PF, PJ ou LLC), os meses nas colunas, totais, renda e sobra por mês e no ano. **Importe o seu .xlsx** (uma aba por ano; a cor de cada célula vira o status — pago, pago em parte, aguardando, previsto — e os totais do ano são conferidos com os da planilha). As contas que aparecem no Open Finance **se marcam sozinhas**: fatura de cartão segue a fatura real (aguardando quando fecha, paga quando o pagamento aparece) e contas da conta corrente são achadas pela descrição e valor; o que você digitou sempre vale mais. Os meses seguintes repetem o último valor, a coluna **modo contenção** compara o seu custo mínimo por mês com 1% do patrimônio, e no celular aparece um mês por vez. |
+| 📅 **Contas do mês** | A sua planilha de contas dentro do app: uma linha por conta (PF, PJ ou LLC), os meses nas colunas, totais, renda e sobra por mês e no ano. **Importe o seu .xlsx** (uma aba por ano; a cor de cada célula vira o status — pago, pago em parte, aguardando, previsto — e os totais do ano são conferidos com os da planilha). As contas que aparecem no Open Finance **se marcam sozinhas**: fatura de cartão segue a fatura real — o valor dela substitui o da planilha quando fecha (aguardando, e paga quando o pagamento aparece) — e contas da conta corrente são achadas pela descrição e valor, onde o que você digitou vale mais. **Nova conta** já oferece os cartões do Open Finance que ainda não estão na planilha. Os meses seguintes repetem o último valor, a coluna **modo contenção** compara o seu custo mínimo por mês com 1% do patrimônio, e no celular aparece um mês por vez. |
 | 📊 **Indicadores** | Selic, CDI e IPCA direto do Banco Central quando você quiser (um botão). Cada CDB, LCI, LCA ou debênture com taxa no nome é **comparado com o CDI de hoje já descontado o IR** (pelo prazo até o vencimento; isentas consideradas) — acima, perto ou abaixo do CDI, e o ganho real sobre a inflação. E o **crescimento real do patrimônio**: rendimento mês a mês contra o IPCA em 3, 6 ou 12 meses; o Histórico ganha as colunas IPCA e Real. |
 | 🔁 **Assinaturas** | Os serviços que você paga todo mês (importe a aba de assinaturas da planilha), **conferidos com as faturas dos cartões**: acha cada cobrança pela descrição e valor, separa pelo preço os serviços que dividem a mesma descrição (Apple), reconhece plano dividido com outras pessoas e avisa o que mudou de preço, parou de cobrar ou ainda cobra depois de cancelado. O que não está no banco (Pix, Wise, cartão de outro banco) fica manual, exatamente como você deixou. Também lista cobranças recorrentes de assinatura que não estão na sua lista. |
 | 🧾 **Gastos** | Transações de conta e cartão pelo Open Finance, **categorizadas pela IA** (aprende com as suas correções). **Tudo clicável**: cada coluna do gráfico abre o mês por categoria e transação; faturas abertas (calculadas pelos lançamentos de cada fatura, não pelo saldo devedor), compromissos dos próximos meses, assinaturas recorrentes, quantos meses a reserva cobre e a sobra média para investir (vira sugestão no Rebalancear). |
@@ -227,7 +227,7 @@ flowchart LR
 ## 🛠️ Desenvolvimento
 
 ```bash
-npm test             # 261 testes (node:test + tsx)
+npm test             # 263 testes (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # produção local em http://localhost:3001
 ```

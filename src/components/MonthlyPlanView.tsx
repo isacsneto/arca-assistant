@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CalendarClock, Check, CircleDashed, Clock, Landmark, Link2, Loader2, Plus, Sparkles, Trash2, Upload, X } from "lucide-react";
 import {
-  EMPTY_PLAN, PLAN_OWNERS, PLAN_STATUSES, STATUS_LABEL, hasLink, linkWithTx, planGrid, planYears,
-  type GridCell, type MonthlyPlan, type PlanCell, type PlanKind, type PlanLine, type PlanOwner, type PlanStatus,
+  EMPTY_PLAN, PLAN_OWNERS, PLAN_STATUSES, STATUS_LABEL, cardsMissing, hasLink, linkWithTx, planGrid, planYears,
+  type GridCell, type MonthlyPlan, type PlanCard, type PlanCell, type PlanKind, type PlanLine, type PlanOwner, type PlanStatus,
 } from "../../shared/monthlyPlan";
 import { planningOf } from "../../shared/planning";
 import { brDay } from "../../shared/history";
@@ -337,7 +337,7 @@ export function MonthlyPlanView() {
       {open?.kind === "line" && (() => {
         const line = plan.lines.find((l) => l.id === open.lineId);
         if (!line) return null;
-        return <LineModal line={line} cards={auto?.cards ?? []} onClose={() => setOpen(null)} onSave={(l) => patchLine(line.id, () => l)}
+        return <LineModal line={line} cards={auto?.cards ?? []} missing={cardsMissing(plan, auto?.cards ?? [], today)} onClose={() => setOpen(null)} onSave={(l) => patchLine(line.id, () => l)}
           onDelete={() => { setPlan((p) => ({ ...p, lines: p.lines.filter((l) => l.id !== line.id) })); setOpen(null); }} />;
       })()}
       {preview && <ImportPreview res={preview} replacing onCancel={() => setPreview(null)} onConfirm={() => { setPlan(() => preview.plan); setPreview(null); setNotice(L("Planilha importada.", "Spreadsheet imported.")); }} />}
@@ -427,7 +427,9 @@ function CellModal({ line, cell, month, cards, onClose, onSave, onLink, onEditLi
           ? cell.amount != null
             ? L(`Sem valor digitado: vale ${amt(cell.amount)}${cell.forecast ? " (previsão)" : cell.auto ? " (do banco)" : ""}.`, `No amount typed: using ${amt(cell.amount)}${cell.forecast ? " (forecast)" : cell.auto ? " (from bank)" : ""}.`)
             : L("Vazio: sem conta neste mês.", "Empty: no bill this month.")
-          : L("Valor digitado vale mais que o do banco. Apague para voltar ao automático.", "A typed amount wins over the bank's. Clear it to go back to automatic.")}
+          : card
+            ? L("Fatura de cartão: o digitado vale como previsão; quando a fatura fecha no Open Finance, vale a do banco.", "Card bill: the typed amount is a forecast; once the bill closes in Open Finance, the bank's amount wins.")
+            : L("Valor digitado vale mais que o do banco. Apague para voltar ao automático.", "A typed amount wins over the bank's. Clear it to go back to automatic.")}
       </p>
       <label className="field" style={{ marginTop: 8 }}>{L("Observação", "Note")}
         <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder={L("ex.: pago com PIX da PJ", "e.g. paid via company PIX")} />
@@ -454,7 +456,7 @@ function CellModal({ line, cell, month, cards, onClose, onSave, onLink, onEditLi
               <span className="num small">{amt(Math.abs(t.amount))}</span>
             </div>
           ))}
-          {own?.amount != null && Math.abs(own.amount - cell.auto.amount) > 0.005 && (
+          {cell.auto.source !== "card" && own?.amount != null && Math.abs(own.amount - cell.auto.amount) > 0.005 && (
             <button className="btn sm" style={{ marginTop: 8 }} onClick={() => { setAmount(""); onSave({ ...(own.status && { status: own.status }), ...(own.note && { note: own.note }), ...(month < brDay(new Date()).slice(0, 7) && { amount: cell.auto!.amount, manual: true }) }); onClose(); }}>
               {L(`Usar o valor do banco (${amt(cell.auto.amount)})`, `Use the bank's amount (${amt(cell.auto.amount)})`)}
             </button>
@@ -490,7 +492,9 @@ function CellModal({ line, cell, month, cards, onClose, onSave, onLink, onEditLi
 }
 
 /** A conta: nome, titular, tipo, contenção, observação e o vínculo com o banco. */
-function LineModal({ line, cards, onClose, onSave, onDelete }: { line: PlanLine; cards: PlanAutoResponse["cards"]; onClose: () => void; onSave: (l: PlanLine) => void; onDelete: () => void }) {
+function LineModal({ line, cards, missing, onClose, onSave, onDelete }: {
+  line: PlanLine; cards: PlanAutoResponse["cards"]; missing: PlanCard[]; onClose: () => void; onSave: (l: PlanLine) => void; onDelete: () => void;
+}) {
   const [draft, setDraft] = useState(line);
   const [contention, setContention] = useState(line.contention != null ? String(line.contention) : "");
   const [confirmDel, setConfirmDel] = useState(false);
@@ -501,9 +505,24 @@ function LineModal({ line, cards, onClose, onSave, onDelete }: { line: PlanLine;
     onClose();
   };
   const pats = draft.link?.patterns ?? [];
+  // Conta nova: os cartões do Open Finance que ainda não estão no plano viram atalhos.
+  const isNew = !Object.keys(line.cells).length && !hasLink(line);
   return (
     <Modal onClose={onClose}>
       <h2 style={{ paddingRight: 32 }}>{L("Conta", "Bill")}</h2>
+      {isNew && missing.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <p className="muted small"><Landmark size={12} /> {L("Do Open Finance, ainda fora da planilha:", "From Open Finance, not in the sheet yet:")}</p>
+          <div className="row wrap" style={{ gap: 6, marginTop: 4 }}>
+            {missing.map((c) => (
+              <button key={c.id} type="button" className={`btn sm${draft.link?.card === c.id ? " primary" : ""}`}
+                onClick={() => set({ name: c.name, owner: c.owner, kind: "expense", link: { card: c.id } })}>
+                {c.name} · {c.institution} <span className={`chip owner-${c.owner}`}>{c.owner}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <label className="field" style={{ marginTop: 10 }}>{L("Nome", "Name")}<input type="text" value={draft.name} onChange={(e) => set({ name: e.target.value })} autoFocus /></label>
       <div className="row wrap" style={{ gap: 10, marginTop: 8 }}>
         <label className="field" style={{ flex: "1 1 120px" }}>{L("Titular", "Owner")}

@@ -19,7 +19,7 @@ Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
 ![Open Finance](https://img.shields.io/badge/Open%20Finance-Pluggy-6c47ff)
 ![PWA](https://img.shields.io/badge/PWA-iOS%20%26%20Android-5a0fc8)
-![Tests](https://img.shields.io/badge/tests-261%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-263%20passing-2ea44f)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 <br/>
@@ -62,7 +62,7 @@ Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes
 | 📜 **History** | A daily snapshot of your wealth: evolution by class, month by month against CDI and the Ibovespa, and an **AI-written monthly summary** (what weighed most and why). Starts with ~4 rebuilt months. |
 | 💬 **Ask Arca** | A **floating** chat (button in the corner of every screen) with the AI about your own data — portfolio, history, goals, spending, taxes and debts — with web search. It knows which screen you're looking at ("explain this"). Read-only; it never changes anything. |
 | 🎯 **Goals** | Retirement, emergency fund, home…: what you have, the monthly contribution needed and whether your plan gets there, in today's money (real return from the Projection). AI goals analysis. |
-| 📅 **Monthly bills** | Your bills spreadsheet inside the app: one row per bill (PF, PJ or LLC), months in columns, totals, income and surplus per month and per year. **Import your .xlsx** (one tab per year; each cell's color becomes its status — paid, partly paid, awaiting, planned — and the annual totals are checked against the sheet). Bills that show up in Open Finance **mark themselves**: card bills follow the real bill (awaiting once it closes, paid when the payment appears) and account bills are found by description and amount; what you typed always wins. Future months repeat the last amount, a **lean mode** column compares your minimum monthly cost with 1% of your net worth, and on the phone it shows one month at a time. |
+| 📅 **Monthly bills** | Your bills spreadsheet inside the app: one row per bill (PF, PJ or LLC), months in columns, totals, income and surplus per month and per year. **Import your .xlsx** (one tab per year; each cell's color becomes its status — paid, partly paid, awaiting, planned — and the annual totals are checked against the sheet). Bills that show up in Open Finance **mark themselves**: card bills follow the real bill — its amount replaces the sheet's once it closes (awaiting, then paid when the payment appears) — and account bills are found by description and amount, where what you typed wins. **New bill** offers the Open Finance cards that aren't in the sheet yet. Future months repeat the last amount, a **lean mode** column compares your minimum monthly cost with 1% of your net worth, and on the phone it shows one month at a time. |
 | 📊 **Indicators** | Selic, CDI and IPCA straight from the Central Bank whenever you want (one button). Every CDB, LCI, LCA or bond with a rate in its name is **compared with today's CDI after income tax** (by time to maturity; tax-exempt ones accounted for) — above, near or below the CDI, plus the real gain over inflation. Also the **real growth of your wealth**: monthly return against IPCA over 3, 6 or 12 months, and History gains IPCA and real-return columns. |
 | 🔁 **Subscriptions** | The services you pay for every month (import the subscriptions tab of your spreadsheet), **checked against your card bills**: it finds each charge by description and amount, tells apart services that share a descriptor (Apple) by price, recognizes plans split with other people, and flags what changed price, stopped being charged or is still charged after you cancelled. Whatever isn't in the bank (Pix, Wise, another bank's card) stays manual, exactly as you left it. It also lists recurring subscription charges that aren't on your list. |
 | 🧾 **Spending** | Account and card transactions through Open Finance, **categorized by the AI** (it learns from your corrections). **Everything is clickable**: each chart column opens that month by category and transaction; open card bills (computed from each bill's charges, not the outstanding balance), commitments for the coming months, recurring subscriptions, how many months your emergency fund covers and the average surplus to invest (suggested in Rebalance). |
@@ -236,7 +236,7 @@ flowchart LR
 ## 🛠️ Development
 
 ```bash
-npm test             # 261 tests (node:test + tsx)
+npm test             # 263 tests (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # local production at http://localhost:3001
 API_PORT=3101 npx vite       # front-end against another instance (e.g. the demo)

@@ -35,7 +35,7 @@ import { L, setLang } from "../shared/i18n";
 import { BENCHMARKS, SYMBOL_RE, marketSnapshot, yahooDayQuote, yahooSearch, type FetchDayQuote, type SearchAssets } from "./market";
 import { inView } from "../shared/owner";
 import { addResearch } from "../shared/research";
-import { addMonths, mergeSameLink, planAuto, planCardBills, planOf, suggestLinks, yearMonths, type MonthlyPlan } from "../shared/monthlyPlan";
+import { addMonths, mergeSameLink, planAuto, planCardBills, planCards, planOf, suggestLinks, yearMonths, type MonthlyPlan } from "../shared/monthlyPlan";
 import { categorize } from "../shared/cashflow";
 import { cardBills } from "../shared/ledger";
 import { planFromSheets, readWorkbook, subsFromSheets } from "./planImport";
@@ -778,7 +778,7 @@ export function createApp(deps: Deps) {
     const today = brDay(new Date());
     const bills = planCardBills(ledger.bills, cardBills(ledger, today));
     const months = [addMonths(`${year}-01`, -1), ...yearMonths(year)];
-    const cards = [...new Map(ledger.bankTx.filter((t) => t.accountType === "CREDIT").map((t) => [t.accountId, { id: t.accountId, name: t.accountName, institution: t.institution }])).values()];
+    const cards = planCards(ledger.bankTx, ledger.bills);
     res.json({ auto: planAuto(planOf(req.body?.plan), tx, bills, months, today), cards, syncedAt: ledger.syncedAt ?? null });
   });
   /* ---------------- Indicadores do Banco Central ---------------- */

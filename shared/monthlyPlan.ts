@@ -6,6 +6,7 @@ import { L } from "./i18n";
  * Contas do mês: a planilha de contas a pagar (por credor, mês a mês, com status), com o Open Finance
  * preenchendo o que dá — fatura de cartão e contas pagas pela conta — e o resto digitado, como na planilha.
  * O que foi digitado (ou veio pago da planilha) vale mais que o banco; o banco preenche o que está em aberto.
+ * Exceção: fatura de cartão segue sempre o Open Finance.
  */
 
 export type PlanOwner = "PF" | "PJ" | "LLC";
@@ -278,6 +279,38 @@ export function planCardBills(bills: Bill[], openBills: { accountId: string; mon
   return out;
 }
 
+export interface PlanCard {
+  id: string;
+  name: string;
+  institution: string;
+  owner: Bill["owner"];
+  /** Último lançamento ou vencimento de fatura (AAAA-MM-DD). */
+  last: string;
+}
+
+/** Cartões que vieram do Open Finance (por lançamentos ou só por faturas), com o último movimento. */
+export function planCards(txs: BankTx[], bills: Bill[]): PlanCard[] {
+  const out = new Map<string, PlanCard>();
+  const add = (id: string, name: string, institution: string, owner: Bill["owner"], date: string) => {
+    const c = out.get(id);
+    if (!c) out.set(id, { id, name, institution, owner, last: date });
+    else if (date > c.last) c.last = date;
+  };
+  for (const t of txs) if (t.accountType === "CREDIT") add(t.accountId, t.accountName, t.institution, t.owner, t.date);
+  for (const b of bills) add(b.accountId, b.accountName, b.institution, b.owner, b.dueDate);
+  return [...out.values()].sort((a, b) => a.institution.localeCompare(b.institution) || a.name.localeCompare(b.name));
+}
+
+/**
+ * Cartões do Open Finance que ainda não têm conta no plano (nenhuma linha ligada a eles) e tiveram
+ * movimento nos últimos 3 meses — as opções para "Nova conta".
+ */
+export function cardsMissing(plan: MonthlyPlan, cards: PlanCard[], today: string): PlanCard[] {
+  const linked = new Set(plan.lines.map((l) => l.link?.card).filter(Boolean));
+  const since = `${addMonths(today.slice(0, 7), -3)}-01`;
+  return cards.filter((c) => !linked.has(c.id) && c.last >= since);
+}
+
 /* ---------------- sugestão de vínculos (importação) ---------------- */
 
 /**
@@ -387,7 +420,7 @@ export interface PlanGrid {
 }
 
 /**
- * Monta a grade do ano: valor digitado (manual) > banco (fatura fechada/pagamento) > planejado > previsão.
+ * Monta a grade do ano: fatura de cartão do banco > valor digitado (manual) > banco (pagamento) > planejado > previsão.
  * Previsão só para o mês atual em diante: a fatura aberta do cartão ou o valor do mês anterior repetido
  * (quem não quer a repetição digita 0).
  */
@@ -410,12 +443,14 @@ export function planGrid(plan: MonthlyPlan, year: number, auto: PlanAuto, today:
       const c = line.cells[m];
       const a = auto[line.id]?.[m];
       const planned = c?.amount ?? null;
+      // Cartão segue o Open Finance: a fatura fechada é o valor oficial (vale mais que o digitado ou o da
+      // planilha, que fica como "planejado"); a aberta já maior que o previsto também — até fechar ela só cresce.
+      if (a?.source === "card" && !a.forecast) return { amount: a.amount, forecast: false, planned: planned != null && Math.abs(planned - a.amount) > 0.005 ? planned : null };
+      if (a?.source === "card" && a.forecast && planned != null && a.amount > planned && m >= current) return { amount: a.amount, forecast: true, planned };
       if (c?.manual && planned != null) return { amount: planned, forecast: false, planned: null };
       // Pago em parte: o total do mês continua sendo o planejado (o resto ainda vai sair).
       if (a && a.status === "iniciado" && planned != null && planned > a.amount) return { amount: planned, forecast: false, planned: null };
       if (a && !a.forecast) return { amount: a.amount, forecast: false, planned: planned != null && Math.abs(planned - a.amount) > 0.005 ? planned : null };
-      // Fatura aberta já maior que o planejado: até fechar ela só cresce — vale a do banco.
-      if (a?.forecast && a.source === "card" && planned != null && a.amount > planned && m >= current) return { amount: a.amount, forecast: true, planned };
       if (planned != null) return { amount: planned, forecast: false, planned: null };
       if (m < current) return { amount: null, forecast: false, planned: null };
       if (a) return { amount: a.amount, forecast: true, planned: null };
