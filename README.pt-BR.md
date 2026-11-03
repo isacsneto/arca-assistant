@@ -17,7 +17,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 ![Claude](https://img.shields.io/badge/Claude-Agent%20SDK-d97757)
 ![Codex](https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white)
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
-![Testes](https://img.shields.io/badge/testes-255%20passando-2ea44f)
+![Testes](https://img.shields.io/badge/testes-261%20passando-2ea44f)
 ![Licença: MIT](https://img.shields.io/badge/licença-MIT-blue)
 
 <br/>
@@ -40,6 +40,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 | 🌐 **Inglês e português** | Interface nos dois idiomas (troque em Ajustes ou no rodapé do menu). A IA escreve scans, projeções e perguntas no idioma escolhido. |
 | 💱 **Real e dólar** | Cada posição fica na própria moeda (BRL ou USD); totais, gráficos, rebalanceamento e projeção podem ser mostrados em **reais ou dólares** (Ajustes → Moeda). As cotações se atualizam sozinhas, e o registro de moedas está pronto para outras (EUR, GBP…). |
 | 📱 **No celular** | Interface feita para iPhone e Android (barra de abas, folhas que sobem de baixo, campos sem zoom) e **instalável na tela inicial**. Acesso de fora de casa pelo Tailscale, sem expor nada na internet. |
+| 🌓 **Alto contraste** | O botão *Contraste* no rodapé do menu liga texto quase preto/branco, bordas fortes e cores de status mais intensas (WCAG AAA), no tema claro e no escuro; fica lembrado por aparelho. |
 | 👁️ **Ocultar valores** | O olho ao lado de *Patrimônio total* esconde todos os valores (R$ •••••) no app inteiro. Porcentagens e gráficos continuam, para abrir em público sem expor nada. Lembrado por aparelho. |
 | 🧠 **Entende o nome do arquivo** | `itau-pf-cdb100cdi.png` → Itaú · pessoa física · CDB 100% do CDI. A IA confere a leitura. |
 | 🔁 **Detecta duplicados** | Arquivo idêntico (SHA-256), print quase igual (hash visual) e mesma tela em prints diferentes (a IA compara o conteúdo). |
@@ -56,6 +57,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 | 💬 **Pergunte à Arca** | Chat **flutuante** (botão no canto de todas as telas) com a IA sobre os seus dados — carteira, histórico, metas, gastos, IR e dívidas — com busca na web. Sabe qual tela você está vendo ("explique isso aqui"). Só lê; não altera nada. |
 | 🎯 **Metas** | Aposentadoria, reserva, imóvel…: quanto já tem, o aporte mensal necessário e se o planejado chega lá, em reais de hoje (retorno real da Projeção). Análise das metas pela IA. |
 | 📅 **Contas do mês** | A sua planilha de contas dentro do app: uma linha por conta (PF, PJ ou LLC), os meses nas colunas, totais, renda e sobra por mês e no ano. **Importe o seu .xlsx** (uma aba por ano; a cor de cada célula vira o status — pago, pago em parte, aguardando, previsto — e os totais do ano são conferidos com os da planilha). As contas que aparecem no Open Finance **se marcam sozinhas**: fatura de cartão segue a fatura real (aguardando quando fecha, paga quando o pagamento aparece) e contas da conta corrente são achadas pela descrição e valor; o que você digitou sempre vale mais. Os meses seguintes repetem o último valor, a coluna **modo contenção** compara o seu custo mínimo por mês com 1% do patrimônio, e no celular aparece um mês por vez. |
+| 📊 **Indicadores** | Selic, CDI e IPCA direto do Banco Central quando você quiser (um botão). Cada CDB, LCI, LCA ou debênture com taxa no nome é **comparado com o CDI de hoje já descontado o IR** (pelo prazo até o vencimento; isentas consideradas) — acima, perto ou abaixo do CDI, e o ganho real sobre a inflação. E o **crescimento real do patrimônio**: rendimento mês a mês contra o IPCA em 3, 6 ou 12 meses; o Histórico ganha as colunas IPCA e Real. |
 | 🔁 **Assinaturas** | Os serviços que você paga todo mês (importe a aba de assinaturas da planilha), **conferidos com as faturas dos cartões**: acha cada cobrança pela descrição e valor, separa pelo preço os serviços que dividem a mesma descrição (Apple), reconhece plano dividido com outras pessoas e avisa o que mudou de preço, parou de cobrar ou ainda cobra depois de cancelado. O que não está no banco (Pix, Wise, cartão de outro banco) fica manual, exatamente como você deixou. Também lista cobranças recorrentes de assinatura que não estão na sua lista. |
 | 🧾 **Gastos** | Transações de conta e cartão pelo Open Finance, **categorizadas pela IA** (aprende com as suas correções). **Tudo clicável**: cada coluna do gráfico abre o mês por categoria e transação; faturas abertas (calculadas pelos lançamentos de cada fatura, não pelo saldo devedor), compromissos dos próximos meses, assinaturas recorrentes, quantos meses a reserva cobre e a sobra média para investir (vira sugestão no Rebalancear). |
 | 🧮 **Imposto de Renda** | DARF da bolsa mês a mês (isenção de R$ 20 mil, FII 20%, compensação de prejuízo), Bens e Direitos com custo de aquisição e discriminação pronta, proventos isentos e JCP, e checklist da declaração pela IA. |
@@ -225,7 +227,7 @@ flowchart LR
 ## 🛠️ Desenvolvimento
 
 ```bash
-npm test             # 255 testes (node:test + tsx)
+npm test             # 261 testes (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # produção local em http://localhost:3001
 ```
@@ -234,7 +236,7 @@ npm run build && npm start   # produção local em http://localhost:3001
 shared/   regras e tipos (Arca, projeção, importação, Open Finance, gastos, faturas, contas do mês, IR, metas, dívidas, histórico) — testados
 server/   Express, tarefas de IA (tasks.ts, insights.ts, chat.ts), motores em server/ai/, cotações, Tesouro, Banco Central,
           fundos por índice, Pluggy + razão (transações, faturas, empréstimos), importação da planilha de contas, histórico, vídeo, anexos
-src/      React: Carteira, Histórico, Rebalancear, Metas, Projeção, Contas do mês, Assinaturas, Gastos, IR, Dívidas, Importar, Scan, chat flutuante…
+src/      React: Carteira, Histórico, Rebalancear, Metas, Projeção, Contas do mês, Assinaturas, Gastos, IR, Dívidas, Indicadores, Importar, Scan, chat flutuante…
 scripts/  demo com carteira fictícia, local.mjs (rodar sempre) e serviços por sistema (windows/, unix/)
 ```
 

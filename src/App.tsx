@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Activity, ArrowLeftRight, CalendarCheck, Car, Ellipsis, Hexagon, FileText, HandCoins, History as HistoryIcon, Landmark, Receipt, Repeat, Target, LineChart as LineChartIcon, Loader2, Radar, Scale,
+  Activity, ArrowLeftRight, CalendarCheck, Contrast as ContrastIcon, Car, Ellipsis, Gauge, Hexagon, FileText, HandCoins, History as HistoryIcon, Landmark, Receipt, Repeat, Target, LineChart as LineChartIcon, Loader2, Radar, Scale,
   Settings as SettingsIcon, Upload, Wallet,
 } from "lucide-react";
 import { HistoryView } from "./components/HistoryView";
@@ -9,6 +9,7 @@ import { GoalsView } from "./components/GoalsView";
 import { CashflowView } from "./components/CashflowView";
 import { MonthlyPlanView } from "./components/MonthlyPlanView";
 import { SubscriptionsView } from "./components/SubscriptionsView";
+import { IndicatorsView } from "./components/IndicatorsView";
 import { TaxView } from "./components/TaxView";
 import { DebtsView } from "./components/DebtsView";
 import type { ProjectionResult, RefreshResult, ResearchResult } from "../shared/types";
@@ -30,6 +31,7 @@ import { Transactions } from "./components/Transactions";
 import { SettingsView } from "./components/SettingsView";
 import { L, LANGS, getLang, type Lang } from "../shared/i18n";
 import { openFinanceSettings } from "../shared/openFinance";
+import { useHighContrast } from "./lib/contrast";
 
 // Rótulos são getters: L() só é avaliado na renderização (no idioma atual).
 const TABS = [
@@ -47,6 +49,7 @@ const TABS = [
   { id: "institutions", get label() { return L("Instituições", "Institutions"); }, icon: Landmark },
   { id: "assets", get label() { return L("Bens", "Assets"); }, icon: Car },
   { id: "import", get label() { return L("Importar", "Import"); }, icon: Upload },
+  { id: "indicators", get label() { return L("Indicadores", "Indicators"); }, icon: Gauge },
   { id: "scan", get label() { return L("Scan de ativos", "Asset scan"); }, icon: Radar },
   { id: "tx", get label() { return L("Movimentações", "Activity"); }, icon: ArrowLeftRight },
   { id: "settings", get label() { return L("Ajustes", "Settings"); }, icon: SettingsIcon },
@@ -57,7 +60,7 @@ const GROUPS: { label: () => string; tabs: TabId[] }[] = [
   { label: () => L("Patrimônio", "Wealth"), tabs: ["portfolio", "history", "institutions", "assets", "debts"] },
   { label: () => L("Planejar", "Plan"), tabs: ["rebalance", "goals", "projection"] },
   { label: () => L("Dia a dia", "Everyday"), tabs: ["plan", "subs", "cashflow", "tax"] },
-  { label: () => L("Inteligência", "Intelligence"), tabs: ["market", "scan"] },
+  { label: () => L("Inteligência", "Intelligence"), tabs: ["market", "indicators", "scan"] },
   { label: () => L("Dados", "Data"), tabs: ["import", "tx", "settings"] },
 ];
 /** No celular: abas da barra de baixo; o resto fica em "Mais". */
@@ -76,6 +79,7 @@ export function App() {
   }, [needsReviewStart, update]);
   const [tab, setTabState] = useState<TabId>("portfolio");
   const [moreOpen, setMoreOpen] = useState(false);
+  const [highContrast, toggleContrast] = useHighContrast();
   const setTab = (t: TabId) => {
     setTabState(t);
     setMoreOpen(false);
@@ -131,6 +135,12 @@ export function App() {
             </button>
           </span>
         ))}
+        <span aria-hidden>·</span>
+        <button type="button" onClick={toggleContrast} aria-pressed={highContrast}
+          title={highContrast ? L("Voltar ao contraste normal", "Back to normal contrast") : L("Alto contraste (texto e bordas mais fortes)", "High contrast (stronger text and borders)")}
+          style={{ border: 0, background: "none", padding: 0, cursor: "pointer", font: "inherit", display: "inline-flex", alignItems: "center", gap: 4, color: highContrast ? "var(--accent)" : "inherit", fontWeight: highContrast ? 600 : 400 }}>
+          <ContrastIcon size={13} /> {L("Contraste", "Contrast")}
+        </button>
       </div>
     </div>
   );
@@ -203,6 +213,7 @@ export function App() {
         {tab === "goals" && <GoalsView />}
         {tab === "plan" && <MonthlyPlanView />}
         {tab === "subs" && <SubscriptionsView />}
+        {tab === "indicators" && <IndicatorsView />}
         {tab === "cashflow" && <CashflowView goSettings={() => setTab("settings")} />}
         {tab === "tax" && <TaxView goSettings={() => setTab("settings")} />}
         {tab === "debts" && <DebtsView />}

@@ -6,7 +6,11 @@ import { setLang, toLang } from "../shared/i18n";
 import { setDisplayCurrency, setValuesHidden } from "./lib/format";
 import { useHideValues } from "./lib/privacy";
 import { fxRates, toCurrency } from "../shared/currency";
+import { applyContrast } from "./lib/contrast";
 import "./styles.css";
+
+// Alto contraste antes da primeira pintura (sem piscar no tema normal).
+applyContrast();
 
 /** Aplica o idioma dos ajustes e remonta o app quando ele muda. */
 function LangRoot() {

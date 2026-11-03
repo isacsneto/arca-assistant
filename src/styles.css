@@ -697,3 +697,57 @@ tr.clickable:hover td { background: var(--surface-2); }
   table.t-subs tr { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main val" "a b" "c c" "act act"; }
   table.t-subs .ga-act { justify-self: end; }
 }
+
+/* ---------------- Alto contraste (ligado no rodapé do menu; vale por aparelho) ---------------- */
+/* Texto quase preto/branco, cinza secundário bem mais escuro/claro, bordas visíveis e cores de estado mais fortes. */
+:root[data-contrast="high"] {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #e8ecf1;
+  --border: #5b6472;
+  --text: #000000;
+  --muted: #2f3640;
+  --accent: #0a5c55;
+  --accent-soft: #c7f2ea;
+  --accent-text: #ffffff;
+  --ok: #0f5c2a;
+  --ok-soft: #c9f2d6;
+  --warn: #7a3b00;
+  --warn-soft: #fde7b0;
+  --bad: #8f1111;
+  --bad-soft: #fbd0d0;
+  --shadow: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-contrast="high"] {
+    --bg: #000000;
+    --surface: #0b0d10;
+    --surface-2: #1c2128;
+    --border: #8a94a3;
+    --text: #ffffff;
+    --muted: #d5dbe3;
+    --accent: #5ff0dc;
+    --accent-soft: #0f4a44;
+    --accent-text: #001a17;
+    --ok: #8af5ae;
+    --ok-soft: #0f3a1f;
+    --warn: #ffd84d;
+    --warn-soft: #4a3500;
+    --bad: #ffa3a3;
+    --bad-soft: #4d1515;
+  }
+}
+:root[data-contrast="high"] .card,
+:root[data-contrast="high"] .modal { border-width: 1.5px; }
+:root[data-contrast="high"] .chip { outline: 1px solid currentColor; outline-offset: -1px; }
+:root[data-contrast="high"] input::placeholder { color: var(--muted); opacity: 1; }
+:root[data-contrast="high"] :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+:root[data-contrast="high"] .nav-btn.active { outline: 1.5px solid var(--accent); }
+:root[data-contrast="high"] .plan-cell.forecast .num { color: var(--text); text-decoration: underline dotted; }
+
+/* ---------------- Indicadores ---------------- */
+.ipca-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.ipca-cell { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; text-transform: capitalize; }
+@media (max-width: 760px) {
+  table.t-fi tr { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main val" "a side" "b d" "c e"; }
+}
