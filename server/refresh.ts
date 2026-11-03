@@ -108,6 +108,7 @@ export async function refreshValues(
   const extra: RefreshLine[] = [];
   const warnings: string[] = [];
   let covered = new Set<string>();
+  let outside = new Set<string>();
   if (deps.openFinance) {
     try {
       const data = await deps.openFinance(state, signal);
@@ -118,6 +119,7 @@ export async function refreshValues(
           ) });
         const of = openFinanceRefresh(state.positions, data, { includeAccounts: openFinanceSettings(state.settings.openFinance).includeAccounts });
         covered = of.covered;
+        outside = of.outside;
         warnings.push(...of.warnings);
         for (const l of of.lines) {
           if (l.add) extra.push(l);
@@ -130,6 +132,23 @@ export async function refreshValues(
       warnings.push(L(`Open Finance indisponível agora (${msg}) — usei cotação/IA.`, `Open Finance unavailable right now (${msg}) — used quotes/AI.`));
     }
   }
+
+  // Ações, FIIs, ETFs e BDRs do Open Finance: a quantidade é a do banco e o preço é a cotação do dia (o banco
+  // manda o fechamento anterior, uma vez por dia). Sem cotação, ou com uma muito longe do banco, fica o do banco.
+  const byId = new Map(state.positions.map((p) => [p.id, p]));
+  const fromBank = [...lines.values()].filter((l) => l.method === "openfinance" && byId.get(l.id)?.ticker?.trim());
+  if (fromBank.length) emit({ type: "status", text: L("Cotação do dia para ações, FIIs e ETFs do Open Finance…", "Today's quotes for Open Finance stocks, REITs and ETFs…") });
+  await mapPool(fromBank, 4, async (l) => {
+    const p = byId.get(l.id)!;
+    const quantity = l.quantity ?? p.quantity;
+    if (!(quantity && quantity > 0) || signal.aborted) return;
+    const q = await priceFromQuote({ ...p, quantity }, deps.fetchQuote, fx);
+    if (!q || (l.newValue > 0 && Math.abs(q.newValue / l.newValue - 1) > 0.5)) return;
+    lines.set(l.id, {
+      ...q,
+      note: L(`${fmt(quantity, 4)} un. (quantidade do Open Finance) × ${fmt(q.unitPrice!)} — cotação do dia`, `${fmt(quantity, 4)} units (Open Finance quantity) × ${fmt(q.unitPrice!)} — today's quote`),
+    });
+  });
 
   // Títulos do Tesouro Direto: PU oficial (Renda+, Educa+, IPCA+… não têm ticker).
   const open = state.positions.filter((p) => !covered.has(p.id));
@@ -222,7 +241,14 @@ export async function refreshValues(
   return {
     runAt: now.toISOString(),
     fx: Object.keys(fetched).length ? fetched : null,
-    lines: [...state.positions.map((p) => lines.get(p.id) ?? kept(p, L("Não processado.", "Not processed."))), ...extra],
+    lines: [
+      ...state.positions.map((p) => {
+        const l = lines.get(p.id) ?? kept(p, L("Não processado.", "Not processed."));
+        // Instituição conectada, mas o Open Finance não traz este tipo: a revisão oferece manter ou remover.
+        return outside.has(p.id) ? { ...l, notInOf: true, note: `${L("Não veio do Open Finance (o banco não informa COE nem cripto).", "Not in Open Finance (the bank doesn't report structured notes or crypto).")} ${l.note}` } : l;
+      }),
+      ...extra,
+    ],
     ratesUsed,
     ...(warnings.length && { warnings }),
   };

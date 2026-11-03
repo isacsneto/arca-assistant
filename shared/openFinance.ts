@@ -4,6 +4,7 @@ import type { AssetClass, ExtractedItem, ExtractionResult, FileReading, Owner, P
 import { norm, posKey } from "./importMerge";
 import { parseFileName } from "./fileHints";
 import { L, locale } from "./i18n";
+import { isCrypto } from "./crypto";
 
 /*
  * Open Finance via Pluggy (Meu Pluggy). O servidor busca os investimentos e contas de
@@ -533,10 +534,16 @@ export interface OpenFinanceRefresh {
   lines: RefreshLine[];
   /** Posições já cobertas pelo Open Finance (ficam fora da cotação/IA). */
   covered: Set<string>;
+  /** Posições das instituições conectadas que o Open Finance não traz (COE, cripto): seguem pela cotação/IA. */
+  outside: Set<string>;
   warnings: string[];
 }
 
 const label = positionLabel;
+
+/** O que o Open Finance não traz (COE e cripto direta, sem ticker de bolsa): segue pela cotação/IA, sem "saiu da carteira". */
+export const outsideOpenFinance = (p: Pick<Position, "name" | "subtype" | "ticker">) =>
+  !p.ticker?.trim() && (/\bCOE\b/i.test(`${p.name} ${p.subtype}`) || isCrypto(p));
 
 /**
  * Compara a carteira com o Open Finance, instituição por instituição (por titular).
@@ -546,6 +553,7 @@ export function openFinanceRefresh(positions: Position[], data: ConnectionData[]
   const known = [...new Set(positions.map((p) => p.institution))];
   const lines: RefreshLine[] = [];
   const covered = new Set<string>();
+  const outside = new Set<string>();
   const warnings: string[] = [];
 
   for (const d of data) {
@@ -562,11 +570,15 @@ export function openFinanceRefresh(positions: Position[], data: ConnectionData[]
     const updated = d.item?.lastUpdatedAt ? L(`dados de ${new Date(d.item.lastUpdatedAt).toLocaleDateString(locale())}`, `data from ${new Date(d.item.lastUpdatedAt).toLocaleDateString(locale())}`) : "Open Finance";
 
     for (const p of scope) {
-      covered.add(p.id);
       const key = posKey(p.owner, p.institution, p.ticker, p.name);
       const i = fresh.findIndex((it, k) => !used.has(k) && posKey(owner, institution, it.ticker, it.name) === key);
+      if (i < 0 && outsideOpenFinance(p)) {
+        outside.add(p.id);
+        continue;
+      }
+      covered.add(p.id);
       if (i < 0) {
-        lines.push({ id: p.id, name: label(p), currency: p.currency, oldValue: p.value, newValue: 0, method: "removido", note: L(`Não veio do Open Finance (${updated}): sai da carteira.`, `Not in Open Finance (${updated}): removed from the portfolio.`), source: "Pluggy" });
+        lines.push({ id: p.id, name: label(p), currency: p.currency, oldValue: p.value, newValue: 0, method: "removido", note: L(`Não veio do Open Finance (${updated}): manter ou remover?`, `Not in Open Finance (${updated}): keep or remove?`), source: "Pluggy" });
         continue;
       }
       used.add(i);
@@ -584,7 +596,7 @@ export function openFinanceRefresh(positions: Position[], data: ConnectionData[]
       });
     });
   }
-  return { lines, covered, warnings };
+  return { lines, covered, outside, warnings };
 }
 
 /**

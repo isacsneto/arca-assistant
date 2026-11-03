@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BASE_CURRENCY, CURRENCIES, FX_CODES, fxSummary, rate } from "../../shared/currency";
 import { Check, X } from "lucide-react";
 import type { RefreshLine, RefreshResult } from "../../shared/types";
-import { applyRefresh, fxImpact, isChange, refreshTotals } from "../../shared/refreshApply";
+import { applyRefresh, fxImpact, isChange, keepOrRemoveDefaults, refreshTotals, withChoice, type Choice } from "../../shared/refreshApply";
 import { useStore } from "../store";
 import type { Job } from "../lib/useJob";
 import { amt, dateTime, money, safeUrl } from "../lib/format";
@@ -26,16 +26,33 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
   const { state, update } = useStore();
   const result = job.result;
   const [approved, setApproved] = useState<Set<string>>(new Set());
+  // Não veio do Open Finance: manter ou remover. Começa em "remover" só o que entrou pelo próprio Open Finance;
+  // COE, cripto e posições de print/manual começam mantidas.
+  const [choice, setChoice] = useState<Map<string, Choice>>(new Map());
 
   useEffect(() => {
-    if (result) setApproved(new Set(result.lines.filter(isChange).map((l) => l.id)));
+    if (!result) return;
+    const c = keepOrRemoveDefaults(state!.positions, result.lines);
+    setChoice(c);
+    setApproved(new Set(result.lines.filter((l) => isChange(withChoice(l, c.get(l.id)))).map((l) => l.id)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result]);
+  const lines = useMemo(() => result?.lines.map((l) => withChoice(l, choice.get(l.id))) ?? [], [result, choice]);
+  const choose = (l: RefreshLine, c: Choice) => {
+    setChoice((m) => new Map(m).set(l.id, c));
+    setApproved((s) => {
+      const n = new Set(s);
+      if (isChange(withChoice(l, c))) n.add(l.id);
+      else n.delete(l.id);
+      return n;
+    });
+  };
 
   const fxOld = state!.settings.fx;
   const fxNew = { ...fxOld, ...result?.fx };
   const totals = useMemo(
-    () => (result ? refreshTotals(result.lines, approved, state!.settings.fx, { ...state!.settings.fx, ...result.fx }) : null),
-    [result, approved, state],
+    () => (result ? refreshTotals(lines, approved, state!.settings.fx, { ...state!.settings.fx, ...result.fx }) : null),
+    [result, lines, approved, state],
   );
   // Moedas cuja cotação mudou: o total em reais muda mesmo com as posições "mantidas".
   const fxMoves = FX_CODES.filter((c) => result?.fx?.[c] != null && Math.abs(rate(fxNew, c) - rate(fxOld, c)) > 1e-9);
@@ -44,12 +61,12 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
   if (job.error && !result) return <Banner kind="bad">{L("Falha ao atualizar valores:", "Failed to update values:")} {job.error}</Banner>;
   if (!result || !totals) return null;
 
-  const changed = result.lines.filter(isChange);
+  const changed = lines.filter(isChange);
   const apply = () => {
     const now = new Date().toISOString();
     update((s) => ({
       ...s,
-      positions: applyRefresh(s.positions, result.lines, approved, now),
+      positions: applyRefresh(s.positions, lines, approved, now),
       settings: result.fx ? { ...s.settings, fx: { ...s.settings.fx, ...result.fx } } : s.settings,
     }));
     job.clear();
@@ -108,14 +125,15 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
             <tr><th /><th>{L("Ativo", "Asset")}</th><th className="right">{L("Antes", "Before")}</th><th className="right">{L("Agora", "Now")}</th><th>{L("Como", "How")}</th></tr>
           </thead>
           <tbody>
-            {result.lines.map((l) => {
+            {lines.map((l) => {
               const change = isChange(l);
+              const c = choice.get(l.id);
               const pct = l.oldValue > 0 ? ((l.newValue - l.oldValue) / l.oldValue) * 100 : 0;
               const href = l.source ? safeUrl(l.source) : null;
               return (
                 <tr key={l.id} style={{ opacity: change && !approved.has(l.id) ? 0.5 : 1 }}>
                   <td className="ga-chk">
-                    <input type="checkbox" disabled={!change} checked={approved.has(l.id)} onChange={() => toggle(l.id)} aria-label={L(`Aplicar ${l.name}`, `Apply ${l.name}`)} />
+                    <input type="checkbox" disabled={!change || c === "remove"} checked={approved.has(l.id)} onChange={() => toggle(l.id)} aria-label={L(`Aplicar ${l.name}`, `Apply ${l.name}`)} />
                   </td>
                   <td className="ga-main" style={{ minWidth: 200 }}>
                     <b>{l.name}</b>
@@ -123,6 +141,12 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
                       {l.note}
                       {l.source && (href ? <> · <a href={href} target="_blank" rel="noreferrer noopener">{L("fonte", "source")}</a></> : ` · ${l.source}`)}
                     </div>
+                    {c && (
+                      <div className="row" style={{ gap: 6, marginTop: 6 }} role="group" aria-label={L("Não veio do Open Finance", "Not in Open Finance")}>
+                        <button type="button" className={`btn sm${c === "keep" ? " primary" : ""}`} aria-pressed={c === "keep"} onClick={() => choose(result.lines.find((x) => x.id === l.id)!, "keep")}>{L("Manter", "Keep")}</button>
+                        <button type="button" className={`btn sm${c === "remove" ? " danger" : ""}`} aria-pressed={c === "remove"} onClick={() => choose(result.lines.find((x) => x.id === l.id)!, "remove")}>{L("Remover", "Remove")}</button>
+                      </div>
+                    )}
                   </td>
                   <td className="right num muted ga-side" data-l={L("antes", "before")}>{money(l.oldValue, l.currency)}</td>
                   <td className="right num ga-val">
@@ -151,8 +175,8 @@ export function RefreshPanel({ job }: { job: Job<RefreshResult> }) {
       {result.ratesUsed && <p className="muted small" style={{ marginTop: 10 }}>{L("Taxas de referência:", "Reference rates:")} {result.ratesUsed}</p>}
       <p className="muted small" style={{ marginTop: 6 }}>
         {L(
-          "Cotação = preço de mercado (Yahoo Finance; títulos do Tesouro Direto pelo PU oficial do Tesouro). Indexador = CDI, IPCA e TR oficiais do Banco Central acumulados desde a última atualização (valor bruto, antes de IR, sem pagamentos de juros ou amortização); fundos sem cota pública são estimados pelo índice de referência (ETF equivalente da B3 ou CDI) e o resto pela IA — esses ficam marcados com IA para conferir. Open Finance = valor líquido informado pelo banco (instituições conectadas): ativos novos entram e os que não vieram saem. Só saldos em conta ficam iguais.",
-          "Quote = market price (Yahoo Finance; Tesouro Direto bonds at the official Treasury unit price). Index accrual = official Central Bank CDI, IPCA and TR accrued since the last update (gross value, before income tax, without interest or amortization payments); funds without a public quota are estimated from their benchmark (equivalent B3 ETF or CDI) and the rest by the AI — those are flagged AI for you to check. Open Finance = net value reported by the bank (connected institutions): new assets are added and those not returned are removed. Only account balances stay the same.",
+          "Cotação = preço de mercado (Yahoo Finance; títulos do Tesouro Direto pelo PU oficial do Tesouro). Indexador = CDI, IPCA e TR oficiais do Banco Central acumulados desde a última atualização (valor bruto, antes de IR, sem pagamentos de juros ou amortização); fundos sem cota pública são estimados pelo índice de referência (ETF equivalente da B3 ou CDI) e o resto pela IA — esses ficam marcados com IA para conferir. Open Finance = valor líquido informado pelo banco (instituições conectadas): ativos novos entram e, para os que não vieram (COE, cripto…), você escolhe manter ou remover. Só saldos em conta ficam iguais.",
+          "Quote = market price (Yahoo Finance; Tesouro Direto bonds at the official Treasury unit price). Index accrual = official Central Bank CDI, IPCA and TR accrued since the last update (gross value, before income tax, without interest or amortization payments); funds without a public quota are estimated from their benchmark (equivalent B3 ETF or CDI) and the rest by the AI — those are flagged AI for you to check. Open Finance = net value reported by the bank (connected institutions): new assets are added and, for those not returned (structured notes, crypto…), you choose to keep or remove them. Only account balances stay the same.",
         )}
       </p>
     </div>

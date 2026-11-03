@@ -469,6 +469,11 @@ export interface RefreshLine {
    * publicado). Vira o updatedAt da posição, para a próxima atualização continuar dali sem buraco.
    */
   asOf?: string;
+  /**
+   * Posição de instituição conectada que o Open Finance não traz (COE, cripto): o valor segue pela
+   * cotação/IA e, na revisão, dá para manter ou remover.
+   */
+  notInOf?: boolean;
 }
 
 export interface RefreshResult {

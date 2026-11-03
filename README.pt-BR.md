@@ -17,7 +17,7 @@ Roda 100% no seu computador. Seus dados não saem dele (só vão para a IA que v
 ![Claude](https://img.shields.io/badge/Claude-Agent%20SDK-d97757)
 ![Codex](https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white)
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
-![Testes](https://img.shields.io/badge/testes-263%20passando-2ea44f)
+![Testes](https://img.shields.io/badge/testes-264%20passando-2ea44f)
 ![Licença: MIT](https://img.shields.io/badge/licença-MIT-blue)
 
 <br/>
@@ -180,7 +180,7 @@ Hospedagens como Vercel, Netlify e Render grátis não servem: apagam os arquivo
 Com **"Usar o Open Finance como fonte da verdade"** ligado (padrão), cada conexão passa a ser espelho do banco **no seu escopo exato: instituição + titular**:
 
 - **ao importar**, o que você tinha naquela instituição e titular é substituído pelo que veio do Open Finance;
-- no **Atualizar valores** da Carteira, os valores daquele escopo vêm da Pluggy, e não da cotação nem da IA. Ativos novos aparecem para entrar e os que sumiram aparecem para sair. Você revisa antes de aplicar.
+- no **Atualizar valores** da Carteira, os valores daquele escopo vêm da Pluggy, e não da IA; ações, FIIs e ETFs usam a quantidade do banco com a **cotação do dia**. Ativos novos aparecem para entrar, e para os que não vieram você escolhe **manter ou remover**. COE e cripto, que o banco não informa pelo Open Finance, já vêm marcados como mantidos e seguem pela cotação ou pela IA. Você revisa antes de aplicar.
 - **sozinho** ("Atualizar sozinho", ligado por padrão): a cada 30 minutos o app pergunta à Pluggy se algum banco tem dado novo e, se tiver, aplica na hora, sem revisão, nas conexões que você já importou uma vez. Conexão com erro ou que volte vazia não apaga nada, e o que não veio do Open Finance (cripto, COE, prints) só sai numa importação revisada.
 - **Nada fora do escopo é tocado.** Exemplo: uma conexão **BTG PF** substitui e atualiza só o BTG PF. O **BTG PJ** continua intacto (com valores de print, texto, cotação ou IA), a não ser que você tenha também uma conexão **BTG PJ** trazendo dados. Uma conexão com erro não muda nada no escopo dela.
 
@@ -227,7 +227,7 @@ flowchart LR
 ## 🛠️ Desenvolvimento
 
 ```bash
-npm test             # 263 testes (node:test + tsx)
+npm test             # 264 testes (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # produção local em http://localhost:3001
 ```

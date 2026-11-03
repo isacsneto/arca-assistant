@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyRefresh, fxImpact, isChange, refreshTotals } from "./refreshApply";
+import { applyRefresh, fxImpact, isChange, keepOrRemoveDefaults, refreshTotals, withChoice } from "./refreshApply";
 import type { Position, RefreshLine } from "./types";
 
 const NOW = "2026-10-09T15:00:00.000Z";
@@ -85,4 +85,18 @@ test("totais separam ativos e câmbio: fim de semana com dólar em queda e Bitco
   // Não aprovada: o valor não muda, só o câmbio conta.
   const t2 = refreshTotals([btc, usd], new Set(), { USD: 4.9918 }, { USD: 4.9772 });
   assert.equal(t2.assets, 0);
+});
+test("não veio do Open Finance: manter ou remover (o que veio dele começa removido; COE/cripto/print, mantidos)", () => {
+  const positions = [{ ...p("of", 100), source: "Open Finance · Banco PF" }, { ...p("print", 200), source: "print" }, p("coe", 300)];
+  const lines = [line("of", 100, 0, "removido"), line("print", 200, 0, "removido"), { ...line("coe", 300, 310, "mantido"), notInOf: true, ai: true }];
+  const c = keepOrRemoveDefaults(positions, lines);
+  assert.deepEqual([...c], [["of", "remove"], ["print", "keep"], ["coe", "keep"]]);
+
+  const eff = lines.map((l) => withChoice(l, c.get(l.id)));
+  assert.deepEqual(eff.map((l) => [l.method, l.newValue]), [["removido", 0], ["mantido", 200], ["mantido", 310]]);
+  // Removendo o COE à mão: sai; mantendo o que veio do Open Finance: fica como está.
+  c.set("coe", "remove").set("of", "keep");
+  const eff2 = lines.map((l) => withChoice(l, c.get(l.id)));
+  const out = applyRefresh(positions, eff2, new Set(eff2.filter(isChange).map((l) => l.id)), NOW);
+  assert.deepEqual(out.map((x) => [x.id, x.value]), [["of", 100], ["print", 200]]);
 });

@@ -18,6 +18,7 @@ const quotes: Record<string, Quote> = {
   "USDBRL=X": { symbol: "USDBRL=X", price: 5, currency: "BRL", history: [] },
   "PETR4.SA": { symbol: "PETR4.SA", price: 56, currency: "BRL", history: [{ t: ts("2026-09-01T13:00:00Z"), close: 40 }] },
   VOO: { symbol: "VOO", price: 700, currency: "USD", history: [{ t: ts("2026-09-01T13:00:00Z"), close: 600 }] },
+  "BTC-USD": { symbol: "BTC-USD", price: 60000, currency: "USD", history: [{ t: ts("2026-09-01T13:00:00Z"), close: 50000 }] },
 };
 
 async function run(
@@ -193,21 +194,28 @@ test("títulos do Tesouro saem pelo PU oficial; sem o arquivo, vão para a IA co
   assert.match(down.warnings![0], /Tesouro Direto/);
 });
 
-test("Open Finance como fonte da verdade: instituições conectadas vêm da Pluggy, fora da cotação/IA", async () => {
+test("Open Finance como fonte da verdade: instituições conectadas vêm da Pluggy; ações com a cotação do dia", async () => {
   const positions = [
     p({ id: "petr", ticker: "PETR4", quantity: 500, value: 20000, institution: "BTG Pactual" }),
     p({ id: "cdb", name: "CDB BTG", assetClass: "caixa", value: 30000, institution: "BTG Pactual" }),
     p({ id: "velho", name: "LCI antiga", assetClass: "caixa", value: 5000, institution: "BTG Pactual" }),
     p({ id: "voo", ticker: "VOO", quantity: 1, value: 3000, currency: "USD", institution: "Avenue" }),
     p({ id: "pj", name: "CDB BTG", assetClass: "caixa", value: 1000, institution: "BTG Pactual", owner: "PJ" }),
+    // O Open Finance não traz COE nem cripto direta: seguem pela cotação/IA, sem "saiu da carteira".
+    p({ id: "btc", name: "Bitcoin", assetClass: "outros", subtype: "Cripto", quantity: 0.01, value: 2500, institution: "BTG Pactual" }),
+    p({ id: "coe", name: "COE Exemplo", assetClass: "outros", subtype: "COE pré · venc. 2030", value: 5000, institution: "BTG Pactual" }),
   ];
   let quoted: string[] = [];
+  let toAi: string[] = [];
   const deps: RefreshDeps = {
     fetchQuote: async (s) => {
       quoted.push(s);
       return quotes[s] ?? null;
     },
-    claudeRefresh: async () => ({ updates: [], ratesUsed: "" }),
+    claudeRefresh: async (ps) => {
+      toAi = ps.map((x) => x.id);
+      return { updates: [], ratesUsed: "" };
+    },
     now: () => NOW,
     openFinance: async () => [{
       connection: { itemId: "aaaaaaaaaa", owner: "PF", institution: "BTG Pactual" },
@@ -222,14 +230,24 @@ test("Open Finance como fonte da verdade: instituições conectadas vêm da Plug
   };
   const r = await refreshValues(withDefaults({ positions }), deps, () => undefined, new AbortController().signal);
   const line = (id: string) => r.lines.find((l) => l.id === id)!;
-  assert.deepEqual([line("petr").method, line("petr").newValue], ["openfinance", 21000]);
+  assert.deepEqual([line("petr").method, line("petr").newValue], ["cotacao", 500 * 56], "quantidade do banco × cotação do dia");
+  assert.match(line("petr").note, /Open Finance/);
   assert.deepEqual([line("cdb").method, line("cdb").newValue], ["openfinance", 30500]);
   assert.deepEqual([line("velho").method, line("velho").newValue], ["removido", 0]);
   assert.equal(line("voo").method, "cotacao", "instituição fora do Open Finance segue pela cotação");
   assert.notEqual(line("pj").method, "openfinance", "PJ da mesma instituição não é coberto pela conexão PF");
-  assert.ok(!quoted.includes("PETR4.SA"), "posição coberta não consulta cotação");
+  assert.deepEqual([line("btc").method, line("btc").newValue], ["cotacao", 0.01 * 60000 * 5], "Bitcoin pela cotação, não removido");
+  assert.ok(!r.lines.some((l) => l.id === "coe" && l.method === "removido"), "COE não sai da carteira");
+  assert.deepEqual([line("btc").notInOf, line("coe").notInOf, line("velho").notInOf], [true, true, undefined], "COE/cripto: manter ou remover na revisão");
+  assert.ok(toAi.includes("coe"), "COE vai para a IA");
   const added = r.lines.filter((l) => l.add);
   assert.deepEqual(added.map((l) => [l.add!.name, l.add!.institution, l.newValue]), [["Tesouro Selic 2031", "BTG Pactual", 7000]]);
+
+  // Sem cotação (ou longe demais do banco): fica o valor do banco.
+  const noQuote = await refreshValues(withDefaults({ positions }), { ...deps, fetchQuote: async (s) => (s === "PETR4.SA" ? null : quotes[s] ?? null) }, () => undefined, new AbortController().signal);
+  assert.deepEqual([noQuote.lines.find((l) => l.id === "petr")!.method, noQuote.lines.find((l) => l.id === "petr")!.newValue], ["openfinance", 21000]);
+  const farOff = await refreshValues(withDefaults({ positions }), { ...deps, fetchQuote: async (s) => (s === "PETR4.SA" ? { ...quotes[s], price: 500 } : quotes[s] ?? null) }, () => undefined, new AbortController().signal);
+  assert.equal(farOff.lines.find((l) => l.id === "petr")!.newValue, 21000);
 
   // Open Finance fora do ar: tudo segue pela cotação/IA, com aviso.
   quoted = [];

@@ -19,7 +19,7 @@ Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
 ![Open Finance](https://img.shields.io/badge/Open%20Finance-Pluggy-6c47ff)
 ![PWA](https://img.shields.io/badge/PWA-iOS%20%26%20Android-5a0fc8)
-![Tests](https://img.shields.io/badge/tests-263%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-264%20passing-2ea44f)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 <br/>
@@ -189,7 +189,7 @@ Hosts like Vercel, Netlify or free Render don't work: they wipe saved files, can
 With **"Use Open Finance as the source of truth"** on (default), each connection mirrors the bank **within its exact scope: institution + owner**:
 
 - **on import**, what you had at that institution and owner is replaced by what came from Open Finance;
-- in the Portfolio's **Update values**, that scope's values come from Pluggy instead of quotes or the AI. New assets show up to be added and missing ones to be removed. You review before applying.
+- in the Portfolio's **Update values**, that scope's values come from Pluggy instead of the AI; stocks, REITs and ETFs use the bank's quantity with **today's quote**. New assets show up to be added, and for missing ones you choose to **keep or remove** them. Structured notes (COE) and crypto, which banks don't report through Open Finance, start as kept and follow quotes or the AI. You review before applying.
 - **on its own** ("Update on its own", on by default): every 30 minutes the app asks Pluggy whether a bank has new data and, if so, applies it right away for connections you have already imported once, with no review. A connection with an error, or one that comes back empty, never deletes anything, and positions that didn't come from Open Finance (crypto, structured notes, screenshots) are only removed in a reviewed import.
 - **Nothing outside the scope is touched.** Example: a **BTG PF** connection replaces and updates only BTG PF. **BTG PJ** stays intact (with values from screenshots, text, quotes or the AI) unless you also have a **BTG PJ** connection returning data. A failing connection changes nothing in its scope.
 
@@ -236,7 +236,7 @@ flowchart LR
 ## 🛠️ Development
 
 ```bash
-npm test             # 263 tests (node:test + tsx)
+npm test             # 264 tests (node:test + tsx)
 npm run typecheck
 npm run build && npm start   # local production at http://localhost:3001
 API_PORT=3101 npx vite       # front-end against another instance (e.g. the demo)

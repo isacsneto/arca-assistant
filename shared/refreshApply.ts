@@ -84,6 +84,29 @@ export function applyRefresh(positions: Position[], lines: RefreshLine[], approv
  * mas só sai o que entrou pelo Open Finance — cripto, COE ou posição de print/manual na mesma instituição
  * (que o Open Finance não traz) só sai numa revisão.
  */
+export type Choice = "keep" | "remove";
+
+/**
+ * Não veio do Open Finance: começa em "remover" só o que entrou pelo próprio Open Finance (saiu do banco);
+ * COE, cripto e posições de print/manual começam mantidas.
+ */
+export function keepOrRemoveDefaults(positions: Position[], lines: RefreshLine[]): Map<string, Choice> {
+  const fromOf = new Set(positions.filter((p) => /^open finance/i.test(p.source)).map((p) => p.id));
+  const out = new Map<string, Choice>();
+  for (const l of lines) {
+    if (l.method === "removido") out.set(l.id, fromOf.has(l.id) ? "remove" : "keep");
+    else if (l.notInOf) out.set(l.id, "keep");
+  }
+  return out;
+}
+
+/** A linha como fica com a escolha: remover tira a posição; manter o que ia sair deixa como está. */
+export function withChoice(l: RefreshLine, c: Choice | undefined): RefreshLine {
+  if (c === "remove") return { ...l, method: "removido", newValue: 0 };
+  if (c === "keep" && l.method === "removido") return { ...l, method: "mantido", newValue: l.oldValue };
+  return l;
+}
+
 export function autoApplicable(positions: Position[], lines: RefreshLine[]): RefreshLine[] {
   const fromOf = new Set(positions.filter((p) => /^open finance/i.test(p.source)).map((p) => p.id));
   return lines.filter((l) => isChange(l) && (l.method !== "removido" || fromOf.has(l.id)));
