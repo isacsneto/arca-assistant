@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ownerAndName, planFromSheets, type Sheet, type SheetCell } from "./planImport";
+import { ownerAndName, planFromSheets, subsFromSheets, type Sheet, type SheetCell } from "./planImport";
 
 const c = (v: unknown, fill: string | null = null): SheetCell => ({ v, fill });
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -49,4 +49,21 @@ test("lê a aba do ano: cor = status (pela legenda), pago e passado ficam como d
   assert.equal(by("Renda").kind, "income");
   assert.deepEqual([by("Dividendos PJ 1").kind, by("Dividendos PJ 1").cells["2026-02"].amount], ["info", 200]);
   assert.deepEqual([r.years[0].expenses, r.years[0].sheetExpenses], [32250, 32250]);
+});
+
+test("aba de assinaturas: cor da coluna Ativo vira status; dólar na observação vira valor em USD; para no Total", () => {
+  const subs = subsFromSheets([{ name: "Subs", rows: [
+    [],
+    [null, c("Email"), c("Servico"), c("Ativo"), c("Valor"), c("Cartao"), c("Obs")],
+    [null, c("conta A"), c("Streaming"), c(null, "D9EAD3"), c(39.9), c("Visa Gold"), null],
+    [null, c("conta A"), c("Clube"), c(null, "B6D7A8"), c(99.9), c("Pix"), c("Pago até 12/2027")],
+    [null, c("conta B"), c("Jogos"), c(null, "FFF2CC"), null, null, null],
+    [null, c("conta B"), c("IDE"), c(null, "D9EAD3"), null, c("Wise"), c("20 USD")],
+    [null, c("Total"), null, c(159.8)],
+    [null, c("x"), c("Depois do total"), null, c(1)],
+  ] }]);
+  assert.deepEqual(subs.map((s) => [s.service, s.status, s.amount, s.currency]), [
+    ["Streaming", "ativa", 39.9, "BRL"], ["Clube", "anual", 99.9, "BRL"], ["Jogos", "inativa", null, "BRL"], ["IDE", "ativa", 20, "USD"],
+  ]);
+  assert.deepEqual([subs[0].account, subs[0].payment, subs[1].note], ["conta A", "Visa Gold", "Pago até 12/2027"]);
 });

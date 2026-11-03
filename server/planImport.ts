@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import { randomUUID } from "node:crypto";
 import { normDesc } from "../shared/cashflow";
 import type { MonthlyPlan, PlanCell, PlanLine, PlanOwner, PlanStatus } from "../shared/monthlyPlan";
+import type { SubStatus, Subscription } from "../shared/subscriptions";
 
 /** Célula lida da planilha: valor e cor de fundo (RGB, sem "#"). */
 export interface SheetCell {
@@ -208,4 +209,50 @@ export function readWorkbook(buf: Buffer): Sheet[] {
     }
     return { name, rows };
   });
+}
+
+/**
+ * Aba de assinaturas: cabeçalho com "Serviço" e "Valor" (e, se houver, conta/e-mail, ativo, cartão, obs).
+ * A cor da coluna "Ativo" vira o status: verde claro = ativa, verde escuro = paga adiantado, amarelo = parada.
+ * Valor em dólar escrito na observação ("20 USD") vira o valor em USD.
+ */
+export function subsFromSheets(sheets: Sheet[]): Subscription[] {
+  const out: Subscription[] = [];
+  for (const sheet of sheets) {
+    const head = sheet.rows.findIndex((r) => (r ?? []).some((c) => /^servi[cç]o/.test(plain(c?.v))) && (r ?? []).some((c) => /^valor/.test(plain(c?.v))));
+    if (head < 0) continue;
+    const col = (re: RegExp) => sheet.rows[head].findIndex((c) => re.test(plain(c?.v)));
+    const cService = col(/^servi[cç]o/), cAmount = col(/^valor/), cAccount = col(/^(e-?mail|conta|login|usuario)/);
+    const cActive = col(/^(ativo|ativa|status|situacao)/), cPay = col(/^(cartao|pagamento|forma|meio)/), cNote = col(/^(obs|nota)/);
+    for (let r = head + 1; r < sheet.rows.length; r += 1) {
+      const row = sheet.rows[r] ?? [];
+      if (row.some((c) => /^total/.test(plain(c?.v)))) break;
+      const service = typeof row[cService]?.v === "string" ? (row[cService]!.v as string).trim() : "";
+      if (!service) continue;
+      const note = cNote >= 0 && row[cNote]?.v != null ? String(row[cNote]!.v).trim() : null;
+      let amount = cAmount >= 0 ? amountOf(row[cAmount]?.v) : null;
+      let currency: "BRL" | "USD" = "BRL";
+      const usd = /(\d+(?:[.,]\d+)?)\s*(?:usd|us\$|dolares|dólares)/i.exec(`${cAmount >= 0 && typeof row[cAmount]?.v === "string" ? row[cAmount]!.v : ""} ${note ?? ""}`);
+      if (amount == null && usd) {
+        amount = Number(usd[1].replace(",", "."));
+        currency = "USD";
+      }
+      const fill = cActive >= 0 ? row[cActive]?.fill ?? null : null;
+      const said = cActive >= 0 ? plain(row[cActive]?.v) : "";
+      const status: SubStatus =
+        /^(nao|não|inativ|cancel|parad)/.test(said) ? "inativa"
+        : /^(sim|ativ)/.test(said) ? "ativa"
+        : fill === "B6D7A8" ? "anual"
+        : fill === "FFF2CC" || fill === "F4CCCC" || fill === "EA9999" ? "inativa"
+        : fill === "D9EAD3" || fill === "00FF00" ? "ativa"
+        : amount != null && amount > 0 ? "ativa" : "inativa";
+      out.push({
+        id: randomUUID(), service, status, amount, currency,
+        account: cAccount >= 0 && row[cAccount]?.v != null ? String(row[cAccount]!.v).trim() : null,
+        payment: cPay >= 0 && row[cPay]?.v != null ? String(row[cPay]!.v).trim() : null,
+        note, keywords: null,
+      });
+    }
+  }
+  return out;
 }

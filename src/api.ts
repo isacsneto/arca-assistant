@@ -1,4 +1,5 @@
 import type { MonthlyPlan, PlanAuto } from "../shared/monthlyPlan";
+import type { SubMatch, SubSuggestion, Subscription } from "../shared/subscriptions";
 import type { AiStatus, ProviderId } from "../shared/ai";
 import type { FxRates } from "../shared/currency";
 import type { OpenFinanceImport } from "../shared/openFinance";
@@ -89,6 +90,10 @@ export const api = {
   planSuggest: (plan: MonthlyPlan) =>
     fetch("/api/plan/suggest", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ plan }) }).then((r) => json<{ plan: MonthlyPlan; linked: number }>(r)),
   planTx: (month: string) => fetch(`/api/plan/tx?month=${month}`).then((r) => json<{ tx: PlanTx[] }>(r)),
+  subsImport: (file: File) =>
+    fetch("/api/subs/import", { method: "POST", headers: { "content-type": "application/octet-stream" }, body: file }).then((r) => json<{ subscriptions: Subscription[] }>(r)),
+  subsMatch: (subs: Subscription[]) =>
+    fetch("/api/subs/match", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ subs }) }).then((r) => json<{ matches: Record<string, SubMatch>; suggestions: SubSuggestion[]; syncedAt: string | null }>(r)),
   planImport: (file: File) =>
     fetch("/api/plan/import", { method: "POST", headers: { "content-type": "application/octet-stream" }, body: file }).then((r) => json<PlanImportResponse>(r)),
   getConfig: (refresh = false) => fetch(`/api/config${refresh ? "?refresh=1" : ""}`).then((r) => json<Config>(r)),

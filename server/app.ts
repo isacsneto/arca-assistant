@@ -38,7 +38,8 @@ import { addResearch } from "../shared/research";
 import { addMonths, mergeSameLink, planAuto, planCardBills, planOf, suggestLinks, yearMonths, type MonthlyPlan } from "../shared/monthlyPlan";
 import { categorize } from "../shared/cashflow";
 import { cardBills } from "../shared/ledger";
-import { planFromSheets, readWorkbook } from "./planImport";
+import { planFromSheets, readWorkbook, subsFromSheets } from "./planImport";
+import { matchSubscriptions, subSuggestions, subsOf } from "../shared/subscriptions";
 
 export { mapPool };
 
@@ -775,6 +776,28 @@ export function createApp(deps: Deps) {
     const cards = [...new Map(ledger.bankTx.filter((t) => t.accountType === "CREDIT").map((t) => [t.accountId, { id: t.accountId, name: t.accountName, institution: t.institution }])).values()];
     res.json({ auto: planAuto(planOf(req.body?.plan), tx, bills, months, today), cards, syncedAt: ledger.syncedAt ?? null });
   });
+  /* ---------------- Assinaturas ---------------- */
+  // A aba de assinaturas da planilha (não salva — o navegador mostra e confirma).
+  app.post("/api/subs/import", express.raw({ type: () => true, limit: "20mb" }), (req, res) => {
+    try {
+      if (!Buffer.isBuffer(req.body) || !req.body.length) throw new Error(L("Arquivo vazio.", "Empty file."));
+      const subs = subsFromSheets(readWorkbook(req.body));
+      if (!subs.length) throw new Error(L("Não achei a lista de assinaturas (uma linha de cabeçalho com \"Serviço\" e \"Valor\").", "Couldn't find the subscriptions list (a header row with \"Serviço\" and \"Valor\")."));
+      res.json({ subscriptions: subs });
+    } catch (err) {
+      res.status(400).json({ error: explainError(err).message });
+    }
+  });
+  // Cruza a lista (do navegador, pode ter edição ainda não salva) com as faturas e a conta.
+  app.post("/api/subs/match", (req, res) => {
+    const subs = subsOf(req.body?.subs);
+    const { tx, ledger } = resolvedTx();
+    if (!ledger) return res.json({ matches: {}, suggestions: [], syncedAt: null });
+    const today = brDay(new Date());
+    const matches = matchSubscriptions(subs, tx, today);
+    res.json({ matches, suggestions: subSuggestions(subs, matches, tx, today), syncedAt: ledger.syncedAt ?? null });
+  });
+
   // Lançamentos da conta no mês, para ligar uma linha a uma descrição.
   app.get("/api/plan/tx", (req, res) => {
     const month = typeof req.query.month === "string" && /^\d{4}-\d{2}$/.test(req.query.month) ? req.query.month : null;

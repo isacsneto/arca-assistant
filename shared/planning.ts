@@ -2,6 +2,7 @@ import { toBRL } from "./arca";
 import type { AppState, ArcaClass, AssetClass, Position } from "./types";
 import { L } from "./i18n";
 import { planOf, type MonthlyPlan } from "./monthlyPlan";
+import { subsOf, type Subscription } from "./subscriptions";
 
 /*
  * Planejamento (editado no app, salvo junto com a carteira): metas, orçamentos, regras de categoria
@@ -70,6 +71,9 @@ export interface Planning {
   taxAdvice?: { text: string; at: string; year: number } | null;
   /** Contas do mês (a planilha de contas a pagar). */
   monthlyPlan?: MonthlyPlan;
+  /** Assinaturas (serviços mensais) e as sugestões dispensadas. */
+  subscriptions?: Subscription[];
+  subsIgnored?: string[];
 }
 
 export const EMPTY_PLANNING: Planning = { goals: [], budgets: [], categoryRules: [], debts: [] };
@@ -99,6 +103,8 @@ export function planningOf(raw: Partial<Planning> | undefined | null): Planning 
     spendingAdvice: raw?.spendingAdvice ?? null,
     taxAdvice: raw?.taxAdvice ?? null,
     monthlyPlan: planOf(raw?.monthlyPlan),
+    subscriptions: subsOf(raw?.subscriptions),
+    subsIgnored: arr<string>(raw?.subsIgnored).filter((x) => typeof x === "string").slice(0, 500),
   };
 }
 

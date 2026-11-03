@@ -688,3 +688,12 @@ tr.clickable:hover td { background: var(--surface-2); }
   .plan-mobile { display: block; }
   .plan-legend { display: none; }
 }
+
+/* ---------------- Assinaturas ---------------- */
+.t-subs tr.sub-off td { opacity: 0.6; }
+.t-subs td { vertical-align: middle; }
+.t-subs .chip { white-space: normal; }
+@media (max-width: 760px) {
+  table.t-subs tr { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main val" "a b" "c c" "act act"; }
+  table.t-subs .ga-act { justify-self: end; }
+}
