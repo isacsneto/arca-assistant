@@ -10,6 +10,7 @@ import { useJob } from "../lib/useJob";
 import { amt, amt0, amtCompact, pct } from "../lib/format";
 import { JobProgress } from "./JobProgress";
 import { CashflowDetail, type Detail } from "./CashflowDetail";
+import { SpendingMix } from "./SpendingMix";
 import { Banner, PageHead } from "./ui";
 import { L, locale } from "../../shared/i18n";
 
@@ -128,6 +129,12 @@ export function CashflowView({ goSettings }: { goSettings: () => void }) {
         <div className="card kpi"><div className="label"><Wallet size={13} /> {L("Reserva cobre", "Emergency fund covers")}</div><div className="value num">{view.reserve.months != null ? `${view.reserve.months.toLocaleString(locale(), { maximumFractionDigits: 1 })} ${L("meses", "months")}` : "—"}</div>
           <div className="sub">{amt0(view.reserve.value)} · {L("gasto médio", "avg spend")} {amt0(view.reserve.avgExpenses)}</div></div>
       </div>
+
+      <SpendingMix
+        view={view}
+        onCategory={(category, m) => { if (m !== view.month) setMonth(m); setDetail({ kind: "category", category }); }}
+        onMonth={(m) => openMonth(m, "expense")}
+      />
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-head">

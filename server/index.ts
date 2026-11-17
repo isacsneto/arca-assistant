@@ -10,6 +10,7 @@ import { indicatorsSource } from "./indicators";
 import { dataDir, historyFile, ledgerFile, secretsFile } from "./paths";
 import { AI_CATEGORIES_VERSION, ledgerStore, needsAi, syncLedger } from "./ledger";
 import { cashflowView } from "../shared/cashflowView";
+import { describeHighlight } from "../shared/spendingInsights";
 import { taxView } from "../shared/taxView";
 import { categorize, categoryOf } from "../shared/cashflow";
 import { addMonths, planAuto, planCardBills, planGrid } from "../shared/monthlyPlan";
@@ -202,6 +203,7 @@ function chatExtras(state: import("../shared/types").AppState): string[] {
     out.push([
       "GASTOS (conta e cartão, Open Finance):",
       ...months,
+      `- Destaques de ${v.month}: ${v.highlights.map((h) => describeHighlight(h, brl)).join(" | ") || "nenhum"}`,
       `- Sobra média (3 meses): ${v.capacity ? brl(v.capacity.average) : "n/d"}/mês`,
       `- Recorrentes: ${v.recurring.length} (${brl(v.recurring.reduce((s, r) => s + r.amount, 0))}/mês): ${v.recurring.slice(0, 8).map((r) => `${r.label} ${brl(r.amount)}`).join("; ")}`,
       `- Reserva: ${brl(v.reserve.value)} = ${v.reserve.months?.toFixed(1) ?? "?"} meses de gasto médio (${brl(v.reserve.avgExpenses)})`,

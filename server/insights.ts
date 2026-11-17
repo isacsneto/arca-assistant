@@ -6,6 +6,7 @@ import type { MonthStats, Snapshot } from "../shared/history";
 import { runAi } from "./ai";
 import { CATEGORIES, categoryOf } from "../shared/cashflow";
 import type { CashflowView } from "../shared/cashflowView";
+import { describeHighlight } from "../shared/spendingInsights";
 import type { TaxView } from "../shared/taxView";
 import { planningOf } from "../shared/planning";
 
@@ -157,7 +158,7 @@ Formato (markdown simples, até ~300 palavras):
 3. "Orçamento sugerido": limite mensal para as 5–8 maiores categorias.
 4. Uma frase ligando a sobra aos investimentos (quanto daria para aportar por mês).
 Sem julgamento moral; seja prático.`,
-    prompt: `MESES:\n${months.join("\n")}\n\nSOBRA MÉDIA (3 meses): ${view.capacity ? brl(view.capacity.average) : "n/d"}\nRESERVA: ${brl(view.reserve.value)} (${view.reserve.months?.toFixed(1) ?? "?"} meses de gasto)\n\nRECORRENTES:\n${rec.join("\n") || "- nenhum detectado"}\n\nEscreva a análise.`,
+    prompt: `MESES:\n${months.join("\n")}\n\nSOBRA MÉDIA (3 meses): ${view.capacity ? brl(view.capacity.average) : "n/d"}\nRESERVA: ${brl(view.reserve.value)} (${view.reserve.months?.toFixed(1) ?? "?"} meses de gasto)\n\nDESTAQUES DE ${view.month} (calculados pelo app):\n${view.highlights.map((h) => `- ${describeHighlight(h, brl)}`).join("\n") || "- nenhum"}\n\nRECORRENTES:\n${rec.join("\n") || "- nenhum detectado"}\n\nEscreva a análise.`,
     schema: TextSchema,
     web: false,
     maxTurns: 6,

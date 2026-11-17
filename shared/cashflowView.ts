@@ -3,6 +3,7 @@ import { toBRL } from "./arca";
 import { categorize, monthlyFlows, savingsCapacity, type BankTx, type CategorySource, type MonthFlow } from "./cashflow";
 import { budgetStatus, cardBills, commitments, detectRecurring, reserveCoverage, suggestBudgets, type BudgetStatus, type CardBill, type Commitment, type LedgerData, type Recurring } from "./ledger";
 import { goalStatus, planningOf } from "./planning";
+import { categoryMix, spendingHighlights, type CategoryMix, type Highlight } from "./spendingInsights";
 
 export type ResolvedTx = BankTx & { category: string; categorySource: CategorySource };
 
@@ -23,6 +24,9 @@ export interface CashflowView {
   cardBills: CardBill[];
   /** Reserva de emergência e quantos meses de gasto ela cobre. */
   reserve: { value: number; source: "goal" | "liquid"; months: number | null; avgExpenses: number };
+  /** Para onde vai o dinheiro: categorias mês a mês (até o mês selecionado) e destaques do mês. */
+  mix: CategoryMix;
+  highlights: Highlight[];
 }
 
 /** Caixa com liquidez imediata (para estimar a reserva quando não há meta de reserva). */
@@ -75,5 +79,7 @@ export function cashflowView(state: AppState, ledger: LedgerData, month: string 
     // Com as transações já categorizadas (o detalhe da fatura mostra a categoria).
     cardBills: cardBills({ ...ledger, bankTx: tx }, today),
     reserve: { value: reserveValue, source: reserveGoal ? "goal" : "liquid", months: reserveCoverage(reserveValue, avgExpenses), avgExpenses },
+    mix: categoryMix(flows, selected),
+    highlights: spendingHighlights(flows, tx, selected, today),
   };
 }
