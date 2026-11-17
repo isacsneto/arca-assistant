@@ -48,7 +48,7 @@ test("composição: cores pelas maiores do histórico inteiro; o resto vira um b
 test("destaques de um mês fechado: total, maior categoria, o que subiu, hábito, maior gasto, parcelas, lugar novo", () => {
   const all = history();
   const flows = monthlyFlows(all, "2026-11-17");
-  const h = spendingHighlights(flows, all, "2026-10", "2026-11-17", 20);
+  const h = spendingHighlights(flows, all, "2026-10", "2026-11-17", { max: 20 });
   const kinds = h.map((x) => x.kind);
   assert.deepEqual(kinds, ["total", "top", "up", "up", "down", "merchant", "largest", "installments", "new"]);
   const total = h[0] as Extract<Highlight, { kind: "total" }>;
@@ -84,7 +84,7 @@ test("mês corrente: ritmo em vez de total e nada de 'caiu' (o mês ainda não a
 test("a mesma compra não vira dois destaques", () => {
   const all = [...history(), tx({ date: "2026-11-08", description: "ZARA", amount: -690, category: "pessoal" })];
   const flows = monthlyFlows(all, "2026-11-30");
-  const h = spendingHighlights(flows, all, "2026-11", "2026-11-30", 20);
+  const h = spendingHighlights(flows, all, "2026-11", "2026-11-30", { max: 20 });
   assert.ok(h.some((x) => x.kind === "up" && x.category === "pessoal"));
   assert.ok(!h.some((x) => x.kind === "new"), "o 'lugar novo' seria a mesma ZARA");
 });
@@ -96,4 +96,65 @@ test("muito em 'Outros' pede para categorizar; sem histórico não há comparaç
   assert.ok(h.some((x) => x.kind === "uncategorized"));
   assert.ok(!h.some((x) => x.kind === "total" || x.kind === "up" || x.kind === "new"), "sem meses anteriores, nada a comparar");
   assert.deepEqual(spendingHighlights(flows, all, "2026-05", "2026-11-01"), [], "mês sem gasto");
+});
+
+test("revisão: o aviso de 'Outros' não cai no corte de 7 destaques", () => {
+  const all = [...history(), tx({ date: "2026-10-27", description: "PIX FULANO", amount: -1000, category: "outros" })];
+  const flows = monthlyFlows(all, "2026-11-17");
+  const h = spendingHighlights(flows, all, "2026-10", "2026-11-17");
+  assert.equal(h.length, 7);
+  assert.equal(h.at(-1)!.kind, "uncategorized");
+});
+
+test("revisão: mês parcial do começo do histórico e meses sem dados não entram na média", () => {
+  const all = [
+    tx({ date: "2026-06-25", description: "MERCADO", amount: -100, category: "mercado" }), // sincronização começou dia 25
+    ...["2026-08", "2026-09"].map((m) => tx({ date: `${m}-10`, description: "MERCADO", amount: -1000, category: "mercado" })),
+    tx({ date: "2026-10-10", description: "MERCADO", amount: -1000, category: "mercado" }),
+  ];
+  const flows = monthlyFlows(all, "2026-10-31");
+  const total = spendingHighlights(flows, all, "2026-10", "2026-11-01").find((x) => x.kind === "total") as Extract<Highlight, { kind: "total" }>;
+  assert.equal(total.avg, 1000, "só ago e set (jul não tem dados; jun é parcial)");
+});
+
+test("revisão: estorno no passado não vira média negativa nem 'apareceu este mês'", () => {
+  const all = [
+    ...["2026-07", "2026-08", "2026-09", "2026-10"].map((m) => tx({ date: `${m}-05`, description: "ALUGUEL", amount: -2000, category: "moradia" })),
+    tx({ date: "2026-08-15", description: "LOJA ESTORNO", amount: 300, category: "compras" }),
+    tx({ date: "2026-10-15", description: "LOJA", amount: -50, category: "compras" }),
+  ];
+  const flows = monthlyFlows(all, "2026-10-31");
+  const h = spendingHighlights(flows, all, "2026-10", "2026-11-01");
+  assert.ok(!h.some((x) => x.kind === "up" && x.category === "compras"), "R$ 50 contra média 0 não é destaque");
+});
+
+test("revisão: 'lugar novo' com 2 meses de histórico; recorrente e descrição vazia não confundem", () => {
+  const all = [
+    ...["2026-09", "2026-10", "2026-11"].map((m) => tx({ date: `${m}-02`, description: "ALUGUEL", amount: -2000, category: "moradia" })),
+    tx({ date: "2026-09-20", description: "123456", amount: -40, category: "outros" }),
+    tx({ date: "2026-10-20", description: "654321", amount: -40, category: "outros" }),
+    tx({ date: "2026-11-05", description: "NETFLIX 03", amount: -60, category: "assinaturas" }),
+    // Mercado já existe nos meses anteriores (em outro lugar): a categoria não "apareceu", o lugar sim.
+    ...["2026-09", "2026-10"].map((m) => tx({ date: `${m}-12`, description: "SUPERMERCADO X", amount: -400, category: "mercado" })),
+    tx({ date: "2026-11-09", description: "LOJA NOVA", amount: -500, category: "mercado" }),
+    tx({ date: "2026-11-10", description: "999999", amount: -900, category: "compras" }),
+  ];
+  const flows = monthlyFlows(all, "2026-11-30");
+  const h = spendingHighlights(flows, all, "2026-11", "2026-11-30", { max: 20, recurring: ["netflix"] });
+  const largest = h.find((x) => x.kind === "largest") as Extract<Highlight, { kind: "largest" }>;
+  assert.equal(largest.label, "999999", "descrição só com números ainda pode ser o maior gasto avulso");
+  const fresh = h.find((x) => x.kind === "new") as Extract<Highlight, { kind: "new" }>;
+  assert.ok(fresh, "set e out bastam de histórico para novembro");
+  assert.equal(fresh.count, 1, "só LOJA NOVA: Netflix é recorrente e a descrição vazia não é 'lugar'");
+  assert.match(describeHighlight(largest, (n) => `R$ ${n}`), /10 de nov/, "data sem ambiguidade de dia/mês");
+});
+
+test("revisão: olhar um mês passado não mistura os lançamentos dos meses seguintes", () => {
+  const later = ["2026-11-05", "2026-12-05"].flatMap((d) => [
+    tx({ date: d, description: "ALUGUEL", amount: -2500, category: "moradia" }),
+    tx({ date: d, description: "LATAM AIRLINES", amount: -900, category: "viagem" }),
+  ]);
+  const base = history();
+  const at = (all: ReturnType<typeof history>) => spendingHighlights(monthlyFlows(all, "2026-12-31"), all, "2026-10", "2026-12-31", { max: 20 });
+  assert.deepEqual(at([...base, ...later]), at(base));
 });

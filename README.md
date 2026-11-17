@@ -19,7 +19,7 @@ Self-hosted: runs 100% on your computer. Your data never leaves it (it only goes
 ![Cursor](https://img.shields.io/badge/Cursor-CLI-111111)
 ![Open Finance](https://img.shields.io/badge/Open%20Finance-Pluggy-6c47ff)
 ![PWA](https://img.shields.io/badge/PWA-iOS%20%26%20Android-5a0fc8)
-![Tests](https://img.shields.io/badge/tests-269%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-274%20passing-2ea44f)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 <br/>
