@@ -80,6 +80,6 @@ export function cashflowView(state: AppState, ledger: LedgerData, month: string 
     cardBills: cardBills({ ...ledger, bankTx: tx }, today),
     reserve: { value: reserveValue, source: reserveGoal ? "goal" : "liquid", months: reserveCoverage(reserveValue, avgExpenses), avgExpenses },
     mix: categoryMix(flows, selected),
-    highlights: spendingHighlights(flows, tx, selected, today),
+    highlights: spendingHighlights(flows, tx, selected, today, { recurring: recurring.map((r) => r.key) }),
   };
 }

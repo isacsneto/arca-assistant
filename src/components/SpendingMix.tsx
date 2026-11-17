@@ -45,7 +45,6 @@ export function SpendingMix({ view, onCategory, onMonth }: { view: CashflowView;
   const current = view.months.find((m) => m.month === view.month);
   if (!current || current.expenses <= 0 || !mix.rows.length) return null;
 
-  const named = mix.keys.filter((k) => k !== REST);
   const ranked = Object.entries(current.byCategory).filter(([, v]) => v > 0.5).sort((a, b) => b[1] - a[1]);
   const shown = ranked.slice(0, 8);
   const hidden = ranked.slice(8);
@@ -85,7 +84,7 @@ export function SpendingMix({ view, onCategory, onMonth }: { view: CashflowView;
 
       <div className="sm-legend" aria-label={L("Legenda", "Legend")}>
         {(kind === "pie" ? slices.map((x) => x.key) : mix.keys).map((k) => (
-          <span key={k} className="sm-legend-item"><i style={{ background: color(named, k) }} />{name(k)}</span>
+          <span key={k} className="sm-legend-item"><i style={{ background: color(mix.keys, k) }} />{name(k)}</span>
         ))}
       </div>
       <div style={{ height: 230 }}>
@@ -100,7 +99,7 @@ export function SpendingMix({ view, onCategory, onMonth }: { view: CashflowView;
                   return (
                     <div className="sm-tip">
                       <div className="sm-tip-row">
-                        <span><i style={{ background: color(named, k) }} />{name(k)}</span>
+                        <span><i style={{ background: color(mix.keys, k) }} />{name(k)}</span>
                         <span className="num">{amt0(v)} <span className="muted">{pct((v / current.expenses) * 100, 0)}</span></span>
                       </div>
                     </div>
@@ -119,7 +118,7 @@ export function SpendingMix({ view, onCategory, onMonth }: { view: CashflowView;
                   const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
                   return <text x={x} y={y} fill="var(--text)" fontSize={11} textAnchor={x > cx ? "start" : "end"} dominantBaseline="central">{pct(share * 100, 0)}</text>;
                 }}>
-                {slices.map((x) => <Cell key={x.key} fill={color(named, x.key)} />)}
+                {slices.map((x) => <Cell key={x.key} fill={color(mix.keys, x.key)} />)}
               </Pie>
             </RePieChart>
           ) : (
@@ -138,7 +137,7 @@ export function SpendingMix({ view, onCategory, onMonth }: { view: CashflowView;
                     <div className="sm-tip-head"><b>{monthLong(String(label))}</b><b className="num">{amt0(row.total)}</b></div>
                     {items.map((p) => (
                       <div key={String(p.dataKey)} className="sm-tip-row">
-                        <span><i style={{ background: color(named, String(p.dataKey)) }} />{name(String(p.dataKey))}</span>
+                        <span><i style={{ background: color(mix.keys, String(p.dataKey)) }} />{name(String(p.dataKey))}</span>
                         <span className="num">{amt0(Number(p.value))} <span className="muted">{pct((Number(p.value) / row.total) * 100, 0)}</span></span>
                       </div>
                     ))}
@@ -149,7 +148,7 @@ export function SpendingMix({ view, onCategory, onMonth }: { view: CashflowView;
             {mix.keys.map((k, i) => (
               <Bar key={k} dataKey={k} stackId="mix" isAnimationActive={false} cursor="pointer" onClick={segClick(k)}
                 stroke="var(--surface)" strokeWidth={1} radius={i === mix.keys.length - 1 ? [4, 4, 0, 0] : 0}>
-                {mix.rows.map((r) => <Cell key={r.month} fill={color(named, k)} fillOpacity={r.month === view.month ? 1 : 0.5} />)}
+                {mix.rows.map((r) => <Cell key={r.month} fill={color(mix.keys, k)} fillOpacity={r.month === view.month ? 1 : 0.5} />)}
               </Bar>
             ))}
           </BarChart>
@@ -163,7 +162,7 @@ export function SpendingMix({ view, onCategory, onMonth }: { view: CashflowView;
           <div className="sm-rank">
             {shown.map(([c, v]) => (
               <button key={c} className="sm-rank-row" onClick={() => onCategory(c, view.month)}>
-                <span className="sm-rank-name"><i style={{ background: color(named, c) }} />{categoryOf(c).label()}</span>
+                <span className="sm-rank-name"><i style={{ background: color(mix.keys, c) }} />{categoryOf(c).label()}</span>
                 <span className="sm-rank-bar"><span style={{ width: `${(v / max) * 100}%` }} /></span>
                 <span className="num">{amt0(v)}</span>
                 <span className="muted small num sm-rank-share">{pct((v / current.expenses) * 100, 0)}</span>

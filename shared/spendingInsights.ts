@@ -1,5 +1,6 @@
 import { categoryOf, normDesc, type BankTx, type MonthFlow } from "./cashflow";
 import { L, locale } from "./i18n";
+import { addMonths } from "./monthlyPlan";
 
 /*
  * "Para onde vai o dinheiro": a composição dos gastos por categoria mês a mês e os destaques do mês
@@ -62,32 +63,71 @@ export type HighlightTone = "good" | "bad" | "neutral";
 /** Variação que merece destaque: 25% e pelo menos R$ 100 (abaixo disso é ruído). */
 const notable = (delta: number, base: number) => Math.abs(delta) >= Math.max(100, 0.25 * base);
 
-/** Estabelecimento de um lançamento: o nome do comerciante quando a Pluggy traz, senão a descrição limpa. */
-const merchantKey = (t: Tx) => normDesc(t.merchant || t.description);
-
-const addMonths = (m: string, k: number) => {
-  const d = new Date(`${m}-01T12:00:00Z`);
-  d.setUTCMonth(d.getUTCMonth() + k);
-  return d.toISOString().slice(0, 7);
+/**
+ * Estabelecimento de um lançamento: o nome do comerciante quando a Pluggy traz, senão a descrição limpa —
+ * a mesma chave dos recorrentes (detectRecurring), para "conta fixa" valer igual nas duas listas.
+ */
+const merchantKey = (t: Pick<Tx, "merchant" | "description">) => {
+  const k = normDesc(t.merchant || t.description).replace(/\s+\d+$/, "");
+  return k.length >= 3 ? k : "";
 };
 
+/**
+ * Primeiro mês completo do histórico: o Open Finance costuma começar no meio de um mês, e esse mês
+ * parcial puxaria a média para baixo.
+ */
+function firstFullMonth(tx: Tx[]): string | null {
+  let first: string | null = null;
+  for (const t of tx) if (!first || t.date < first) first = t.date;
+  if (!first) return null;
+  return Number(first.slice(8, 10)) > 7 ? addMonths(first.slice(0, 7), 1) : first.slice(0, 7);
+}
 
-/** Destaques do mês `month`, do mais importante para o menos. `tx` = todas as transações (para comparar com o passado). */
-export function spendingHighlights(flows: MonthFlow[], tx: Tx[], month: string, today: string, max = 7): Highlight[] {
+export interface HighlightOptions {
+  /** Quantos destaques no máximo (o aviso de "Outros" sempre fica). */
+  max?: number;
+  /** Chaves dos recorrentes detectados: contas fixas não são "maior gasto avulso" nem "lugar novo". */
+  recurring?: string[];
+}
+
+/**
+ * Destaques do mês `month`, do mais importante para o menos. `tx` = todas as transações (para comparar com
+ * o passado). A média é a dos 3 meses de calendário anteriores que têm dados completos.
+ */
+export function spendingHighlights(flows: MonthFlow[], tx: Tx[], month: string, today: string, opts: HighlightOptions = {}): Highlight[] {
+  const max = opts.max ?? 7;
   const f = flows.find((x) => x.month === month);
   if (!f || f.expenses <= 0) return [];
-  const prev = flows.filter((x) => x.month < month).slice(-3);
-  const avgOf = (pick: (x: MonthFlow) => number) => (prev.length ? prev.reduce((s, x) => s + pick(x), 0) / prev.length : null);
+  const full = firstFullMonth(tx) ?? month;
+  const prev = [3, 2, 1].map((k) => addMonths(month, -k)).filter((m) => m >= full)
+    .map((m) => flows.find((x) => x.month === m)).filter((x): x is MonthFlow => !!x);
+  // Estorno maior que o gasto deixaria a média negativa: para comparar, "nada" é zero.
+  const avgOf = (pick: (x: MonthFlow) => number) => (prev.length ? Math.max(0, prev.reduce((s, x) => s + pick(x), 0) / prev.length) : null);
   const ongoing = month === today.slice(0, 7);
   const out: Highlight[] = [];
 
-  const isExpense = (t: Tx) => categoryOf(t.category).kind === "expense";
+  // Uma passada no histórico: gastos dos 3 meses anteriores e do mês, e os lugares já vistos antes.
+  const from = `${addMonths(month, -3)}-01`, start = `${month}-01`;
+  const recent: Tx[] = [], spent: Tx[] = [];
+  const seen = new Set<string>();
+  let hasEarlier = false;
+  for (const t of tx) {
+    if (t.date < start) {
+      seen.add(merchantKey(t));
+      // "Novo" só faz sentido com pelo menos 2 meses de histórico antes deste.
+      if (t.date < `${addMonths(month, -1)}-01`) hasEarlier = true;
+    }
+    if (t.date < from || t.date > today || categoryOf(t.category).kind !== "expense") continue;
+    if (t.date.startsWith(month)) spent.push(t);
+    else if (t.date < start) recent.push(t);
+  }
+
   const avgTotal = avgOf((x) => x.expenses);
   if (avgTotal != null && avgTotal > 0) {
     if (ongoing) {
       // Até o mesmo dia nos meses anteriores: o aluguel do dia 5 não faz o começo do mês parecer "acima do ritmo".
       const day = today.slice(8, 10);
-      const sameDay = prev.reduce((s, p) => s - tx.filter((t) => t.date.startsWith(p.month) && t.date.slice(8, 10) <= day && isExpense(t)).reduce((a, t) => a + t.amount, 0), 0) / prev.length;
+      const sameDay = prev.reduce((s, p) => s - recent.filter((t) => t.date.startsWith(p.month) && t.date.slice(8, 10) <= day).reduce((a, t) => a + t.amount, 0), 0) / prev.length;
       out.push({ kind: "pace", amount: f.expenses, sameDay, day: Number(day), avg: avgTotal });
     } else out.push({ kind: "total", amount: f.expenses, avg: avgTotal });
   }
@@ -112,9 +152,7 @@ export function spendingHighlights(flows: MonthFlow[], tx: Tx[], month: string, 
     }
   }
 
-  // Gastos do mês, um a um (estorno numa categoria de gasto conta como negativo).
-  const spent = tx.filter((t) => t.date.startsWith(month) && t.date <= today && isExpense(t));
-  /** Rótulos já citados: dois destaques não falam da mesma compra. */
+  /** Estabelecimentos já citados: dois destaques não falam da mesma compra. */
   const mentioned = new Set<string>();
   const byMerchant = new Map<string, { label: string; category: string; amount: number; count: number }>();
   for (const t of spent) {
@@ -125,20 +163,22 @@ export function spendingHighlights(flows: MonthFlow[], tx: Tx[], month: string, 
     if (t.amount < 0) m.count++;
     byMerchant.set(k, m);
   }
-  const habit = [...byMerchant.values()].filter((m) => m.count >= 2 && m.amount > 0).sort((a, b) => b.amount - a.amount)[0];
+  const habit = [...byMerchant.entries()].filter(([, m]) => m.count >= 2 && m.amount > 0).sort((a, b) => b[1].amount - a[1].amount)[0];
   if (habit) {
-    out.push({ kind: "merchant", ...habit });
-    mentioned.add(normDesc(habit.label));
+    out.push({ kind: "merchant", ...habit[1] });
+    mentioned.add(habit[0]);
   }
 
-  // Contas fixas (o mesmo lugar em 2 dos 3 meses anteriores) não são novidade: o aluguel seria sempre o "maior gasto".
-  const fixed = new Map<string, Set<string>>();
-  for (const t of tx) {
-    if (t.date >= `${month}-01` || t.date < `${addMonths(month, -3)}-01` || t.amount >= 0) continue;
+  // Contas fixas não são novidade (o aluguel seria sempre o "maior gasto"): recorrentes detectados e o
+  // mesmo lugar em 2 dos 3 meses anteriores.
+  const fixed = new Set(opts.recurring ?? []);
+  const monthsOf = new Map<string, Set<string>>();
+  for (const t of recent) {
     const k = merchantKey(t);
-    fixed.set(k, (fixed.get(k) ?? new Set()).add(t.date.slice(0, 7)));
+    if (k && t.amount < 0) monthsOf.set(k, (monthsOf.get(k) ?? new Set()).add(t.date.slice(0, 7)));
   }
-  const largest = spent.filter((t) => t.amount < 0 && !mentioned.has(merchantKey(t)) && (fixed.get(merchantKey(t))?.size ?? 0) < 2)
+  for (const [k, ms] of monthsOf) if (ms.size >= 2) fixed.add(k);
+  const largest = spent.filter((t) => { const k = merchantKey(t); return t.amount < 0 && (!k || (!mentioned.has(k) && !fixed.has(k))); })
     .sort((a, b) => a.amount - b.amount)[0];
   if (largest && largest.amount <= -100) {
     out.push({ kind: "largest", label: largest.merchant || largest.description, category: largest.category, amount: -largest.amount, date: largest.date });
@@ -149,23 +189,20 @@ export function spendingHighlights(flows: MonthFlow[], tx: Tx[], month: string, 
   const instTotal = inst.reduce((s, t) => s - t.amount, 0);
   if (instTotal / f.expenses >= 0.05) out.push({ kind: "installments", amount: instTotal, share: instTotal / f.expenses, count: inst.length });
 
-  // "Novo" só faz sentido com pelo menos 2 meses de histórico antes deste.
-  const start = `${month}-01`;
-  if (tx.some((t) => t.date < `${addMonths(month, -2)}-01`)) {
-    const seen = new Set(tx.filter((t) => t.date < start).map(merchantKey));
-    const fresh = [...byMerchant.entries()].filter(([k, m]) => !seen.has(k) && m.amount > 0).map(([, m]) => m);
-    const total = fresh.reduce((s, m) => s + m.amount, 0);
-    const biggest = fresh.sort((a, b) => b.amount - a.amount)[0];
+  if (hasEarlier) {
+    const fresh = [...byMerchant.entries()].filter(([k, m]) => !seen.has(k) && !fixed.has(k) && m.amount > 0);
+    const total = fresh.reduce((s, [, m]) => s + m.amount, 0);
+    const [bk, biggest] = fresh.sort((a, b) => b[1].amount - a[1].amount)[0] ?? [];
     // Um lugar só, já citado (maior gasto) ou que é a categoria inteira que "apareceu este mês": seria repetir.
-    const repeat = fresh.length === 1 && (mentioned.has(normDesc(biggest.label)) || out.some((h) => h.kind === "up" && h.avg < 1 && h.category === biggest.category));
-    if (fresh.length && !repeat && total >= 100 && total / f.expenses >= 0.05)
+    const repeat = fresh.length === 1 && (mentioned.has(bk) || out.some((h) => h.kind === "up" && h.avg < 1 && h.category === biggest.category));
+    if (biggest && !repeat && total >= 100 && total / f.expenses >= 0.05)
       out.push({ kind: "new", label: biggest.label, category: biggest.category, amount: biggest.amount, count: fresh.length, total });
   }
 
+  // Muito em "Outros" é o único destaque que pede uma ação: não pode cair no corte.
   const other = f.byCategory.outros ?? 0;
-  if (other / f.expenses >= 0.08 && other >= 50) out.push({ kind: "uncategorized", amount: other, share: other / f.expenses });
-
-  return out.slice(0, max);
+  const keep: Highlight[] = other / f.expenses >= 0.08 && other >= 50 ? [{ kind: "uncategorized", amount: other, share: other / f.expenses }] : [];
+  return [...out.slice(0, max - keep.length), ...keep];
 }
 
 /** Bom, ruim ou neutro — decide a cor e o ícone do destaque. */
@@ -218,7 +255,7 @@ export function describeHighlight(h: Highlight, money: (n: number) => string): s
     case "merchant":
       return L(`Onde você mais gasta: ${h.label} — ${h.count} compras, ${money(h.amount)}.`, `Where you spend the most: ${h.label} — ${h.count} purchases, ${money(h.amount)}.`);
     case "largest": {
-      const day = new Date(`${h.date}T12:00:00Z`).toLocaleDateString(locale(), { day: "2-digit", month: "2-digit" });
+      const day = new Date(`${h.date}T12:00:00Z`).toLocaleDateString(locale(), { day: "numeric", month: "short" });
       return L(`Maior gasto avulso: ${h.label}, ${money(h.amount)} em ${day} (${cat(h.category)}).`, `Biggest one-off expense: ${h.label}, ${money(h.amount)} on ${day} (${cat(h.category)}).`);
     }
     case "installments":
